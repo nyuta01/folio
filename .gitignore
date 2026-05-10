@@ -1,0 +1,32 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+.env
+.envrc
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+
+# Node / Viewer (placeholder for later phases)
+node_modules/
+.next/
+.cache/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Folio implementation artifacts (kept out of sheet directories per spec)
+.folio-cache/
+.folio-runtime/
+
+# Build outputs
+.build/

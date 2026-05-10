@@ -1,0 +1,196 @@
+{
+  "schema_version": 1,
+  "updated": "2026-05-10",
+  "principles": [
+    "small-agent-entrypoint",
+    "repository-as-system-of-record",
+    "structured-task-state",
+    "one-task-at-a-time",
+    "shift-feedback-left",
+    "self-pdca",
+    "permanent-fix",
+    "deterministic-drift-detection",
+    "sheet-portability"
+  ],
+  "tasks": [
+    {
+      "id": "FOLIO-H-001",
+      "title": "Install lightweight AI-first harness baseline",
+      "priority": "P0",
+      "status": "done",
+      "owner": "agent",
+      "depends": [],
+      "plan_url": "docs/exec-plans/active/FOLIO-H-001-plan.md",
+      "paths": [
+        "AGENTS.md",
+        "AGENT_PROGRESS.md",
+        "Makefile",
+        "README.md",
+        ".gitignore",
+        ".github/workflows/verify.yml",
+        "design-doc.md",
+        "docs/design-docs/README.md",
+        "docs/design-docs/overview.md",
+        "docs/design-docs/adrs/README.md",
+        "docs/design-docs/adrs/template.md",
+        "docs/design-docs/adrs/0001-record-design-docs-and-adrs-under-docs.md",
+        "docs/methodology/harness-engineering.md",
+        "docs/methodology/permanent-fix-protocol.md",
+        "docs/methodology/self-pdca-loop.md",
+        "docs/product-specs/README.md",
+        "docs/product-specs/phase-0-minimum-sheet.md",
+        "docs/exec-plans/README.md",
+        "docs/exec-plans/active/README.md",
+        "docs/exec-plans/active/FOLIO-H-001-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "docs/QUALITY_SCORE.md",
+        "docs/agent-failures.md",
+        "scripts/agent-init.sh",
+        "scripts/harness_check.py",
+        "scripts/harness_drift.py",
+        "scripts/validate_docs.py"
+      ],
+      "verification": {
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true
+      },
+      "notes": "Adds the AGENTS routing file, structured task state, methodology docs, design-doc/ADR index, first product spec, single make verify gate, and CI workflow. Phase-specific smokes are intentionally deferred until product code exists."
+    },
+    {
+      "id": "FOLIO-H-002",
+      "title": "Scaffold Python package and Phase 0 contract validation",
+      "priority": "P0",
+      "status": "todo",
+      "owner": "agent",
+      "depends": ["FOLIO-H-001"],
+      "plan_url": null,
+      "paths": [
+        "pyproject.toml",
+        "src/folio",
+        "tests",
+        "Makefile",
+        "docs/product-specs/phase-0-minimum-sheet.md",
+        "docs/QUALITY_SCORE.md",
+        "AGENT_PROGRESS.md"
+      ],
+      "verification": {
+        "harness_check": null,
+        "drift_check": null,
+        "validate_docs": null,
+        "python_test": null
+      },
+      "notes": "Add the folio Python package scaffold, Pydantic v2 contract.yaml validation, the validate operation, and a python-test target behind make verify."
+    },
+    {
+      "id": "FOLIO-H-003",
+      "title": "Implement Phase 0 core operations on records.jsonl",
+      "priority": "P0",
+      "status": "todo",
+      "owner": "agent",
+      "depends": ["FOLIO-H-002"],
+      "plan_url": null,
+      "paths": [
+        "src/folio",
+        "tests",
+        "docs/product-specs/phase-0-minimum-sheet.md",
+        "docs/design-docs/adrs",
+        "AGENT_PROGRESS.md"
+      ],
+      "verification": {
+        "harness_check": null,
+        "drift_check": null,
+        "validate_docs": null,
+        "python_test": null
+      },
+      "notes": "Add DuckDB-backed get_contract, query, list_records, get_record, upsert_records, and delete_records with .lock acquisition, atomic writes, and editable_by validation."
+    },
+    {
+      "id": "FOLIO-H-004",
+      "title": "Add the folio CLI MVP",
+      "priority": "P0",
+      "status": "todo",
+      "owner": "agent",
+      "depends": ["FOLIO-H-003"],
+      "plan_url": null,
+      "paths": [
+        "src/folio/cli.py",
+        "tests",
+        "scripts/smoke-cli.sh",
+        "Makefile",
+        "docs/product-specs/phase-0-minimum-sheet.md",
+        "AGENT_PROGRESS.md"
+      ],
+      "verification": {
+        "harness_check": null,
+        "drift_check": null,
+        "validate_docs": null,
+        "python_test": null,
+        "cli_smoke": null
+      },
+      "notes": "Add the Typer-based folio CLI for validate, query, list, count, upsert, and delete, plus a deterministic CLI smoke against a temporary sheet behind make verify."
+    },
+    {
+      "id": "FOLIO-H-005",
+      "title": "Expand ADR coverage for Phase 0 design choices",
+      "priority": "P1",
+      "status": "todo",
+      "owner": "agent",
+      "depends": ["FOLIO-H-001"],
+      "plan_url": null,
+      "paths": [
+        "docs/design-docs/adrs",
+        "docs/design-docs/overview.md",
+        "docs/exec-plans/feature-list.json"
+      ],
+      "verification": {
+        "harness_check": null,
+        "drift_check": null,
+        "validate_docs": null
+      },
+      "notes": "Record ADRs for Python as the reference implementation, ODCS subset for contract.yaml, JSONL records, DuckDB SQL filter syntax, RFC 8785 cache-key canonicalization, and cache/runtime placement outside the sheet."
+    },
+    {
+      "id": "FOLIO-H-006",
+      "title": "Maintain self-PDCA loop and quality feedback artifacts",
+      "priority": "P1",
+      "status": "todo",
+      "owner": "agent",
+      "depends": ["FOLIO-H-001"],
+      "plan_url": null,
+      "paths": [
+        "docs/methodology/self-pdca-loop.md",
+        "docs/QUALITY_SCORE.md",
+        "scripts/harness_check.py",
+        "scripts/harness_drift.py"
+      ],
+      "verification": {
+        "harness_check": null,
+        "drift_check": null,
+        "validate_docs": null
+      },
+      "notes": "Standing task. Strengthen PDCA and quality-score enforcement when a repeated drift signal appears."
+    },
+    {
+      "id": "FOLIO-H-007",
+      "title": "Maintain permanent-fix and drift-detection loop",
+      "priority": "P1",
+      "status": "todo",
+      "owner": "agent",
+      "depends": ["FOLIO-H-001"],
+      "plan_url": null,
+      "paths": [
+        "docs/agent-failures.md",
+        "docs/methodology/permanent-fix-protocol.md",
+        "scripts/harness_drift.py",
+        "scripts/harness_check.py"
+      ],
+      "verification": {
+        "harness_check": null,
+        "drift_check": null,
+        "validate_docs": null
+      },
+      "notes": "Standing task. Create a concrete active plan when a repeated failure appears."
+    }
+  ]
+}
