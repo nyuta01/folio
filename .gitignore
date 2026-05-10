@@ -30,3 +30,8 @@ node_modules/
 
 # Build outputs
 .build/
+
+# Local copies of release artifacts (downloaded via `gh release download`).
+# The canonical assets live on GitHub Releases; the local mirror is for
+# inspection / smoke-testing only.
+/artifacts/
