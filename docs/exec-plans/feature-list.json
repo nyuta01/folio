@@ -92,24 +92,34 @@
       "id": "FOLIO-H-003",
       "title": "Implement Phase 0 core operations on records.jsonl",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "owner": "agent",
       "depends": ["FOLIO-H-002"],
-      "plan_url": null,
+      "plan_url": "docs/exec-plans/active/FOLIO-H-003-plan.md",
       "paths": [
-        "src/folio",
-        "tests",
-        "docs/product-specs/phase-0-minimum-sheet.md",
-        "docs/design-docs/adrs",
+        "pyproject.toml",
+        "uv.lock",
+        "src/folio/__init__.py",
+        "src/folio/exceptions.py",
+        "src/folio/sheet.py",
+        "src/folio/_records.py",
+        "src/folio/_lock.py",
+        "src/folio/_query.py",
+        "tests/conftest.py",
+        "tests/test_sheet.py",
+        "scripts/harness_check.py",
+        "docs/exec-plans/active/FOLIO-H-003-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "docs/QUALITY_SCORE.md",
         "AGENT_PROGRESS.md"
       ],
       "verification": {
-        "harness_check": null,
-        "drift_check": null,
-        "validate_docs": null,
-        "python_test": null
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true,
+        "python_test": true
       },
-      "notes": "Add DuckDB-backed get_contract, query, list_records, get_record, upsert_records, and delete_records with .lock acquisition, atomic writes, and editable_by validation."
+      "notes": "Added the Sheet class with get_contract, query (DuckDB SELECT-only), list_records (with pagination cursor and field projection), get_record, upsert_records, and delete_records. Writes go through atomic temp-file-plus-rename and acquire .lock with a 30s timeout via filelock. editable_by patterns are matched with fnmatch."
     },
     {
       "id": "FOLIO-H-004",

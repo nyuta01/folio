@@ -58,8 +58,14 @@ REQUIRED_FILES = [
     "src/folio/__init__.py",
     "src/folio/contract.py",
     "src/folio/exceptions.py",
+    "src/folio/sheet.py",
+    "src/folio/_records.py",
+    "src/folio/_lock.py",
+    "src/folio/_query.py",
     "tests/__init__.py",
+    "tests/conftest.py",
     "tests/test_contract.py",
+    "tests/test_sheet.py",
 ]
 
 for relative in REQUIRED_FILES:
