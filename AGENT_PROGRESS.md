@@ -144,7 +144,7 @@ Last updated: 2026-05-11
   table and asserts it matches the live code; `make verify-spec` is part
   of the `verify` gate. Drift fails CI.
 - Distribution artifacts:
-  - `make dist` builds `dist/folio-*.whl` + `dist/folio-*.tar.gz` via
+  - `make dist` builds `dist/folio_kit-*.whl` + `dist/folio_kit-*.tar.gz` via
     `uv build`. `make dist-check` smokes the wheel in a clean venv.
   - `.github/workflows/release-python.yml` fires on `v*.*.*` tag push,
     builds and smokes the wheel, attaches the wheel + sdist +

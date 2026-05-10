@@ -32,8 +32,9 @@ wants to add a derivation, run materialize, or query — see the other
 
 - `folio` Python CLI is installed:
   ```
-  pipx install folio   # or: uv tool install folio
+  pipx install folio-kit   # or: uv tool install folio-kit
   ```
+  (PyPI distribution name is `folio-kit`; the binary on disk is `folio`.)
   Verify with `folio --help`. If the user is on macOS Apple Silicon
   and `folio --help` errors with ENOENT, they may need to add
   `~/.local/bin` to PATH.

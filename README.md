@@ -44,7 +44,7 @@ Or read the canonical sources directly:
 ## Quickstart
 
 ```bash
-uv tool install folio
+uv tool install folio-kit          # → installs the `folio` command
 
 folio validate examples/customers
 folio materialize examples/customers --actor agent:demo
@@ -60,17 +60,17 @@ want to use Folio.
 ### Python (CLI + SDK + MCP server + Viewer backend)
 
 ```bash
-# from PyPI once published (preferred)
-pipx install folio
-uv tool install folio
+# from PyPI (preferred)
+pipx install folio-kit
+uv tool install folio-kit
 
 # from a tagged GitHub Release wheel
-pipx install https://github.com/nyuta01/folio/releases/download/vX.Y.Z/folio-X.Y.Z-py3-none-any.whl
+pipx install https://github.com/nyuta01/folio/releases/download/vX.Y.Z/folio_kit-X.Y.Z-py3-none-any.whl
 ```
 
-The wheel installs three console scripts: `folio`, `folio-mcp`,
-`folio-viewer`. SHA-256 checksums for every release artifact are
-attached as `SHA256SUMS.txt`.
+The PyPI distribution name is `folio-kit`; the wheel installs three
+console scripts: `folio`, `folio-mcp`, `folio-viewer`. SHA-256
+checksums for every release artifact are attached as `SHA256SUMS.txt`.
 
 ### Folio Desktop (Electron wrapper)
 
@@ -161,7 +161,7 @@ git push origin v0.2.0
 
 Two workflows then fire:
 
-- **`release-python.yml`** builds `dist/folio-*.whl` + `dist/folio-*.tar.gz`,
+- **`release-python.yml`** builds `dist/folio_kit-*.whl` + `dist/folio_kit-*.tar.gz`,
   smoke-tests the wheel in a clean venv, and attaches both plus a
   `SHA256SUMS.txt` to a draft GitHub Release.
 - **`release-desktop.yml`** builds `viewer/dist/`, then runs

@@ -14,8 +14,11 @@ scripts: `folio`, `folio-mcp`, and `folio-viewer`. Python 3.13+ is required.
 puts the entry point on your `PATH`.
 
 ```bash
-uv tool install folio
+uv tool install folio-kit
 ```
+
+The PyPI distribution name is `folio-kit`; it puts three commands on
+your `PATH`: `folio`, `folio-mcp`, and `folio-viewer`.
 
 Verify:
 
@@ -45,7 +48,7 @@ If you prefer not to use uv:
 <TabItem label="pipx">
 
 ```bash
-pipx install folio
+pipx install folio-kit
 ```
 
 </TabItem>
@@ -54,7 +57,7 @@ pipx install folio
 ```bash
 python3.13 -m venv .venv
 source .venv/bin/activate
-pip install folio
+pip install folio-kit
 ```
 
 </TabItem>

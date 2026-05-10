@@ -8,7 +8,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-WHEEL="$(ls "${REPO_ROOT}/dist"/folio-*.whl 2>/dev/null | head -n 1)"
+WHEEL="$(ls "${REPO_ROOT}/dist"/folio_kit-*.whl 2>/dev/null | head -n 1)"
 
 if [[ -z "${WHEEL}" ]]; then
   echo "smoke-dist: no wheel under dist/ — run \`make dist\` first" >&2

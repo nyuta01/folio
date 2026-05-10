@@ -39,7 +39,7 @@ included in `extraResources/`.
 
 Bundle the official PEP-711-style standalone Python distribution
 (<https://github.com/astral-sh/python-build-standalone>) into
-`extraResources/python/`, then `pip install folio` into that copy at
+`extraResources/python/`, then `pip install folio-kit` into that copy at
 package time. The desktop app launches `extraResources/python/bin/python -m folio_viewer.cli ...`.
 
 - **Pros:** true zero-prerequisite, `python -m venv` works (it is a
@@ -50,7 +50,7 @@ package time. The desktop app launches `extraResources/python/bin/python -m foli
 
 ### C. Require host Python (chosen)
 
-Document `pipx install folio` (or any equivalent) as a prerequisite.
+Document `pipx install folio-kit` (or any equivalent) as a prerequisite.
 The desktop app probes `FOLIO_VIEWER_BIN` ⇒ `<repo>/.venv/bin/folio-viewer`
 ⇒ `PATH` (in that order) and surfaces a clear error dialog when none
 of the candidates resolves to a runnable binary.

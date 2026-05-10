@@ -55,8 +55,8 @@ jobs:
         id: artifacts
         run: |
           set -euo pipefail
-          wheel="$(ls dist/folio-*.whl)"
-          sdist="$(ls dist/folio-*.tar.gz)"
+          wheel="$(ls dist/folio_kit-*.whl)"
+          sdist="$(ls dist/folio_kit-*.tar.gz)"
           {
             echo "wheel=${wheel}"
             echo "sdist=${sdist}"
@@ -65,7 +65,7 @@ jobs:
       - name: Generate SHA-256 checksums
         run: |
           cd dist
-          shasum -a 256 folio-*.whl folio-*.tar.gz > SHA256SUMS.txt
+          shasum -a 256 folio_kit-*.whl folio_kit-*.tar.gz > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
       - name: Create / update GitHub Release with assets
@@ -85,8 +85,8 @@ jobs:
         with:
           name: folio-python-${{ github.ref_name }}
           path: |
-            dist/folio-*.whl
-            dist/folio-*.tar.gz
+            dist/folio_kit-*.whl
+            dist/folio_kit-*.tar.gz
             dist/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 30
@@ -94,7 +94,7 @@ jobs:
   # ── PyPI publish (OIDC trusted publishing) ────────────────────────
   #
   # Configured at https://pypi.org/manage/account/publishing/ with:
-  #   project=folio, owner=nyuta01, repo=folio,
+  #   project=folio-kit, owner=nyuta01, repo=folio,
   #   workflow=release-python.yml, environment=pypi.
   #
   # The job is gated by the explicit `publish-pypi` dispatch input —
@@ -110,7 +110,7 @@ jobs:
     timeout-minutes: 10
     environment:
       name: pypi
-      url: https://pypi.org/p/folio
+      url: https://pypi.org/p/folio-kit
     permissions:
       id-token: write
     steps:
