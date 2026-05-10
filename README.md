@@ -89,6 +89,52 @@ it is missing, the launcher offers an "Open install docs" button. See
 [`docs/methodology/desktop-runtime.md`](docs/methodology/desktop-runtime.md)
 for the rationale.
 
+#### First-launch warning (unsigned builds)
+
+Folio Desktop ships **unsigned and un-notarized** today. Both macOS
+Gatekeeper and Windows SmartScreen will warn on first launch. This is
+expected — the workarounds below are safe; signing and notarization
+are tracked as a release follow-up.
+
+**macOS** — *"Apple は、"Folio" にマルウェアが含まれていないことを検証できませんでした"* / *"Apple could not verify that "Folio" is free of malware"*:
+
+```bash
+# 1. Drag Folio.app into /Applications first.
+# 2. Then strip the quarantine attribute Chrome / Safari put there:
+xattr -dr com.apple.quarantine /Applications/Folio.app
+open /Applications/Folio.app
+```
+
+Or, without Terminal: right-click `Folio.app` in Finder → **Open** →
+confirm in the dialog. After that, normal double-click works.
+
+If macOS shows *"Folio was blocked"* in **System Settings → Privacy &
+Security**, scroll to the bottom and click **Open Anyway**.
+
+**Windows** — *"Microsoft Defender SmartScreen prevented an
+unrecognized app from starting"*:
+
+Click **More info** → **Run anyway**. Or use the portable
+`Folio.X.Y.Z.exe` and approve the unverified-publisher prompt.
+
+**Linux** — `.AppImage` works without prompts; `.deb` is unsigned:
+
+```bash
+chmod +x Folio-X.Y.Z.AppImage
+./Folio-X.Y.Z.AppImage
+
+# or for the .deb:
+sudo dpkg -i folio-desktop_X.Y.Z_amd64.deb
+```
+
+**Verifying the download** — every release ships
+`SHA256SUMS-{macos-arm64,linux-x64,windows-x64}.txt`. Compare locally:
+
+```bash
+shasum -a 256 Folio-X.Y.Z-arm64.dmg     # macOS / Linux
+certutil -hashfile "Folio Setup X.Y.Z.exe" SHA256   # Windows
+```
+
 ### Documentation site
 
 Browse [the Folio docs](https://nyuta01.github.io/folio/) or build them
