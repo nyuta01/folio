@@ -1,0 +1,4 @@
+targets: [country_code]
+inputs: [country]
+kind: python
+script: country_to_code

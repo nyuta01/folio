@@ -1,0 +1,4 @@
+targets: [domain]
+inputs: [url]
+kind: python
+script: url_to_domain

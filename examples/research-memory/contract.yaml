@@ -1,0 +1,51 @@
+apiVersion: v3.0.0
+kind: DataContract
+id: example-research-memory
+name: research-memory
+version: 1.0.0
+description: |
+  Use Case 2.2 — Structured Working Memory for Agents. A long-running
+  research agent stores intermediate findings here. Each candidate
+  starts as status="candidate" and is graduated to "verified" after
+  human review. The domain field is auto-derived from the URL by a
+  python kind so links can be grouped without an LLM call.
+schema:
+  - name: items
+    physicalType: jsonl
+    properties:
+      - name: id
+        logicalType: string
+        primaryKey: true
+        required: true
+      - name: query
+        logicalType: string
+        required: true
+        description: The agent's research question that surfaced this candidate.
+        x-editable-by: ["agent:research", "agent:human"]
+      - name: url
+        logicalType: string
+        required: true
+        description: Source URL.
+        x-editable-by: ["agent:research", "agent:human"]
+      - name: title
+        logicalType: string
+        description: Page title or extracted heading.
+        x-editable-by: ["agent:research", "agent:human"]
+      - name: snippet
+        logicalType: string
+        description: Short excerpt the agent extracted.
+        x-editable-by: ["agent:research", "agent:human"]
+      - name: status
+        logicalType: string
+        required: true
+        description: One of `candidate` / `verified` / `rejected`.
+        x-editable-by: ["agent:human"]
+      - name: notes
+        logicalType: string
+        description: Reviewer notes.
+        x-editable-by: ["agent:human"]
+      - name: domain
+        logicalType: string
+        description: Host derived from the URL (python kind).
+        x-derived: true
+        x-inputs: [url]

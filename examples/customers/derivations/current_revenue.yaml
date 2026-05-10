@@ -1,0 +1,6 @@
+targets: [current_revenue_usd]
+inputs: []
+kind: cross_sheet
+source_sheet: ../customer-revenue
+key_field: id
+value_field: revenue_usd

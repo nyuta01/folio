@@ -1,0 +1,7 @@
+{"id": "cust_001", "company_name": "Acme Manufacturing", "country": "Japan", "industry_name": "Manufacturing", "country_code": "JP", "current_revenue_usd": 12500000}
+{"id": "cust_002", "company_name": "DataFlowf", "country": "United States", "industry_name": "Software", "country_code": "US", "current_revenue_usd": 88000000}
+{"id": "cust_003", "company_name": "NordicSoft", "country": "Sweden", "industry_name": "Software", "country_code": "SE", "current_revenue_usd": 4200000}
+{"id": "cust_004", "company_name": "Pacific Foods", "country": "Australia", "industry_name": "Foods", "country_code": "AU", "current_revenue_usd": 27000000}
+{"id": "cust_005", "company_name": "Stuttgart Tools", "country": "Germany", "industry_name": "Manufacturing", "country_code": "DE", "current_revenue_usd": 51000000}
+{"id": "cust_006", "company_name": "Helsinki Logistics", "country": "Finland", "industry_name": "Logistics", "country_code": "??"}
+{"id": "cust_007", "company_name": "MediCare Plus", "country": "United Kingdom", "industry_name": "Healthcare", "country_code": "GB"}

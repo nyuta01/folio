@@ -1,0 +1,40 @@
+apiVersion: v3.0.0
+kind: DataContract
+id: example-research-notes
+name: research-notes
+version: 1.0.0
+description: |
+  Use Case 2.3 — Semi-structured Research Data Accumulation. Internal
+  research notes (competitive analysis, technical experiments, market
+  observations) accumulate here. Humans (or AI agents) supply
+  title / body / category. word_count is derived offline from body.
+schema:
+  - name: items
+    physicalType: jsonl
+    properties:
+      - name: id
+        logicalType: string
+        primaryKey: true
+        required: true
+      - name: title
+        logicalType: string
+        required: true
+        x-editable-by: ["agent:human"]
+      - name: body
+        logicalType: string
+        required: true
+        x-editable-by: ["agent:human"]
+      - name: category
+        logicalType: string
+        required: true
+        description: One of `competitive` / `technical` / `market` / `internal`.
+        x-editable-by: ["agent:human"]
+      - name: tags
+        logicalType: array
+        description: Free-form tags.
+        x-editable-by: ["agent:human"]
+      - name: word_count
+        logicalType: integer
+        description: Word count derived from body (python kind).
+        x-derived: true
+        x-inputs: [body]

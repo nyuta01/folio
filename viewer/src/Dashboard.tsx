@@ -39,63 +39,112 @@ export function Dashboard({ actor }: { actor: string }) {
     }
   }
 
-  const banner = event && event.kind.startsWith("materialize.")
-    ? `${event.kind} @ ${event.ts}`
-    : null;
+  const indicatorClass = running
+    ? "pulse running"
+    : event?.kind === "materialize.start"
+      ? "pulse running"
+      : event
+        ? "pulse"
+        : "pulse idle";
+
+  const statusText = running
+    ? "running…"
+    : event
+      ? `${event.kind} · ${formatTime(event.ts)}`
+      : "idle";
+
+  const targets = Object.entries(status);
 
   return (
     <div data-testid="dashboard">
-      <div style={{ marginBottom: 12 }}>
-        <button
-          data-testid="materialize-all"
-          onClick={runAll}
-          disabled={running}
-        >
-          {running ? "Materializing…" : "Materialize all"}
-        </button>
-        {banner && (
-          <span style={{ marginLeft: 12, color: "#666" }}>{banner}</span>
-        )}
+      <div className="dash-toolbar">
+        <h2 className="page-h2">materialization status</h2>
+        <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
+          <div className="dash-status">
+            <span className={indicatorClass} />
+            <span className="mono" style={{ fontSize: 11.5 }}>
+              {statusText}
+            </span>
+          </div>
+          <button
+            className="btn btn-primary"
+            data-testid="materialize-all"
+            onClick={runAll}
+            disabled={running}
+          >
+            {running ? "Materializing…" : "Materialize all"}
+          </button>
+        </div>
       </div>
-      {error && <p style={{ color: "red" }}>{error}</p>}
-      <table style={{ borderCollapse: "collapse" }}>
-        <thead>
-          <tr>
-            <th style={th}>Target</th>
-            <th style={th}>Kind</th>
-            <th style={th}>AI</th>
-            <th style={th}>Import</th>
-            <th style={th}>Human</th>
-            <th style={th}>None</th>
-            <th style={th}>Last run</th>
-          </tr>
-        </thead>
-        <tbody>
-          {Object.entries(status).map(([target, info]) => (
-            <tr key={target}>
-              <td style={td}>{target}</td>
-              <td style={td}>{info.derivation_kind ?? ""}</td>
-              <td style={td}>{info.ai_count ?? 0}</td>
-              <td style={td}>{info.import_count ?? 0}</td>
-              <td style={td}>{info.human_count ?? 0}</td>
-              <td style={td}>{info.none_count ?? 0}</td>
-              <td style={td}>{info.last_run ?? "—"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+
+      {error && (
+        <div className="card" style={{ padding: 12, color: "var(--danger)", fontSize: 12 }}>
+          {error}
+        </div>
+      )}
+
+      {targets.length === 0 ? (
+        <div className="card empty">
+          <div className="empty-mark">∅</div>
+          <div>No derivations declared in this sheet.</div>
+        </div>
+      ) : (
+        <div className="dash-grid">
+          {targets.map(([target, info]) => {
+            const ai = info.ai_count ?? 0;
+            const imp = info.import_count ?? 0;
+            const human = info.human_count ?? 0;
+            const none = info.none_count ?? 0;
+            const kind = info.derivation_kind ?? "—";
+            return (
+              <div className="dash-card" key={target}>
+                <div className="dash-card-head">
+                  <span className="dash-card-name">{target}</span>
+                  <span className={`dash-card-kind kind-text-${kind}`}>
+                    <span className={`kind-dot kind-${kind}`} />
+                    {kind}
+                  </span>
+                </div>
+                <div className="dash-counts">
+                  <Count n={ai} label="ai" dim={ai === 0} />
+                  <Count n={imp} label="import" dim={imp === 0} />
+                  <Count n={human} label="human" dim={human === 0} />
+                  <Count n={none} label="none" dim={none === 0} />
+                </div>
+                <div className="dash-card-foot">
+                  last run · {info.last_run ? formatTime(info.last_run) : "never"}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
 
-const th: React.CSSProperties = {
-  border: "1px solid #ccc",
-  padding: "4px 8px",
-  background: "#f5f5f5",
-  textAlign: "left",
-};
+function Count({
+  n,
+  label,
+  dim,
+}: {
+  n: number;
+  label: string;
+  dim: boolean;
+}) {
+  return (
+    <div className={`dash-count${dim ? " dim" : ""}`}>
+      <span className="n">{n}</span>
+      <span className="label">{label}</span>
+    </div>
+  );
+}
 
-const td: React.CSSProperties = {
-  border: "1px solid #eee",
-  padding: "4px 8px",
-};
+function formatTime(iso: string): string {
+  try {
+    const date = new Date(iso);
+    return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  } catch {
+    return iso;
+  }
+}

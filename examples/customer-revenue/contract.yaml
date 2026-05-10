@@ -1,0 +1,34 @@
+apiVersion: v3.0.0
+kind: DataContract
+id: example-customer-revenue
+name: customer-revenue
+version: 1.0.0
+description: |
+  Sibling sheet for customers/. Each row is keyed by the same
+  customer id and carries financial figures. customers/ pulls
+  current_revenue from here via the cross_sheet derivation kind —
+  this is the canonical "1:1 sidecar" pattern that cross_sheet
+  was designed for.
+schema:
+  - name: items
+    physicalType: jsonl
+    properties:
+      - name: id
+        logicalType: string
+        primaryKey: true
+        required: true
+        description: Must match customers.id 1:1.
+      - name: revenue_usd
+        logicalType: number
+        required: true
+        description: Most recent fiscal-year revenue in USD.
+        x-editable-by: ["agent:finance"]
+      - name: contract_value_usd
+        logicalType: number
+        description: Active contract value in USD.
+        x-editable-by: ["agent:finance"]
+      - name: as_of
+        logicalType: date
+        required: true
+        description: Date the revenue figure was confirmed.
+        x-editable-by: ["agent:finance"]

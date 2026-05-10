@@ -1,0 +1,4 @@
+targets: [progress]
+inputs: [checklist]
+kind: python
+script: progress

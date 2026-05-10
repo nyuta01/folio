@@ -1,0 +1,5 @@
+targets: [word_count]
+inputs: [body]
+kind: python
+script: count_words
+output: text

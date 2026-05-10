@@ -1,0 +1,50 @@
+apiVersion: v3.0.0
+kind: DataContract
+id: example-onboarding
+name: onboarding
+version: 1.0.0
+description: |
+  Use Case 2.4 — Operational Worklist. Each row is one new-hire
+  onboarding. Humans own owner / due_date / status, and the
+  checklist is a JSON array of {label, done} pairs that drives
+  the derived progress field (e.g. "3/5") via a python kind.
+schema:
+  - name: items
+    physicalType: jsonl
+    properties:
+      - name: id
+        logicalType: string
+        primaryKey: true
+        required: true
+      - name: hire_name
+        logicalType: string
+        required: true
+        x-editable-by: ["agent:human"]
+      - name: role
+        logicalType: string
+        required: true
+        x-editable-by: ["agent:human"]
+      - name: start_date
+        logicalType: date
+        required: true
+        x-editable-by: ["agent:human"]
+      - name: owner
+        logicalType: string
+        required: true
+        description: HR partner responsible for this onboarding.
+        x-editable-by: ["agent:human"]
+      - name: status
+        logicalType: string
+        required: true
+        description: One of `pending` / `in_progress` / `complete`.
+        x-editable-by: ["agent:human"]
+      - name: checklist
+        logicalType: array
+        required: true
+        description: Array of {label, done} items.
+        x-editable-by: ["agent:human"]
+      - name: progress
+        logicalType: string
+        description: "<done>/<total> string derived from checklist (python kind)."
+        x-derived: true
+        x-inputs: [checklist]
