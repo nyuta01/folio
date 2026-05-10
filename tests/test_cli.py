@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -211,8 +212,12 @@ def test_upsert_requires_actor(runner: CliRunner, minimal_sheet: Path) -> None:
         input='{"id": "x", "title": "X"}\n',
     )
     assert result.exit_code != 0
-    # Typer surfaces missing --actor as a usage error on stderr.
-    assert "--actor" in (result.stderr or result.stdout)
+    # Typer surfaces missing --actor as a usage error on stderr. CI's
+    # non-TTY rendering interleaves ANSI codes inside the literal, so
+    # strip them before searching for the option name.
+    raw = (result.stderr or result.stdout) or ""
+    plain = re.sub(r"\x1b\[[0-9;]*m", "", raw)
+    assert "--actor" in plain or "actor" in plain.lower()
 
 
 # --- delete ----------------------------------------------------------------
