@@ -154,12 +154,39 @@ class ImportDerivation(_BaseDerivation):
 # --- discriminated union ---------------------------------------------------
 
 
+def _build_derivation_adapter() -> TypeAdapter[Any]:
+    """Construct the discriminated TypeAdapter, including extension kinds.
+
+    Imported lazily so ``folio.derivation`` does not depend on
+    ``folio.kinds`` at import time (the kinds module imports
+    ``_BaseDerivation`` from this module).
+    """
+    from .kinds._http import HTTPDerivation
+    from .kinds._sql import SQLDerivation
+
+    union = Annotated[
+        Union[AIDerivation, ImportDerivation, SQLDerivation, HTTPDerivation],
+        Field(discriminator="kind"),
+    ]
+    return TypeAdapter(union)
+
+
+# Phase 1 typing surface remains the standard pair so existing isinstance
+# checks compile; the runtime parser in :func:`load_derivation` consults
+# the full extension union via :func:`_build_derivation_adapter`.
 Derivation = Annotated[
     Union[AIDerivation, ImportDerivation],
     Field(discriminator="kind"),
 ]
 
-_DerivationAdapter: TypeAdapter[Derivation] = TypeAdapter(Derivation)
+_DerivationAdapter: TypeAdapter[Any] | None = None
+
+
+def _adapter() -> TypeAdapter[Any]:
+    global _DerivationAdapter
+    if _DerivationAdapter is None:
+        _DerivationAdapter = _build_derivation_adapter()
+    return _DerivationAdapter
 
 
 # --- public loaders --------------------------------------------------------
@@ -178,7 +205,7 @@ def load_derivation(path: Path) -> Derivation:
     if "kind" not in raw:
         raise DerivationError(f"{path}: missing required field 'kind'")
     try:
-        return _DerivationAdapter.validate_python(raw)
+        return _adapter().validate_python(raw)
     except ValidationError as exc:
         raise DerivationError(f"{path}: {exc}") from exc
 

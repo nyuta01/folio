@@ -508,29 +508,37 @@
       "id": "FOLIO-H-020",
       "title": "Implement Phase 4 sql and http extension kinds",
       "priority": "P2",
-      "status": "todo",
+      "status": "done",
       "owner": "agent",
       "depends": ["FOLIO-H-019"],
-      "plan_url": null,
+      "plan_url": "docs/exec-plans/active/FOLIO-H-020-plan.md",
       "paths": [
+        "pyproject.toml",
+        "uv.lock",
         "src/folio/kinds/__init__.py",
         "src/folio/kinds/_sql.py",
         "src/folio/kinds/_http.py",
         "src/folio/derivation.py",
+        "src/folio/_cache.py",
+        "src/folio/sheet.py",
         "tests/test_kind_sql.py",
         "tests/test_kind_http.py",
         "scripts/smoke-extension-kinds.sh",
+        "scripts/_extension_kinds_smoke.py",
         "Makefile",
-        "scripts/harness_check.py"
+        "scripts/harness_check.py",
+        "docs/exec-plans/active/FOLIO-H-020-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "AGENT_PROGRESS.md"
       ],
       "verification": {
-        "harness_check": null,
-        "drift_check": null,
-        "validate_docs": null,
-        "python_test": null,
-        "extension_kinds_smoke": null
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true,
+        "python_test": true,
+        "extension_kinds_smoke": true
       },
-      "notes": "Introduce the kind registry, ship the sql and http extension kinds (with a deterministic stub HTTP transport), and add the extension-kinds smoke."
+      "notes": "Extended the discriminated derivation union with SQLDerivation (DuckDB SELECT-only expression with parameter passthrough; records.jsonl hash folds into input_hash; cache bypassed) and HTTPDerivation (templated URL/body, response_path/response_schema dot-path, HTTPTransport Protocol with HTTPXTransport adapter and StubHTTPTransport for offline tests). Added compute_input_hash extra_components passthrough, Sheet.materialize sql + http branches, and the extension-kinds-smoke gate."
     },
     {
       "id": "FOLIO-H-021",

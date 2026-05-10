@@ -56,6 +56,10 @@ scripts-smoke: ## Run the Phase 2 reusable-script smoke against a temporary shee
 mcp-smoke: ## Run the Phase 3 MCP server smoke through FastMCP's in-process client.
 	@bash scripts/smoke-mcp.sh
 
+.PHONY: extension-kinds-smoke
+extension-kinds-smoke: ## Run the Phase 4 sql + http extension-kind smoke offline.
+	@bash scripts/smoke-extension-kinds.sh
+
 .PHONY: verify
-verify: harness-check drift-check validate-docs python-test cli-smoke materialize-smoke scripts-smoke mcp-smoke ## Run the current single verification gate.
+verify: harness-check drift-check validate-docs python-test cli-smoke materialize-smoke scripts-smoke mcp-smoke extension-kinds-smoke ## Run the current single verification gate.
 	@echo "verify: ok"

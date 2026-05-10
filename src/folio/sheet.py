@@ -43,6 +43,13 @@ from .derivation import (
     load_derivation_files,
     topological_sort,
 )
+from .kinds import (
+    HTTPDerivation,
+    HTTPTransport,
+    SQLDerivation,
+    execute_http,
+    execute_sql,
+)
 from .exceptions import (
     OperationError,
     PermissionDeniedError,
@@ -256,6 +263,7 @@ class Sheet:
         force: bool = False,
         actor: str | None = None,
         ai_client: _ai_kind.AIClient | None = None,
+        http_transport: HTTPTransport | None = None,
     ) -> dict[str, Any]:
         """Execute derivations for the selected records and targets.
 
@@ -337,6 +345,7 @@ class Sheet:
                 prompt_body: str | None = None
                 source_rows: list[dict[str, Any]] | None = None
                 source_file_hash: str | None = None
+                kind_extra_components: dict[str, Any] | None = None
                 if isinstance(derivation, AIDerivation):
                     prompt_body = _ai_kind.resolve_prompt_body(self.path, derivation)
                 elif isinstance(derivation, ImportDerivation):
@@ -345,6 +354,26 @@ class Sheet:
                     source_rows = _import_kind.load_import_source(
                         self.path, derivation.source
                     )
+                elif isinstance(derivation, SQLDerivation):
+                    # records.jsonl content folds into the cache key so
+                    # provenance / stale detection track row-level drift.
+                    if self.records_path.exists() and self.records_path.stat().st_size:
+                        records_file_hash = sha256_file(self.records_path)
+                    else:
+                        records_file_hash = "empty"
+                    kind_extra_components = {
+                        "expression": derivation.expression,
+                        "records_file_hash": records_file_hash,
+                    }
+                elif isinstance(derivation, HTTPDerivation):
+                    kind_extra_components = {
+                        "url": derivation.url,
+                        "method": derivation.method,
+                        "headers": derivation.headers or {},
+                        "body_template": derivation.body_template or "",
+                        "response_path": derivation.response_path,
+                        "response_schema": derivation.response_schema,
+                    }
 
                 for record_id in target_record_ids:
                     position = indices_by_id.get(record_id)
@@ -378,6 +407,7 @@ class Sheet:
                             inputs=hash_inputs,
                             prompt_body=prompt_body,
                             source_file_hash=source_file_hash,
+                            extra_components=kind_extra_components,
                         )
                     except Exception as exc:
                         for target in derivation_targets:
@@ -454,6 +484,34 @@ class Sheet:
                             if not values:
                                 skipped += len(derivation_targets)
                                 continue
+                            cost_usd = None
+                            write_cache(
+                                cache_root,
+                                input_hash,
+                                {"values": values, "cost_usd": None},
+                            )
+                        elif isinstance(derivation, SQLDerivation):
+                            # Cache is bypassed: results depend on the
+                            # entire records.jsonl, which is folded into
+                            # input_hash anyway.
+                            values = execute_sql(
+                                derivation,
+                                inputs,
+                                contract=self.contract,
+                                records_path=self.records_path,
+                            )
+                            cost_usd = None
+                        elif isinstance(derivation, HTTPDerivation):
+                            if http_transport is None:
+                                raise OperationError(
+                                    "http derivation requires an HTTPTransport; "
+                                    "pass http_transport= to materialize()"
+                                )
+                            values = execute_http(
+                                derivation,
+                                inputs,
+                                transport=http_transport,
+                            )
                             cost_usd = None
                             write_cache(
                                 cache_root,

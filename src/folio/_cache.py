@@ -51,17 +51,19 @@ def sha256_file(path: Path) -> str:
 
 
 def compute_input_hash(
-    derivation: Derivation,
+    derivation: Any,
     *,
     derivation_file_hash: str,
     inputs: dict[str, Any],
     prompt_body: str | None = None,
     source_file_hash: str | None = None,
+    extra_components: dict[str, Any] | None = None,
 ) -> str:
     """Compute the ``input_hash`` cache key for one record × derivation.
 
     Returns ``sha256:<hex>``. The canonical form is RFC 8785 JSON over
-    a payload tailored to the derivation kind.
+    a payload tailored to the derivation kind. Extension kinds pass
+    their kind-specific payload through ``extra_components``.
     """
     payload: dict[str, Any] = {
         "derivation_file_hash": derivation_file_hash,
@@ -80,8 +82,10 @@ def compute_input_hash(
                 "compute_input_hash for import derivation requires source_file_hash"
             )
         payload["source_file_hash"] = source_file_hash
-    else:  # pragma: no cover - guarded by the Pydantic discriminator
-        raise TypeError(f"unsupported derivation kind: {type(derivation).__name__}")
+    # Extension kinds (sql, http, ...) populate via extra_components.
+
+    if extra_components:
+        payload.update(extra_components)
 
     canonical = rfc8785.dumps(payload)
     return CACHE_PREFIX + sha256_hex(canonical)
