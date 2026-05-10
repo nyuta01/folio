@@ -44,11 +44,16 @@ from .derivation import (
     topological_sort,
 )
 from .kinds import (
+    CrossSheetDerivation,
     HTTPDerivation,
     HTTPTransport,
+    PythonDerivation,
     SQLDerivation,
+    execute_cross_sheet,
     execute_http,
+    execute_python,
     execute_sql,
+    foreign_records_hash,
 )
 from .exceptions import (
     OperationError,
@@ -374,6 +379,37 @@ class Sheet:
                         "response_path": derivation.response_path,
                         "response_schema": derivation.response_schema,
                     }
+                elif isinstance(derivation, PythonDerivation):
+                    # Script content + arg shape determine the result.
+                    script_path = self.path / "scripts" / f"{derivation.script}.py"
+                    if not script_path.is_file():
+                        # Allow .sh fall-through for shell scripts.
+                        sh_path = self.path / "scripts" / f"{derivation.script}.sh"
+                        if sh_path.is_file():
+                            script_path = sh_path
+                    if script_path.exists():
+                        script_hash = sha256_file(script_path)
+                    else:
+                        script_hash = "missing"
+                    kind_extra_components = {
+                        "script": derivation.script,
+                        "script_file_hash": script_hash,
+                        "output": derivation.output,
+                    }
+                elif isinstance(derivation, CrossSheetDerivation):
+                    try:
+                        cross_records_hash = foreign_records_hash(
+                            self.path, derivation.source_sheet
+                        )
+                    except Exception:
+                        cross_records_hash = "missing"
+                    kind_extra_components = {
+                        "source_sheet": derivation.source_sheet,
+                        "key_field": derivation.key_field,
+                        "value_field": derivation.value_field,
+                        "value_fields": derivation.value_fields,
+                        "foreign_records_hash": cross_records_hash,
+                    }
 
                 for record_id in target_record_ids:
                     position = indices_by_id.get(record_id)
@@ -397,7 +433,7 @@ class Sheet:
                     # cache differentiates records without changing the
                     # ai-kind contract.
                     hash_inputs = dict(inputs)
-                    if isinstance(derivation, ImportDerivation):
+                    if isinstance(derivation, (ImportDerivation, CrossSheetDerivation)):
                         hash_inputs[primary_key] = record.get(primary_key)
 
                     try:
@@ -512,6 +548,34 @@ class Sheet:
                                 inputs,
                                 transport=http_transport,
                             )
+                            cost_usd = None
+                            write_cache(
+                                cache_root,
+                                input_hash,
+                                {"values": values, "cost_usd": None},
+                            )
+                        elif isinstance(derivation, PythonDerivation):
+                            values = execute_python(
+                                derivation,
+                                inputs,
+                                sheet_path=self.path,
+                                sheet_id=self.contract.id,
+                            )
+                            cost_usd = None
+                            write_cache(
+                                cache_root,
+                                input_hash,
+                                {"values": values, "cost_usd": None},
+                            )
+                        elif isinstance(derivation, CrossSheetDerivation):
+                            values = execute_cross_sheet(
+                                derivation,
+                                record.get(primary_key),
+                                sheet_path=self.path,
+                            )
+                            if not values:
+                                skipped += len(derivation_targets)
+                                continue
                             cost_usd = None
                             write_cache(
                                 cache_root,

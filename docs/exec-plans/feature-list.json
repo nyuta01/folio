@@ -544,23 +544,30 @@
       "id": "FOLIO-H-021",
       "title": "Implement Phase 4 python and cross_sheet kinds",
       "priority": "P2",
-      "status": "todo",
+      "status": "done",
       "owner": "agent",
       "depends": ["FOLIO-H-014", "FOLIO-H-020"],
-      "plan_url": null,
+      "plan_url": "docs/exec-plans/active/FOLIO-H-021-plan.md",
       "paths": [
+        "src/folio/kinds/__init__.py",
         "src/folio/kinds/_python.py",
         "src/folio/kinds/_cross_sheet.py",
+        "src/folio/derivation.py",
+        "src/folio/sheet.py",
         "tests/test_kind_python.py",
-        "tests/test_kind_cross_sheet.py"
+        "tests/test_kind_cross_sheet.py",
+        "scripts/harness_check.py",
+        "docs/exec-plans/active/FOLIO-H-021-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "AGENT_PROGRESS.md"
       ],
       "verification": {
-        "harness_check": null,
-        "drift_check": null,
-        "validate_docs": null,
-        "python_test": null
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true,
+        "python_test": true
       },
-      "notes": "Ship the python kind (depends on Phase 2 scripts/) and the cross_sheet kind, with cross-sheet stale detection that includes the foreign sheet's records.jsonl content hash in the cache key."
+      "notes": "Added PythonDerivation (calls Sheet.run_script with JSON-encoded inputs as argv[2]; text/json output parsing matches the ai kind) and CrossSheetDerivation (resolves a sibling sheet by relative path, matches the foreign records.jsonl row by primary key, folds the foreign records hash into the input_hash). Sheet.materialize gains the matching dispatch branches and cache integration."
     },
     {
       "id": "FOLIO-H-022",

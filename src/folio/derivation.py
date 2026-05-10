@@ -161,11 +161,20 @@ def _build_derivation_adapter() -> TypeAdapter[Any]:
     ``folio.kinds`` at import time (the kinds module imports
     ``_BaseDerivation`` from this module).
     """
+    from .kinds._cross_sheet import CrossSheetDerivation
     from .kinds._http import HTTPDerivation
+    from .kinds._python import PythonDerivation
     from .kinds._sql import SQLDerivation
 
     union = Annotated[
-        Union[AIDerivation, ImportDerivation, SQLDerivation, HTTPDerivation],
+        Union[
+            AIDerivation,
+            ImportDerivation,
+            SQLDerivation,
+            HTTPDerivation,
+            PythonDerivation,
+            CrossSheetDerivation,
+        ],
         Field(discriminator="kind"),
     ]
     return TypeAdapter(union)
