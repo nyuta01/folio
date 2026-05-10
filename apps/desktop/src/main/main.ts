@@ -10,6 +10,9 @@ import { createServerManager, type ServerManager } from "./server-manager.js";
 interface Settings {
   lastSheet?: string;
   recentSheets?: string[];
+  // User-pinned absolute path to folio-viewer. Wins over every auto-detected
+  // candidate. Set by the "Locate folio-viewer…" picker in the dialog.
+  folioViewerBin?: string;
 }
 
 // dist/main/main.js → up 4 levels = repo root (dist/main → dist → desktop → apps → repo).
@@ -127,15 +130,47 @@ function pipxOrUvCandidates(): string[] {
 }
 
 function findFolioBin(): string {
+  // 1. Explicit env-var override.
   if (process.env.FOLIO_VIEWER_BIN) return process.env.FOLIO_VIEWER_BIN;
-  // Source-checkout shortcut: the developer ran `uv sync` and is launching
-  // from `apps/desktop/` via `npm start`. Skip it when the resolved path
-  // would point inside a packaged-app bundle.
+  // 2. User-pinned path from the file-picker fallback.
+  const pinned = readSettings().folioViewerBin;
+  if (pinned && existsSync(pinned)) return pinned;
+  // 3. Source-checkout shortcut: developer ran `uv sync` in this repo.
+  //    Skip it when packaged so we don't probe a path inside the .app bundle.
   if (!app.isPackaged && existsSync(venvBin)) return venvBin;
+  // 4. Standard pipx / uv tool / Homebrew install dirs.
   for (const candidate of pipxOrUvCandidates()) {
     if (existsSync(candidate)) return candidate;
   }
-  return "folio-viewer"; // last resort: rely on PATH lookup
+  // 5. Last resort: rely on PATH lookup (after augmentPathFromShell()).
+  return "folio-viewer";
+}
+
+async function pickFolioViewerBinary(): Promise<string | null> {
+  const result = await dialog.showOpenDialog({
+    title: "Locate the folio-viewer binary",
+    message:
+      "Pick the folio-viewer file inside your Python venv or pipx install.",
+    properties: ["openFile", "showHiddenFiles", "treatPackageAsDirectory"],
+    buttonLabel: "Use this binary",
+    defaultPath: app.getPath("home"),
+  });
+  if (result.canceled || !result.filePaths[0]) return null;
+  const picked = result.filePaths[0];
+  if (basename(picked) !== "folio-viewer") {
+    const choice = await dialog.showMessageBox({
+      type: "warning",
+      message: `${basename(picked)} doesn't look like a folio-viewer binary.`,
+      detail:
+        "The file's basename should be 'folio-viewer'. Are you sure this is the right file?",
+      buttons: ["Use it anyway", "Pick another", "Cancel"],
+      defaultId: 1,
+      cancelId: 2,
+    });
+    if (choice.response === 2) return null;
+    if (choice.response === 1) return pickFolioViewerBinary();
+  }
+  return picked;
 }
 
 function resolveStaticDir(): string | undefined {
@@ -223,12 +258,14 @@ async function startWithSheet(sheetPath: string): Promise<void> {
           "Locations checked:",
           ...lookupLines,
           "",
-          "To install Folio:",
+          "If you already have folio-viewer installed somewhere else (e.g. a",
+          "project's `.venv/bin/folio-viewer`), click \"Locate folio-viewer…\"",
+          "and pick the binary directly. Folio Desktop will remember your",
+          "choice for future launches.",
+          "",
+          "To install Folio fresh:",
           "  pipx install folio       # recommended (lands in ~/.local/bin/)",
           "  uv tool install folio    # alternative",
-          "",
-          "After installing, click \"Try again\" — the app re-augments PATH from",
-          "your interactive shell at every launch, so reopening should also work.",
           "",
           `Underlying error: ${msg}`,
         ].join("\n")
@@ -240,20 +277,29 @@ async function startWithSheet(sheetPath: string): Promise<void> {
         : "Could not start folio-viewer",
       detail,
       buttons: enoent
-        ? ["Open install docs", "Try again", "Quit"]
+        ? ["Locate folio-viewer…", "Open install docs", "Try again", "Quit"]
         : ["OK"],
       defaultId: 0,
-      cancelId: enoent ? 2 : 0,
+      cancelId: enoent ? 3 : 0,
     });
     if (enoent && choice.response === 0) {
+      const picked = await pickFolioViewerBinary();
+      if (picked) {
+        const settings = readSettings();
+        writeSettings({ ...settings, folioViewerBin: picked });
+        logLine(`folio-viewer pinned to ${picked}`);
+        void startWithSheet(sheetPath);
+      }
+    }
+    if (enoent && choice.response === 1) {
       void shell.openExternal(
         "https://nyuta01.github.io/folio/get-started/installation/",
       );
     }
-    if (enoent && choice.response === 1) {
+    if (enoent && choice.response === 2) {
       void startWithSheet(sheetPath);
     }
-    if (enoent && choice.response === 2) {
+    if (enoent && choice.response === 3) {
       app.quit();
     }
     return;
@@ -391,6 +437,30 @@ function rebuildMenu(): void {
           label: "Restart Server",
           click: async () => {
             if (currentSheet) await startWithSheet(currentSheet);
+          },
+        },
+        {
+          label: "Locate folio-viewer…",
+          click: async () => {
+            const picked = await pickFolioViewerBinary();
+            if (picked) {
+              const settings = readSettings();
+              writeSettings({ ...settings, folioViewerBin: picked });
+              logLine(`folio-viewer pinned to ${picked}`);
+              if (currentSheet) await startWithSheet(currentSheet);
+            }
+          },
+        },
+        {
+          label: "Clear Pinned folio-viewer Path",
+          enabled: !!readSettings().folioViewerBin,
+          click: () => {
+            const settings = readSettings();
+            const next = { ...settings };
+            delete next.folioViewerBin;
+            writeSettings(next);
+            logLine("folio-viewer pin cleared");
+            rebuildMenu();
           },
         },
         { type: "separator" },
