@@ -17,13 +17,16 @@ on:
 
 permissions:
   contents: write    # softprops/action-gh-release@v2 needs this for release assets
-  id-token: write    # PyPI OIDC trusted publishing needs an OIDC token
+  id-token: write    # PyPI OIDC trusted publishing needs an OIDC token (used by publish-pypi job)
 
 jobs:
   build-and-release:
     name: Build wheel + sdist and attach to GitHub Release
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      wheel: ${{ steps.artifacts.outputs.wheel }}
+      sdist: ${{ steps.artifacts.outputs.sdist }}
 
     steps:
       - name: Check out repository
@@ -88,22 +91,37 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      # ── PyPI publish (OIDC trusted publishing) ──────────────────────
-      #
-      # Configure once at https://pypi.org/manage/account/publishing/
-      # with: project=folio, owner=nyuta01, repo=folio,
-      # workflow=release-python.yml, environment=pypi.
-      #
-      # Until the project name is reserved on PyPI, leave the
-      # `publish-pypi` input as false (and don't set the environment).
-      # The job below is gated by the explicit dispatch input — tag
-      # pushes do not auto-publish to avoid surprises.
+  # ── PyPI publish (OIDC trusted publishing) ────────────────────────
+  #
+  # Configured at https://pypi.org/manage/account/publishing/ with:
+  #   project=folio, owner=nyuta01, repo=folio,
+  #   workflow=release-python.yml, environment=pypi.
+  #
+  # The job is gated by the explicit `publish-pypi` dispatch input —
+  # tag pushes do not auto-publish to avoid surprises. The
+  # `environment: pypi` declaration below must match the trusted
+  # publisher registration on PyPI; both must agree or OIDC fails.
+  publish-pypi:
+    name: Publish to PyPI (OIDC)
+    needs: build-and-release
+    if: >-
+      github.event_name == 'workflow_dispatch' && inputs.publish-pypi == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: pypi
+      url: https://pypi.org/p/folio
+    permissions:
+      id-token: write
+    steps:
+      - name: Download dist artifacts from build job
+        uses: actions/download-artifact@v4
+        with:
+          name: folio-python-${{ github.ref_name }}
+          path: dist
+      - name: Drop SHA256SUMS.txt before upload
+        run: rm -f dist/SHA256SUMS.txt
       - name: Publish to PyPI (trusted publisher / OIDC)
-        if: >-
-          inputs.publish-pypi == true
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: dist
-          # Skip files we don't want shipped — only wheel + sdist go up.
-          # The action filters to .whl/.tar.gz by default; SHA256SUMS.txt
-          # is harmlessly excluded.
