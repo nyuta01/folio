@@ -1,0 +1,23 @@
+{
+  "$schema": "https://claude-plugins.dev/schemas/marketplace.json",
+  "name": "folio",
+  "displayName": "Folio Agent Skills",
+  "description": "Skills for working with Folio — typed, AI-native data sheets that humans and agents read and write together.",
+  "homepage": "https://github.com/nyuta01/folio",
+  "license": "MIT",
+  "author": "Folio",
+  "skills": [
+    {
+      "path": "folio-quickstart"
+    },
+    {
+      "path": "add-derivation-ai"
+    },
+    {
+      "path": "add-derivation-cross-sheet"
+    },
+    {
+      "path": "debug-failed-materialize"
+    }
+  ]
+}

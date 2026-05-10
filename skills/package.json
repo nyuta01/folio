@@ -1,0 +1,32 @@
+{
+  "name": "folio-agent-skills",
+  "version": "0.1.0",
+  "description": "Distributable agent skills for working with Folio (AI-native data sheets). Compatible with skills.sh and TanStack Intent.",
+  "keywords": [
+    "folio",
+    "agent-skills",
+    "claude-skills",
+    "tanstack-intent",
+    "ai-agent",
+    "data-contract"
+  ],
+  "homepage": "https://github.com/nyuta01/folio/tree/main/skills",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nyuta01/folio.git",
+    "directory": "skills"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Folio",
+    "url": "https://github.com/nyuta01/folio"
+  },
+  "files": [
+    "*/SKILL.md",
+    "README.md",
+    ".claude-plugin/"
+  ],
+  "publishConfig": {
+    "access": "public"
+  }
+}
