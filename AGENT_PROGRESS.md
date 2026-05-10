@@ -8,7 +8,13 @@ Last updated: 2026-05-10
   AI-first harness baseline, and the first product code.
 - Canonical design lives at `docs/design-docs/overview.md`; root
   `design-doc.md` is only a compatibility pointer.
-- ADR-0001 records the design-doc and ADR location convention.
+- ADRs 0001 through 0008 are accepted and indexed under
+  `docs/design-docs/adrs/`. They cover the docs hierarchy (0001), the
+  Python reference implementation (0002), the ODCS subset for
+  `contract.yaml` (0003), JSONL records (0004), DuckDB SELECT-only
+  queries (0005), the single-writer `.lock` (0006), fnmatch-based
+  `x-editable-by` matching (0007), and the rule that caches and the
+  runtime live outside the sheet (0008).
 - `folio` Python package is scaffolded under `src/folio/`. `load_contract`
   validates `contract.yaml` against the Phase 0 invariants in §6 of the
   design overview (1 sheet = 1 model, single primary key, ODCS subset of
@@ -34,13 +40,15 @@ Last updated: 2026-05-10
 
 ## Next Action
 
-Start one P1 backlog task:
+Phase 0 is complete and ADR-anchored. Backlog priorities:
 
-- `FOLIO-H-005`: Record ADRs for the Phase 0 design choices already
-  encoded in the SDK and CLI (Python reference implementation, ODCS subset
-  for `contract.yaml`, JSONL records, DuckDB SELECT-only query layer,
-  filelock for `.lock`, fnmatch for `x-editable-by`, RFC 8785 cache-key
-  canonicalization, cache/runtime placement outside the sheet).
+- `FOLIO-H-006`: Strengthen self-PDCA / quality artifacts. A natural next
+  scope is a semantic ADR-to-code drift check that asserts the
+  dependencies named in ADRs 0005 (`duckdb`) and 0006 (`filelock`)
+  remain in `src/folio/`, and that no sample sheet under `tests/` writes
+  to `<sheet>/.cache/` per ADR-0008.
+- Begin Phase 1 (derivations + provenance + cache layer) once a new
+  product spec under `docs/product-specs/` is recorded.
 
 ## Open Notes
 

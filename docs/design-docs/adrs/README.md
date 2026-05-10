@@ -9,6 +9,13 @@ specification surface, security, operability, or the agent harness itself.
 | ADR | Status | Decision |
 |---|---|---|
 | [0001](0001-record-design-docs-and-adrs-under-docs.md) | accepted | Record design docs and ADRs under `docs/design-docs/` |
+| [0002](0002-use-python-as-the-reference-implementation.md) | accepted | Use Python as the reference implementation |
+| [0003](0003-use-odcs-subset-for-contract-yaml.md) | accepted | Use the ODCS subset for `contract.yaml` |
+| [0004](0004-store-records-as-line-delimited-json.md) | accepted | Store records as line-delimited JSON |
+| [0005](0005-use-duckdb-select-only-for-queries.md) | accepted | Use DuckDB SELECT-only for queries |
+| [0006](0006-use-single-writer-dot-lock-for-sheet-writes.md) | accepted | Use a single-writer `.lock` for sheet writes |
+| [0007](0007-match-x-editable-by-with-fnmatch-patterns.md) | accepted | Match `x-editable-by` with fnmatch patterns |
+| [0008](0008-place-caches-and-runtime-outside-the-sheet.md) | accepted | Place caches and runtime outside the sheet |
 
 ## Status Values
 

@@ -155,21 +155,30 @@
       "id": "FOLIO-H-005",
       "title": "Expand ADR coverage for Phase 0 design choices",
       "priority": "P1",
-      "status": "todo",
+      "status": "done",
       "owner": "agent",
       "depends": ["FOLIO-H-001"],
-      "plan_url": null,
+      "plan_url": "docs/exec-plans/active/FOLIO-H-005-plan.md",
       "paths": [
-        "docs/design-docs/adrs",
-        "docs/design-docs/overview.md",
-        "docs/exec-plans/feature-list.json"
+        "docs/design-docs/adrs/README.md",
+        "docs/design-docs/adrs/0002-use-python-as-the-reference-implementation.md",
+        "docs/design-docs/adrs/0003-use-odcs-subset-for-contract-yaml.md",
+        "docs/design-docs/adrs/0004-store-records-as-line-delimited-json.md",
+        "docs/design-docs/adrs/0005-use-duckdb-select-only-for-queries.md",
+        "docs/design-docs/adrs/0006-use-single-writer-dot-lock-for-sheet-writes.md",
+        "docs/design-docs/adrs/0007-match-x-editable-by-with-fnmatch-patterns.md",
+        "docs/design-docs/adrs/0008-place-caches-and-runtime-outside-the-sheet.md",
+        "docs/exec-plans/active/FOLIO-H-005-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "docs/QUALITY_SCORE.md",
+        "AGENT_PROGRESS.md"
       ],
       "verification": {
-        "harness_check": null,
-        "drift_check": null,
-        "validate_docs": null
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true
       },
-      "notes": "Record ADRs for Python as the reference implementation, ODCS subset for contract.yaml, JSONL records, DuckDB SQL filter syntax, RFC 8785 cache-key canonicalization, and cache/runtime placement outside the sheet."
+      "notes": "Added seven accepted ADRs anchoring the Phase 0 design choices encoded in the SDK and CLI: Python as reference implementation, ODCS subset, JSONL records, DuckDB SELECT-only queries, single-writer .lock, fnmatch-based editable_by, and cache/runtime placement outside the sheet. Each ADR's Confirmation names a make verify check."
     },
     {
       "id": "FOLIO-H-006",
