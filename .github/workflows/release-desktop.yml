@@ -67,79 +67,17 @@ jobs:
         working-directory: apps/desktop
         run: npm ci
 
-      # ── Code signing (best-effort) ───────────────────────────────────
+      # ── Build (unsigned for v0.1.0) ──────────────────────────────────
       #
-      # Signing is gated behind repository secrets. If a secret is missing
-      # the unsigned artifact still ships — useful for forks and trial
-      # releases. Configure at:
-      #   Settings → Secrets and variables → Actions → New repository secret
-      #
-      # macOS:                                         (notarization on top)
-      #   APPLE_ID                — Apple Developer account email
-      #   APPLE_APP_SPECIFIC_PASSWORD
-      #                           — app-specific password from appleid.apple.com
-      #   APPLE_TEAM_ID           — 10-char Team ID
-      #   CSC_LINK                — base64-encoded .p12 (Developer ID Application)
-      #   CSC_KEY_PASSWORD        — password for the above .p12
-      # Windows:
-      #   WIN_CSC_LINK            — base64-encoded .pfx
-      #   WIN_CSC_KEY_PASSWORD    — password for the above .pfx
-      - name: Detect signing readiness (macOS)
-        if: matrix.platform == 'macos'
-        id: mac-signing
-        shell: bash
-        env:
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-        run: |
-          if [[ -n "${CSC_LINK}" && -n "${APPLE_ID}" ]]; then
-            echo "ready=true" >> "${GITHUB_OUTPUT}"
-            echo "::notice::macOS signing + notarization secrets present — signed build."
-          else
-            echo "ready=false" >> "${GITHUB_OUTPUT}"
-            echo "::warning::macOS signing secrets missing — building UNSIGNED artifact. Users will see a Gatekeeper warning."
-          fi
-
-      - name: Detect signing readiness (Windows)
-        if: matrix.platform == 'windows'
-        id: win-signing
-        shell: bash
-        env:
-          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
-        run: |
-          if [[ -n "${WIN_CSC_LINK}" ]]; then
-            echo "ready=true" >> "${GITHUB_OUTPUT}"
-            echo "::notice::Windows signing secrets present — signed build."
-          else
-            echo "ready=false" >> "${GITHUB_OUTPUT}"
-            echo "::warning::Windows signing secret missing — building UNSIGNED artifact. SmartScreen will warn on first launch."
-          fi
-
-      - name: Build the desktop app
+      # Code signing is gated behind a follow-up workflow that wires in the
+      # APPLE_ID / CSC_LINK / WIN_CSC_LINK secrets. For now we always build
+      # unsigned; users see a Gatekeeper / SmartScreen warning on first
+      # launch.
+      - name: Build the desktop app (unsigned)
         working-directory: apps/desktop
         env:
-          # Skip electron-builder's auto-publish; we attach explicitly below.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
           GH_TOKEN: ""
-
-          # Auto-disable signing discovery only when the secrets are absent,
-          # so signed and unsigned paths share one workflow file.
-          CSC_IDENTITY_AUTO_DISCOVERY: >-
-            ${{
-              (matrix.platform == 'macos' && steps.mac-signing.outputs.ready == 'true') ||
-              (matrix.platform == 'windows' && steps.win-signing.outputs.ready == 'true')
-              && 'true' || 'false'
-            }}
-
-          # macOS — populated only when secrets exist.
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          CSC_LINK: ${{ secrets.CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-
-          # Windows — populated only when secrets exist.
-          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
-          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
         run: npm run ${{ matrix.build-cmd }} -- --publish=never
 
       - name: Compute SHA-256 checksums
