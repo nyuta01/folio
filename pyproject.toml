@@ -49,6 +49,24 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["src/folio", "src/folio_mcp", "src/folio_viewer"]
 
+[tool.hatch.build.targets.sdist]
+# Hatch defaults to "everything in the repo" for the sdist, which sweeps in
+# `apps/desktop/out/`, `apps/desktop/node_modules/`, `viewer/dist/`, etc. —
+# blowing the tarball past 500 MB. Restrict to the Python project surface.
+include = [
+  "src/",
+  "tests/",
+  "examples/",
+  "pyproject.toml",
+  "README.md",
+  "SPECIFICATION.md",
+  "uv.lock",
+]
+exclude = [
+  "**/__pycache__",
+  "**/*.pyc",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
