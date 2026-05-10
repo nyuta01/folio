@@ -144,6 +144,7 @@ async function startWithSheet(sheetPath: string): Promise<void> {
     const enoent =
       msg.includes("ENOENT") ||
       msg.includes("not found") ||
+      msg.includes("spawn failed") ||
       msg.includes("exited before ready");
     const detail = enoent
       ? [

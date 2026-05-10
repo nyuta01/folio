@@ -67,10 +67,30 @@ export function createServerManager(config: ServerManagerConfig): ServerManager 
       },
     );
 
+    // ENOENT (binary not found) and EACCES surface here, not on `exit`.
+    // Without a listener Node raises uncaughtException and Electron shows
+    // a system dialog before our promise chain can recover.
+    const errorPromise = new Promise<never>((_, reject) => {
+      proc.once("error", (err: NodeJS.ErrnoException) => {
+        if (child === proc) {
+          child = null;
+          url = null;
+        }
+        const code = err.code ? `${err.code}: ` : "";
+        reject(
+          new Error(
+            `folio-viewer spawn failed (${code}${err.message}). ` +
+              `Tried bin=${config.bin}.`,
+          ),
+        );
+      });
+    });
+
     const startedUrl = `http://127.0.0.1:${port}`;
     try {
       await Promise.race([
         waitForReady(startedUrl),
+        errorPromise,
         exitPromise.then(({ code, signal }) => {
           throw new Error(
             `folio-viewer exited before ready (code=${code}, signal=${signal ?? "none"})`,
