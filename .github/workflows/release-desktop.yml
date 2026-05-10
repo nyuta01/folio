@@ -93,10 +93,14 @@ jobs:
             [[ -f "$f" ]] && cp "$f" _release/
           done
           cd _release
-          if [[ -n "$(ls 2>/dev/null)" ]]; then
-            shasum -a 256 * > SHA256SUMS-${{ matrix.platform }}-${{ matrix.arch }}.txt
-            cat SHA256SUMS-*.txt
-          fi
+          # Use Node for SHA-256 — shasum/sha256sum availability differs
+          # between Git Bash on Windows and macOS / Linux runners.
+          for f in *; do
+            [[ -f "$f" && "$f" != SHA256SUMS-* ]] || continue
+            hash="$(node -e "const fs=require('node:fs');const c=require('node:crypto');console.log(c.createHash('sha256').update(fs.readFileSync(process.argv[1])).digest('hex'))" "$f")"
+            echo "${hash}  ${f}"
+          done > SHA256SUMS-${{ matrix.platform }}-${{ matrix.arch }}.txt
+          cat SHA256SUMS-*.txt
 
       - name: Upload artifacts to workflow run
         uses: actions/upload-artifact@v4
