@@ -33,6 +33,7 @@ from .exceptions import (
     RecordsError,
     SheetError,
 )
+from .scripts import ScriptError, ScriptResult, discover_scripts
 from .sheet import Sheet, open_sheet
 
 __all__ = [
@@ -52,9 +53,12 @@ __all__ = [
     "QueryError",
     "RecordsError",
     "Schema",
+    "ScriptError",
+    "ScriptResult",
     "Sheet",
     "SheetError",
     "detect_cycles",
+    "discover_scripts",
     "load_contract",
     "load_derivation",
     "load_derivations",

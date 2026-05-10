@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
-from . import _ai_kind, _import_kind, _provenance, _query, _records
+from . import _ai_kind, _import_kind, _provenance, _query, _records, scripts as _scripts_mod
 from ._cache import (
     compute_input_hash,
     default_cache_root,
@@ -537,6 +537,23 @@ class Sheet:
                 "last_actor": last_actor,
             }
         return result
+
+    # --- operation: run_script ------------------------------------------
+
+    def run_script(
+        self,
+        name: str,
+        args: Sequence[str] | None = None,
+        timeout_seconds: float = 60.0,
+    ) -> _scripts_mod.ScriptResult:
+        """Execute ``scripts/<name>.<ext>`` with the sheet path as ``argv[1]``."""
+        return _scripts_mod.run_script(
+            self.path,
+            self.contract.id,
+            name=name,
+            args=args,
+            timeout_seconds=timeout_seconds,
+        )
 
     # --- operation: provenance ------------------------------------------
 

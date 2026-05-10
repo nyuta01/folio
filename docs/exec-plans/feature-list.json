@@ -349,27 +349,31 @@
       "id": "FOLIO-H-014",
       "title": "Implement Phase 2 scripts/ runtime",
       "priority": "P2",
-      "status": "todo",
+      "status": "done",
       "owner": "agent",
       "depends": ["FOLIO-H-013"],
-      "plan_url": null,
+      "plan_url": "docs/exec-plans/active/FOLIO-H-014-plan.md",
       "paths": [
+        "src/folio/__init__.py",
         "src/folio/scripts.py",
         "src/folio/cli.py",
         "src/folio/sheet.py",
         "tests/test_scripts.py",
         "scripts/smoke-scripts.sh",
+        "scripts/harness_check.py",
         "Makefile",
-        "scripts/harness_check.py"
+        "docs/exec-plans/active/FOLIO-H-014-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "AGENT_PROGRESS.md"
       ],
       "verification": {
-        "harness_check": null,
-        "drift_check": null,
-        "validate_docs": null,
-        "python_test": null,
-        "scripts_smoke": null
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true,
+        "python_test": true,
+        "scripts_smoke": true
       },
-      "notes": "Add scripts/ discovery (.py / .sh), runtime cache under <user-cache>/folio/<sheet-id>/runtime/ per ADR-0008, Sheet.run_script with path-traversal rejection, folio script run CLI verb, and a deterministic shell smoke."
+      "notes": "Added discover_scripts / run_script with .py and .sh dispatch, sheet-path-as-argv[1], safe-name regex, optional venv creation under runtime_root_for_sheet (ADR-0008), Sheet.run_script, folio script list / run subcommands, and the scripts-smoke gate."
     },
     {
       "id": "FOLIO-H-015",

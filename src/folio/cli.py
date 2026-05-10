@@ -16,6 +16,7 @@ import typer
 
 from . import open_sheet
 from .exceptions import FolioError
+from .scripts import SCRIPT_LANGUAGE_BY_EXTENSION, discover_scripts
 from .sheet import _default_ai_client_factory  # exposed for monkey-patching in tests
 
 app = typer.Typer(
@@ -279,6 +280,58 @@ def provenance(
         _emit_json(None)
     else:
         _emit_json(result)
+
+
+script_app = typer.Typer(
+    no_args_is_help=True,
+    add_completion=False,
+    help="Reusable scripts under sheet/scripts/.",
+)
+app.add_typer(script_app, name="script")
+
+
+@script_app.command("list", help="List runnable scripts under sheet/scripts/.")
+@_handle_folio_errors
+def script_list(
+    sheet: Path = SHEET_ARGUMENT,
+) -> None:
+    discovered = discover_scripts(sheet)
+    payload = [
+        {
+            "name": name,
+            "language": SCRIPT_LANGUAGE_BY_EXTENSION[path.suffix],
+            "path": str(path.relative_to(sheet)),
+        }
+        for name, path in discovered.items()
+    ]
+    _emit_json(payload)
+
+
+@script_app.command("run", help="Run a script by basename.")
+@_handle_folio_errors
+def script_run(
+    sheet: Path = SHEET_ARGUMENT,
+    name: str = typer.Argument(..., help="Script basename (no extension)."),
+    args: Optional[list[str]] = typer.Argument(
+        None, help="Arguments forwarded to the script after the sheet path."
+    ),
+    timeout: float = typer.Option(
+        60.0,
+        "--timeout",
+        min=0.1,
+        help="Maximum execution time in seconds.",
+    ),
+) -> None:
+    s = open_sheet(sheet)
+    result = s.run_script(name=name, args=args or [], timeout_seconds=timeout)
+    _emit_json(
+        {
+            "exit_code": result.exit_code,
+            "stdout": result.stdout,
+            "stderr": result.stderr,
+            "duration_seconds": result.duration_seconds,
+        }
+    )
 
 
 def main() -> None:
