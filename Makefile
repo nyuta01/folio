@@ -36,6 +36,11 @@ validate-docs: ## Validate design docs, ADR structure, and docs-local links.
 verify-spec: ## Verify SPECIFICATION.md matches the reference implementation.
 	@$(UV) run --frozen python scripts/verify_spec.py
 
+.PHONY: bump-version
+bump-version: ## Bump pyproject + desktop + viewer versions together. Usage: make bump-version VERSION=X.Y.Z
+	@if [ -z "$(VERSION)" ]; then echo "usage: make bump-version VERSION=X.Y.Z" >&2; exit 2; fi
+	@bash scripts/bump-version.sh $(VERSION)
+
 .PHONY: dist
 dist: ## Build the Python sdist + wheel into dist/.
 	@rm -rf dist
