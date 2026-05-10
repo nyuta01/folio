@@ -5,7 +5,7 @@ import type {
 } from "./api";
 import { Icons } from "./Icons";
 import { ProvenancePop, RecordsGrid, SelectionBar } from "./RecordsGrid";
-import { QueryBar } from "./QueryBar";
+import { QueryBar, type DrawerTab } from "./QueryBar";
 import { RightPanel, type TabId } from "./RightPanel";
 import {
   addProperty,
@@ -37,6 +37,14 @@ function evalFilterClient(
   expr: string,
 ): { rows: Record<string, unknown>[]; error: string | null } {
   if (!expr || !expr.trim()) return { rows: records, error: null };
+  // Accept both single and double quotes for string literals — SQL uses
+  // single, but users frequently type double; either is unambiguous here.
+  const Q = `(?:'([^']*)'|"([^"]*)")`;
+  const reEq = new RegExp(`^(\\w+)\\s*(!=|<>|=)\\s*${Q}$`);
+  const reLike = new RegExp(`^(\\w+)\\s+LIKE\\s+${Q}$`, "i");
+  const reIn = /^(\w+)\s+IN\s*\(([^)]+)\)$/i;
+  // Bare numeric / boolean comparisons (no quotes): country = 5
+  const reEqBare = /^(\w+)\s*(!=|<>|=)\s*(-?\d+(?:\.\d+)?|true|false|null)$/i;
   try {
     const pieces = expr
       .split(/\s+AND\s+/i)
@@ -47,10 +55,11 @@ function evalFilterClient(
         let m;
         if ((m = p.match(/^(\w+)\s+IS\s+NULL$/i))) return r[m[1]] == null;
         if ((m = p.match(/^(\w+)\s+IS\s+NOT\s+NULL$/i))) return r[m[1]] != null;
-        if ((m = p.match(/^(\w+)\s+LIKE\s+'(.+)'$/i))) {
+        if ((m = p.match(reLike))) {
+          const pat = m[2] ?? m[3];
           const re = new RegExp(
             "^" +
-              m[2]
+              pat
                 .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
                 .replace(/%/g, ".*")
                 .replace(/_/g, ".") +
@@ -59,15 +68,27 @@ function evalFilterClient(
           );
           return r[m[1]] != null && re.test(String(r[m[1]]));
         }
-        if ((m = p.match(/^(\w+)\s+IN\s*\(([^)]+)\)$/i))) {
+        if ((m = p.match(reIn))) {
           const vals = m[2]
             .split(",")
-            .map((s) => s.trim().replace(/^'|'$/g, ""));
+            .map((s) => s.trim().replace(/^['"]|['"]$/g, ""));
           return vals.includes(String(r[m[1]]));
         }
-        if ((m = p.match(/^(\w+)\s*(!=|<>|=)\s*'([^']*)'$/))) {
+        if ((m = p.match(reEq))) {
+          const lit = m[3] ?? m[4];
           const v = r[m[1]];
-          return m[2] === "=" ? v === m[3] : v !== m[3];
+          return m[2] === "=" ? String(v) === lit : String(v) !== lit;
+        }
+        if ((m = p.match(reEqBare))) {
+          const v = r[m[1]];
+          const rhs = m[3].toLowerCase();
+          if (rhs === "null") return m[2] === "=" ? v == null : v != null;
+          if (rhs === "true" || rhs === "false") {
+            const b = rhs === "true";
+            return m[2] === "=" ? v === b : v !== b;
+          }
+          const n = Number(rhs);
+          return m[2] === "=" ? Number(v) === n : Number(v) !== n;
         }
         throw new Error("unparsed clause: " + p);
       });
@@ -93,13 +114,21 @@ export default function App() {
   const [queryResult, setQueryResult] = useState<
     QueryResult | { error: string } | null
   >(null);
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerOpen, setDrawerOpen] = useState(true);
+  const [drawerTab, setDrawerTab] = useState<DrawerTab>("query");
   const [history, setHistory] = useState<
     Array<{ q: string; rows: number | null; at: string }>
   >([]);
 
   const [editing, setEditing] = useState<{ recordId: string; field: string } | null>(null);
   const [focused, setFocused] = useState<{ recordId: string; field: string } | null>(null);
+  const [toast, setToast] = useState<{ text: string; tone: "info" | "ok" | "err"; at: number } | null>(null);
+  const [undoStack, setUndoStack] = useState<
+    Array<{ rid: string; field: string; before: unknown; after: unknown }>
+  >([]);
+  const [redoStack, setRedoStack] = useState<
+    Array<{ rid: string; field: string; before: unknown; after: unknown }>
+  >([]);
   const [hovered, setHovered] = useState<{
     recordId: string;
     field: string;
@@ -235,18 +264,19 @@ export default function App() {
   }, [hovered]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── handlers ────────────────────────────────────────────────────────
-  const onApplyWhere = () => {
-    setActiveFilter(filter);
-    if (filter.trim()) {
+  const onApplyWhere = (explicit?: string) => {
+    const q = explicit ?? filter;
+    setActiveFilter(q);
+    if (q.trim()) {
       setHistory((h) => [
         ...h.slice(-49),
-        { q: filter, rows: null, at: new Date().toLocaleTimeString() },
+        { q, rows: null, at: new Date().toLocaleTimeString() },
       ]);
       addActivity({
         id: "q" + Date.now(),
         kind: "query",
         actor,
-        sql: filter,
+        sql: q,
         at: new Date().toISOString(),
       });
     }
@@ -309,6 +339,66 @@ export default function App() {
 
   const onSimulate = () => onMaterialize();
 
+  const showToast = (text: string, tone: "info" | "ok" | "err" = "info") => {
+    const at = Date.now();
+    setToast({ text, tone, at });
+    setTimeout(() => {
+      setToast((cur) => (cur && cur.at === at ? null : cur));
+    }, 1800);
+  };
+
+  const applyCellEdit = async (
+    rid: string,
+    field: string,
+    next: unknown,
+    options: { isUndoRedo?: boolean } = {},
+  ) => {
+    const prev = records.find((r) => String(r[primaryKey]) === rid)?.[field];
+    if (prev === next) return false;
+    try {
+      await upsertRecord({ [primaryKey]: rid, [field]: next }, actor);
+      setRecords((rs) =>
+        rs.map((r) =>
+          String(r[primaryKey]) === rid ? { ...r, [field]: next } : r,
+        ),
+      );
+      setProvenance((s) => {
+        const n = { ...s };
+        delete n[`${rid}::${field}`];
+        return n;
+      });
+      addActivity({
+        id: "h" + Date.now(),
+        kind: "human_edit",
+        actor,
+        record_id: rid,
+        field,
+        value: next,
+        prior: prev,
+        at: new Date().toISOString(),
+      });
+      if (!options.isUndoRedo) {
+        setUndoStack((s) => [
+          ...s.slice(-49),
+          { rid, field, before: prev, after: next },
+        ]);
+        setRedoStack([]);
+      }
+      return true;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      addActivity({
+        id: "h" + Date.now(),
+        kind: "note",
+        actor,
+        text: `edit failed: ${msg}`,
+        at: new Date().toISOString(),
+      });
+      showToast(`Edit failed: ${msg}`, "err");
+      return false;
+    }
+  };
+
   const commitEdit = async (
     rid: string,
     field: string,
@@ -317,43 +407,43 @@ export default function App() {
   ) => {
     setEditing(null);
     setFocused({ recordId: rid, field });
-    const prev = records.find((r) => String(r[primaryKey]) === rid)?.[field];
     const next = value === "" ? null : value;
-    if (prev !== next) {
-      try {
-        await upsertRecord({ [primaryKey]: rid, [field]: next }, actor);
-        setRecords((rs) =>
-          rs.map((r) =>
-            String(r[primaryKey]) === rid ? { ...r, [field]: next } : r,
-          ),
-        );
-        setProvenance((s) => {
-          const n = { ...s };
-          delete n[`${rid}::${field}`];
-          return n;
-        });
-        addActivity({
-          id: "h" + Date.now(),
-          kind: "human_edit",
-          actor,
-          record_id: rid,
-          field,
-          value: next,
-          prior: prev,
-          at: new Date().toISOString(),
-        });
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        addActivity({
-          id: "h" + Date.now(),
-          kind: "note",
-          actor,
-          text: `edit failed: ${msg}`,
-          at: new Date().toISOString(),
-        });
-      }
-    }
+    await applyCellEdit(rid, field, next);
     if (move !== "none") moveFocus(move, { recordId: rid, field });
+  };
+
+  const undo = async () => {
+    if (undoStack.length === 0) {
+      showToast("Nothing to undo");
+      return;
+    }
+    const last = undoStack[undoStack.length - 1];
+    setUndoStack((s) => s.slice(0, -1));
+    const ok = await applyCellEdit(last.rid, last.field, last.before, {
+      isUndoRedo: true,
+    });
+    if (ok) {
+      setRedoStack((s) => [...s.slice(-49), last]);
+      setFocused({ recordId: last.rid, field: last.field });
+      showToast(`Undo · ${last.field}`, "ok");
+    }
+  };
+
+  const redo = async () => {
+    if (redoStack.length === 0) {
+      showToast("Nothing to redo");
+      return;
+    }
+    const last = redoStack[redoStack.length - 1];
+    setRedoStack((s) => s.slice(0, -1));
+    const ok = await applyCellEdit(last.rid, last.field, last.after, {
+      isUndoRedo: true,
+    });
+    if (ok) {
+      setUndoStack((s) => [...s.slice(-49), last]);
+      setFocused({ recordId: last.rid, field: last.field });
+      showToast(`Redo · ${last.field}`, "ok");
+    }
   };
 
   // ─── Focus movement ──────────────────────────────────────────────────
@@ -592,15 +682,54 @@ export default function App() {
       // ⌘F — focus the query bar
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
         e.preventDefault();
-        document.querySelector<HTMLInputElement>(".qbar-input input")?.focus();
+        setDrawerOpen(true);
+        setDrawerTab("query");
+        setTimeout(
+          () => document.querySelector<HTMLInputElement>(".qbar-input input")?.focus(),
+          0,
+        );
         return;
       }
 
-      // ⌘Enter — Materialize (always available unless an editor is open)
+      // ⌘Enter — Materialize globally, except when typing (query textarea
+      // owns this combo to run the query, cell editor owns it to commit).
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-        if (isCellEditor) return;
+        if (isCellEditor || isInputFocused) return;
         e.preventDefault();
         onMaterialize();
+        return;
+      }
+
+      // ⌘S — Folio auto-saves; surface a toast so the user gets confirmation.
+      if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        showToast("Already saved · auto", "ok");
+        return;
+      }
+
+      // ⌘⇧Z / ⌘Y — redo (skip when input/textarea handles its own undo).
+      if (
+        !isInputFocused &&
+        !isCellEditor &&
+        ((e.metaKey || e.ctrlKey) &&
+          ((e.shiftKey && e.key.toLowerCase() === "z") ||
+            (!e.shiftKey && e.key.toLowerCase() === "y")))
+      ) {
+        e.preventDefault();
+        redo();
+        return;
+      }
+
+      // ⌘Z — undo (skip when input/textarea handles its own undo).
+      if (
+        !isInputFocused &&
+        !isCellEditor &&
+        (e.metaKey || e.ctrlKey) &&
+        !e.shiftKey &&
+        e.key.toLowerCase() === "z"
+      ) {
+        e.preventDefault();
+        undo();
         return;
       }
 
@@ -759,6 +888,8 @@ export default function App() {
     selected,
     actor,
     rpCollapsed,
+    undoStack,
+    redoStack,
   ]);
 
   if (!contract) {
@@ -775,6 +906,7 @@ export default function App() {
         filter={filter}
         setFilter={setFilter}
         activeFilter={activeFilter}
+        activeFilterErr={activeFilter ? filterErr : null}
         filterErr={filterErr}
         filtered={filtered}
         totalRecords={records.length}
@@ -787,6 +919,8 @@ export default function App() {
         history={history}
         drawerOpen={drawerOpen}
         setDrawerOpen={setDrawerOpen}
+        drawerTab={drawerTab}
+        setDrawerTab={setDrawerTab}
         queryResult={queryResult}
         setQueryResult={setQueryResult}
       />
@@ -797,6 +931,27 @@ export default function App() {
               count={selected.size}
               onClear={() => setSelected(new Set())}
               onDelete={onDeleteSelected}
+            />
+          )}
+          {activeFilter && (
+            <ActiveFilterChip
+              expr={activeFilter}
+              shown={filtered.length}
+              total={records.length}
+              err={filterErr}
+              onClear={onClear}
+              onEdit={() => {
+                setFilter(activeFilter);
+                setDrawerOpen(true);
+                setDrawerTab("query");
+                setTimeout(
+                  () =>
+                    document
+                      .querySelector<HTMLInputElement>(".qbar-input input")
+                      ?.focus(),
+                  0,
+                );
+              }}
             />
           )}
           <RecordsGrid
@@ -862,6 +1017,23 @@ export default function App() {
         />
       )}
       {helpOpen && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
+      {toast && <Toast text={toast.text} tone={toast.tone} />}
+    </div>
+  );
+}
+
+function Toast({
+  text,
+  tone,
+}: {
+  text: string;
+  tone: "info" | "ok" | "err";
+}) {
+  return (
+    <div className={cls("toast", `toast-${tone}`)} role="status">
+      {tone === "ok" && <Icons.Check size={11} />}
+      {tone === "err" && <Icons.X size={11} />}
+      <span className="mono small">{text}</span>
     </div>
   );
 }
@@ -886,6 +1058,9 @@ const SHORTCUTS: Array<{
       { keys: "Tab / ⇧Tab", desc: "Commit + move right / left" },
       { keys: "Esc", desc: "Cancel edit" },
       { keys: "Delete / Backspace", desc: "Clear focused cell" },
+      { keys: "⌘Z", desc: "Undo last cell edit" },
+      { keys: "⌘⇧Z / ⌘Y", desc: "Redo cell edit" },
+      { keys: "⌘S", desc: "Confirm autosave (no-op)" },
     ],
   },
   {
@@ -899,12 +1074,20 @@ const SHORTCUTS: Array<{
   {
     group: "Sheet",
     items: [
-      { keys: "⌘Enter", desc: "Materialize" },
-      { keys: "⌘F", desc: "Focus query bar" },
+      { keys: "⌘Enter", desc: "Materialize (when not typing)" },
+      { keys: "⌘F", desc: "Focus query / open Query tab" },
       { keys: "⌘K", desc: "Open query drawer" },
       { keys: "⌘/", desc: "Toggle right panel" },
       { keys: "⌘⇧N", desc: "Add row" },
       { keys: "⌘⇧F", desc: "Add field" },
+    ],
+  },
+  {
+    group: "Query tab",
+    items: [
+      { keys: "⌘Enter", desc: "Run the query" },
+      { keys: "Tab", desc: "Accept autocomplete suggestion" },
+      { keys: "↑ ↓", desc: "Cycle suggestions" },
     ],
   },
   {
@@ -950,6 +1133,42 @@ function ShortcutHelp({ onClose }: { onClose: () => void }) {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+function ActiveFilterChip({
+  expr,
+  shown,
+  total,
+  err,
+  onClear,
+  onEdit,
+}: {
+  expr: string;
+  shown: number;
+  total: number;
+  err: string | null;
+  onClear: () => void;
+  onEdit: () => void;
+}) {
+  return (
+    <div className={cls("active-filter-chip", err && "err")}>
+      <Icons.Filter size={11} />
+      <span className="afc-label mono small muted">WHERE</span>
+      <button
+        className="afc-expr mono small"
+        onClick={onEdit}
+        title="Click to edit in query bar"
+      >
+        {expr}
+      </button>
+      <span className="afc-count mono small muted">
+        {err ? "filter parse error" : `${shown}/${total}`}
+      </span>
+      <button className="afc-clear" onClick={onClear} title="Clear filter">
+        <Icons.X size={10} />
+      </button>
     </div>
   );
 }
