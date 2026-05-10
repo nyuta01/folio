@@ -264,8 +264,9 @@ async function startWithSheet(sheetPath: string): Promise<void> {
           "choice for future launches.",
           "",
           "To install Folio fresh:",
-          "  pipx install folio       # recommended (lands in ~/.local/bin/)",
-          "  uv tool install folio    # alternative",
+          "  pipx install folio-kit       # recommended (lands in ~/.local/bin/)",
+          "  uv tool install folio-kit    # alternative",
+          "  (the PyPI distribution name is `folio-kit`; the on-disk command is `folio`.)",
           "",
           `Underlying error: ${msg}`,
         ].join("\n")

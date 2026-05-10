@@ -1,0 +1,71 @@
+version: 2
+updates:
+  # Python — uv-managed lock at repo root.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "deps"
+      - "deps:python"
+    open-pull-requests-limit: 5
+    groups:
+      python-runtime:
+        patterns:
+          - "*"
+
+  # npm — viewer (Vite + React).
+  - package-ecosystem: "npm"
+    directory: "/viewer"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "deps"
+      - "deps:viewer"
+    open-pull-requests-limit: 5
+
+  # npm — Electron desktop wrapper.
+  - package-ecosystem: "npm"
+    directory: "/apps/desktop"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "deps"
+      - "deps:desktop"
+    open-pull-requests-limit: 5
+    ignore:
+      # electron-builder major version bumps tend to require notarization
+      # config changes — review manually rather than auto-merging.
+      - dependency-name: "electron-builder"
+        update-types: ["version-update:semver-major"]
+
+  # npm — Astro / Starlight docs site.
+  - package-ecosystem: "npm"
+    directory: "/apps/docs"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "deps"
+      - "deps:docs"
+    open-pull-requests-limit: 3
+
+  # npm — skill pack (intentionally zero runtime deps; this catches
+  # accidental additions).
+  - package-ecosystem: "npm"
+    directory: "/skills"
+    schedule:
+      interval: "monthly"
+    labels:
+      - "deps"
+      - "deps:skills"
+    open-pull-requests-limit: 1
+
+  # GitHub Actions.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "deps"
+      - "deps:ci"
+    open-pull-requests-limit: 5

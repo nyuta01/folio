@@ -39,7 +39,7 @@ Or read the canonical sources directly:
 
 - [Design overview](docs/design-docs/overview.md) — the spec
 - [ADRs](docs/design-docs/adrs/README.md) — architectural decisions
-- [Examples](examples/README.md) — four use-case sheets that run offline
+- [Examples](examples/README.md) — five sheets covering four canonical use cases (customers + its customer-revenue sidecar, research-notes, research-memory, onboarding) — all run offline
 
 ## Quickstart
 

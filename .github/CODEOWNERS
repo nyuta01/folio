@@ -1,0 +1,11 @@
+# Default reviewer for everything.
+*                                          @nyuta01
+
+# Releases — extra eyes on anything that ships outward.
+/.github/workflows/release-*.yml           @nyuta01
+/pyproject.toml                            @nyuta01
+/skills/package.json                       @nyuta01
+/apps/desktop/package.json                 @nyuta01
+
+# SPECIFICATION.md is gated by verify-spec but humans should still review.
+/SPECIFICATION.md                          @nyuta01

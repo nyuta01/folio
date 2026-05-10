@@ -1,5 +1,12 @@
 # Agent Progress
 
+> **What is this file?** This is an *internal handoff doc* for AI
+> coding agents (and humans) working on Folio. It captures the
+> current state of the repo, the harness conventions, and what to
+> work on next. New visitors should start with [README.md](README.md)
+> instead. This file is consumed by `scripts/agent-init.sh` and is
+> referenced from [AGENTS.md](AGENTS.md).
+
 Last updated: 2026-05-11
 
 ## Current State

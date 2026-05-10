@@ -1,0 +1,41 @@
+name: Feature request
+description: Suggest a new feature or improvement.
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: |
+        Describe the use case that motivates the request. Don't lead
+        with the solution — the use case helps us spot adjacent ideas.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Optional. If you already have an idea, sketch it.
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: |
+        Workarounds you've tried, or other shapes the feature could
+        take. Helps us understand the design space.
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Which surface?
+      multiple: true
+      options:
+        - CLI
+        - Python SDK
+        - MCP server (folio-mcp)
+        - Viewer (web / desktop)
+        - Documentation
+        - Skills (folio-agent-skills)
+        - Other
+    validations:
+      required: true

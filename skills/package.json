@@ -24,6 +24,7 @@
   "files": [
     "*/SKILL.md",
     "README.md",
+    "LICENSE",
     ".claude-plugin/"
   ],
   "publishConfig": {

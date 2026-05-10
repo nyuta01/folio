@@ -4,8 +4,11 @@ description: Per-target counts of who wrote what across all derived fields.
 ---
 
 ```text
-folio status <SHEET> [--target <name>...]
+folio status <SHEET> [TARGET]
 ```
+
+`TARGET` is an optional positional argument naming a single derived
+field. Omit it to include every `x-derived` field.
 
 Returns an object keyed by derived field, with per-source counts and the
 most recent provenance timestamp.
@@ -44,11 +47,15 @@ most recent provenance timestamp.
 ## Filtering
 
 ```bash
-folio status ./customers --target country_code
-folio status ./customers --target country_code --target industry_tag
+folio status ./customers country_code
 ```
 
-Without `--target`, every `x-derived` field is included.
+Status takes one field at a time. To see every derived field, omit
+the positional target:
+
+```bash
+folio status ./customers
+```
 
 ## What it powers
 

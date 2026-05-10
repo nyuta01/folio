@@ -1,0 +1,59 @@
+name: Bug report
+description: Something in Folio is broken or misbehaving.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug! Please fill in as much as you can —
+        small reproducers turn into fixes faster.
+
+        For security vulnerabilities, do **not** use this form.
+        See [SECURITY.md](https://github.com/nyuta01/folio/blob/main/SECURITY.md).
+  - type: input
+    id: version
+    attributes:
+      label: Folio version
+      description: Output of `folio --help` shows nothing — paste the result of `pipx list | grep folio-kit` or `uv tool list | grep folio-kit`.
+      placeholder: folio-kit 0.1.5
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: OS and Python version.
+      placeholder: macOS 14.5 / Python 3.13.2
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproducer
+      description: |
+        Minimal commands or sheet structure that triggers the bug.
+        If you can paste a `contract.yaml` + a few `records.jsonl`
+        lines, that's gold.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include the full error message / traceback if applicable.
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else?
+      description: Logs, screenshots, other context.

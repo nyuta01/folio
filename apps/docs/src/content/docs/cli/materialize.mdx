@@ -4,11 +4,13 @@ description: Run derivations. Returns the §10.6 envelope.
 ---
 
 ```text
-folio materialize <SHEET> --actor <actor>
-  [--target <name>]              # repeatable
-  [--record-ids <id1,id2,...>]
+folio materialize <SHEET> [TARGET] --actor <actor>
+  [--ids <id1,id2,...>]   # repeatable
   [--force]
 ```
+
+`TARGET` is a positional argument naming a single derivation. Omit it
+to materialize every derivation in the sheet.
 
 Walks every derivation under `derivations/` (in topological order) and,
 for every target record, executes the kind unless the cache says
@@ -38,20 +40,20 @@ for the full theory.
 ## Targeting
 
 ```bash
-# Only one derivation
-folio materialize ./customers --actor agent:demo --target country_code
+# Only one derivation (positional target)
+folio materialize ./customers country_code --actor agent:demo
 
-# Multiple
-folio materialize ./customers --actor agent:demo \
-  --target country_code --target industry_tag
+# Multiple derivations? Re-run materialize for each. There is no
+# multi-target flag — the topological walk is unambiguous one at a time.
+folio materialize ./customers country_code --actor agent:demo
+folio materialize ./customers industry_tag --actor agent:demo
 
-# Only a few records
+# Only a few records (comma-separated or repeat --ids)
 folio materialize ./customers --actor agent:demo \
-  --record-ids cust_001,cust_002,cust_003
+  --ids cust_001,cust_002,cust_003
 
-# Combination
-folio materialize ./customers --actor agent:demo \
-  --target country_code --record-ids cust_001
+# Combination: one derivation, one record
+folio materialize ./customers country_code --actor agent:demo --ids cust_001
 ```
 
 ## Forcing a re-run
@@ -137,7 +139,7 @@ folio materialize ./customers --actor agent:enrichment
 
 # Quick development loop on one row
 folio materialize ./customers --actor agent:dev \
-  --record-ids cust_test --force
+  --ids cust_test --force
 
 # Incremental after a derivation file edit
 folio materialize ./customers --actor agent:dev    # cache misses re-run automatically

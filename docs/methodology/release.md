@@ -64,7 +64,7 @@ Desktop pipeline takes ~10–15 minutes (Electron download dominates).
    - one Linux `.AppImage` (and optionally `.deb`),
    - one `SHA256SUMS-<platform>-<arch>.txt` per OS bucket.
 3. Spot-check at least one artifact:
-   - Download the wheel, `pipx install ./folio-X.Y.Z-py3-none-any.whl`
+   - Download the wheel, `pipx install ./folio_kit-X.Y.Z-py3-none-any.whl`
      into a fresh venv, run `folio --help`.
    - Download the macOS DMG (or AppImage on Linux), run it, open the
      `examples/customers` sheet, confirm the grid renders and a

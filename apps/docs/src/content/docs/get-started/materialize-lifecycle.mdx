@@ -68,11 +68,11 @@ Two more reasons, in addition to cache hit:
 ## Targeting a subset
 
 ```bash
-# Only one derivation
-folio materialize . --actor agent:demo --target country_code
+# Only one derivation (positional)
+folio materialize . country_code --actor agent:demo
 
 # Only specific records
-folio materialize . --actor agent:demo --record-ids cust_002,cust_003
+folio materialize . --actor agent:demo --ids cust_002,cust_003
 
 # Force a re-run regardless of cache or human_override
 folio materialize . --actor agent:demo --force

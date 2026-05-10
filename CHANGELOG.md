@@ -28,6 +28,13 @@ npm package.
   `--record-ids` flag). Discovered during an end-to-end smoke against
   `folio-kit==0.1.5`.
 
+## [0.1.4] — 2026-05-11 (PyPI-only)
+
+A transient release published to PyPI during the `folio` → `folio-kit`
+rename. No git tag exists for this version — only the wheel + sdist
+on PyPI, which were superseded the same day by `0.1.5`. Users should
+install `folio-kit>=0.1.5`.
+
 ## [0.1.5] — 2026-05-11
 
 ### Added
@@ -119,6 +126,7 @@ npm package.
 
 [Unreleased]: https://github.com/nyuta01/folio/compare/v0.1.5...HEAD
 [0.1.5]: https://github.com/nyuta01/folio/releases/tag/v0.1.5
+[0.1.4]: https://pypi.org/project/folio-kit/0.1.4/
 [0.1.3]: https://github.com/nyuta01/folio/releases/tag/v0.1.3
 [0.1.2]: https://github.com/nyuta01/folio/releases/tag/v0.1.2
 [0.1.1]: https://github.com/nyuta01/folio/releases/tag/v0.1.1
