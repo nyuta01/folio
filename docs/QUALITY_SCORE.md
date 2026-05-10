@@ -20,20 +20,27 @@ Scores use a 1-5 scale:
 
 ## Current Assessment
 
-Phase 0 and Phase 1 are both feature-complete. The `Sheet` SDK now
-exposes nine operations (Phase 0 six + `materialize`,
-`materialization_status`, `provenance`), and the `folio` CLI exposes
-the matching verbs as a thin Typer wrapper. `Sheet.materialize`
-walks derivations in topological order, processes each derivation
-file once (so multi-target ai derivations cost a single API call),
-honors `respect_human_override` and stale `input_hash` checks,
-short-circuits via the cache, persists records.jsonl atomically and
-appends provenance only after the records write succeeds, and
-surfaces kind-execution failures as entries on the §10.6 envelope
-rather than raising. `make verify` runs 156 pytest cases plus
-`cli-smoke` and `materialize-smoke`, all of which run offline
-through `StubAIClient`. What remains: Phase 2+ (scripts/, MCP,
-TOON, Viewer) and the standing self-PDCA / permanent-fix tasks.
+Phases 0 / 1 / 2 / 3 / 4 are all feature-complete and ADR-anchored.
+The repository now ships:
+
+- The Phase 0 SDK + CLI (contract, query, list, get, upsert, delete).
+- The Phase 1 materialize loop with cache + provenance + ai/import
+  kinds (offline-capable through `StubAIClient`).
+- Phase 2 reusable scripts (`Sheet.run_script` + `folio script
+  run`) and a typed README frontmatter (`Sheet.metadata`).
+- Phase 3 MCP server (`folio-mcp` exposing nine tools through
+  FastMCP, offline-tested via the in-process Client harness) and a
+  thin TOON encoder for `list_records`.
+- Phase 4 extension kinds (`sql`, `http`, `python`, `cross_sheet`)
+  and Frictionless `datapackage.json` export.
+
+Drift-check enforces four ADR invariants mechanically: anthropic
+import location (ADR-0009), duckdb / filelock retention
+(ADR-0005 / ADR-0006), and fixture sheets free of cache / runtime
+/ venv state (ADR-0008). `make verify` runs 259 pytest cases plus
+five offline smokes (`cli`, `materialize`, `scripts`, `mcp`,
+`extension-kinds`). The only remaining product backlog is
+Phase 5 (Viewer V0–V6) under `FOLIO-H-024` and `FOLIO-H-025`.
 
 ## Review Cadence
 

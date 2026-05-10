@@ -67,36 +67,62 @@ Last updated: 2026-05-10
   the §10.6 envelope rather than raised.
 - `folio` CLI now exposes `materialize`, `status`, and `provenance`
   verbs alongside the Phase 0 verbs.
+- Phase 2 (`scripts/` + README frontmatter) is implemented:
+  `src/folio/scripts.py` discovers and executes `*.py` / `*.sh`
+  scripts (sheet path as `argv[1]`, optional venv created on first
+  use under the user-cache runtime), `Sheet.run_script` and
+  `folio script run / list` cover the CLI surface, and
+  `src/folio/readme.py` exposes a Pydantic v2 `Frontmatter`
+  (purpose / default_actor / tags / links / agent_skills) that
+  `folio validate [--strict]` surfaces.
+- Phase 3 (MCP + TOON) is implemented: `folio-mcp` ships as a
+  sibling Python package whose FastMCP server exposes the nine SDK
+  operations as MCP tools (with when-to-use docstrings, sheet-path
+  resolution against `--root`, AIClient injection for materialize),
+  and `src/folio/_toon.py` adds a thin TOON encoder plumbed through
+  `Sheet.list_records(format="json"|"toon")` and `folio list
+  --format`.
+- Phase 4 (extension kinds + datapackage.json) is implemented:
+  `src/folio/kinds/` houses `SQLDerivation` (DuckDB SELECT-only
+  expression with parameter passthrough), `HTTPDerivation`
+  (templated URL/body, response_path/response_schema dot-path,
+  `HTTPTransport` Protocol with `HTTPXTransport` adapter and
+  `StubHTTPTransport` for offline tests), `PythonDerivation`
+  (subprocess execution via `Sheet.run_script`), and
+  `CrossSheetDerivation` (sibling-sheet match by primary key,
+  foreign records hash folded into `input_hash`).
+  `src/folio/datapackage.py` + `folio export datapackage` map the
+  contract to a Frictionless v1 descriptor.
+- ADR-to-code drift checks (`scripts/harness_drift.py::
+  validate_adr_anchored_invariants`) pin ADR-0005 / ADR-0006 /
+  ADR-0008 / ADR-0009 against silent regressions: anthropic only
+  imports in `_ai_kind.py`, duckdb / filelock must remain in
+  `src/folio/`, sample fixtures cannot bundle env state.
 - `make verify` runs harness shape (`harness-check`), drift
-  detection (`drift-check`), docs validation (`validate-docs`), 156
-  pytest cases (`python-test`) covering Phase 0 and Phase 1 including
-  the materialize loop, plus `cli-smoke` (Phase 0 §23.2 scenario)
-  and `materialize-smoke` (Phase 1 §23.3 scenario through
-  `StubAIClient`).
-- GitHub Actions installs dependencies via `uv sync --frozen` and runs the
-  same `make verify` gate on pull requests and pushes to `main`.
+  detection (`drift-check`), docs validation (`validate-docs`),
+  259 pytest cases (`python-test`) covering Phase 0 / 1 / 2 / 3 / 4,
+  plus five smokes: `cli-smoke`, `materialize-smoke`,
+  `scripts-smoke`, `mcp-smoke`, `extension-kinds-smoke`. All run
+  offline through `StubAIClient` / `StubHTTPTransport` / mocked
+  filesystems.
+- GitHub Actions installs dependencies via `uv sync --frozen` and
+  runs the same gate on pull requests and pushes to `main`.
 
 ## Next Action
 
-Phase 0 and Phase 1 are both feature-complete. Phases 2 through 5
-are now spec'd under `docs/product-specs/` and broken into bounded
-backlog tasks:
+Phase 5 (Viewer) is the only remaining product backlog:
 
-- Phase 2 (`FOLIO-H-014` … `FOLIO-H-015`): reusable `scripts/`
-  runtime, `Sheet.run_script`, and README YAML frontmatter.
-- Phase 3 (`FOLIO-H-017` … `FOLIO-H-018`): `folio-mcp` server (via
-  `FastMCP`) and TOON output for `list_records`.
-- Phase 4 (`FOLIO-H-020` … `FOLIO-H-022`): kind registry +
-  `sql` / `http` / `python` / `cross_sheet` extension kinds, plus
-  `datapackage.json` generation.
-- Phase 5 (`FOLIO-H-024` … `FOLIO-H-025`): the local-only
-  FastAPI + React Viewer covering stages V0 through V6.
+- `FOLIO-H-024`: V0–V3. FastAPI backend, REST routes mapped to the
+  SDK, React + Vite + TanStack Table / Virtual frontend, type
+  chips, provenance hover, derivation badges, edit affordance for
+  `x-editable-by` fields, CSRF token plumbing, and the backend
+  smoke.
+- `FOLIO-H-025`: V4–V6. Materialize dashboard (driven by an
+  injected `StubAIClient`), history view, SSE event stream,
+  Playwright frontend smoke, and the `folio serve` CLI alias.
 
-`FOLIO-H-006` and `FOLIO-H-007` remain standing tasks, acted on when
-a concrete drift signal or failure recurs.
-
-`FOLIO-H-006` and `FOLIO-H-007` remain standing tasks and should be
-acted on the moment a concrete drift signal appears.
+`FOLIO-H-006` and `FOLIO-H-007` remain standing tasks; act on them
+the moment a concrete drift signal or repeated failure appears.
 
 ## Open Notes
 
