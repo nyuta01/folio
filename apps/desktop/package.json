@@ -1,7 +1,7 @@
 {
   "name": "folio-desktop",
   "private": true,
-  "version": "0.1.3",
+  "version": "0.1.5",
   "description": "Electron wrapper for the Folio Viewer (FastAPI + React).",
   "author": {
     "name": "Folio",
