@@ -8,13 +8,14 @@ Last updated: 2026-05-10
   AI-first harness baseline, and the first product code.
 - Canonical design lives at `docs/design-docs/overview.md`; root
   `design-doc.md` is only a compatibility pointer.
-- ADRs 0001 through 0008 are accepted and indexed under
+- ADRs 0001 through 0009 are accepted and indexed under
   `docs/design-docs/adrs/`. They cover the docs hierarchy (0001), the
   Python reference implementation (0002), the ODCS subset for
   `contract.yaml` (0003), JSONL records (0004), DuckDB SELECT-only
   queries (0005), the single-writer `.lock` (0006), fnmatch-based
-  `x-editable-by` matching (0007), and the rule that caches and the
-  runtime live outside the sheet (0008).
+  `x-editable-by` matching (0007), the rule that caches and the
+  runtime live outside the sheet (0008), and the AI client Protocol +
+  deterministic stub (0009).
 - `folio` Python package is scaffolded under `src/folio/`. `load_contract`
   validates `contract.yaml` against the Phase 0 invariants in §6 of the
   design overview (1 sheet = 1 model, single primary key, ODCS subset of
@@ -48,30 +49,33 @@ Last updated: 2026-05-10
   helpers (`append_provenance`, `read_provenance`,
   `latest_provenance`, `field_history`, `is_stale`) per §9 of the
   design overview.
+- `src/folio/_ai_kind.py` exposes `materialize_ai(derivation, inputs,
+  *, client, prompt_body=None)` over an `AIClient` Protocol.
+  `AnthropicClientAdapter` is the only module that imports
+  `anthropic`; tests and offline smokes use `StubAIClient`. Cost is
+  computed from a small per-model `PRICE_TABLE_USD`; unknown models
+  yield `cost_usd=None` rather than inventing numbers (ADR-0009).
 - `make verify` runs harness shape (`harness-check`), drift detection
-  (`drift-check`), docs validation (`validate-docs`), 127 pytest cases
+  (`drift-check`), docs validation (`validate-docs`), 148 pytest cases
   (`python-test`) including atomic-write rollback, concurrent-writer
   serialization, and the Phase 1 derivation / import-kind / cache /
-  provenance suites, plus a deterministic CLI smoke (`cli-smoke`)
-  that walks the §23.3 scenario from the design overview.
+  provenance / ai-kind suites, plus a deterministic CLI smoke
+  (`cli-smoke`) that walks the §23.3 scenario from the design
+  overview.
 - GitHub Actions installs dependencies via `uv sync --frozen` and runs the
   same `make verify` gate on pull requests and pushes to `main`.
 
 ## Next Action
 
-Phase 1 is partially landed (`FOLIO-H-009` done). Continue in
-dependency order:
+Phase 1 building blocks are complete (`FOLIO-H-009`,
+`FOLIO-H-010`, `FOLIO-H-011`). Final integration task:
 
-- `FOLIO-H-010`: `input_hash` (RFC 8785 via the `rfc8785` package),
-  the cache root at `<user-cache>/folio/<sheet-id>/cache/`, and the
-  `provenance.jsonl` append + latest-wins read + history helpers.
-- `FOLIO-H-011`: `ai` kind via the `anthropic` SDK with a
-  deterministic stub mode (so `make verify` stays offline) and
-  `cost_usd` capture.
-- `FOLIO-H-012`: CLI verbs (`materialize`, `status`, `provenance`)
-  on top of the SDK, plus a deterministic
-  `scripts/smoke-materialize.sh` walking the §23.3 scenario through
-  the stub.
+- `FOLIO-H-012`: wire the materialize loop on `Sheet`
+  (`Sheet.materialize`, `Sheet.materialization_status`,
+  `Sheet.provenance`), add `folio materialize` / `folio status` /
+  `folio provenance` CLI verbs, and ship a deterministic
+  `scripts/smoke-materialize.sh` that walks the §23.3 scenario
+  through `StubAIClient`.
 
 `FOLIO-H-006` and `FOLIO-H-007` remain standing tasks and should be
 acted on the moment a concrete drift signal appears.

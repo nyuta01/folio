@@ -16,6 +16,7 @@ specification surface, security, operability, or the agent harness itself.
 | [0006](0006-use-single-writer-dot-lock-for-sheet-writes.md) | accepted | Use a single-writer `.lock` for sheet writes |
 | [0007](0007-match-x-editable-by-with-fnmatch-patterns.md) | accepted | Match `x-editable-by` with fnmatch patterns |
 | [0008](0008-place-caches-and-runtime-outside-the-sheet.md) | accepted | Place caches and runtime outside the sheet |
+| [0009](0009-ai-client-protocol-and-deterministic-stub.md) | accepted | AI client Protocol and deterministic stub for offline tests |
 
 ## Status Values
 

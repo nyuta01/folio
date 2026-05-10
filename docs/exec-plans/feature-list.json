@@ -265,23 +265,30 @@
       "id": "FOLIO-H-011",
       "title": "Implement Phase 1 ai kind via the Anthropic SDK",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "owner": "agent",
       "depends": ["FOLIO-H-010"],
-      "plan_url": null,
+      "plan_url": "docs/exec-plans/active/FOLIO-H-011-plan.md",
       "paths": [
+        "pyproject.toml",
+        "uv.lock",
         "src/folio/_ai_kind.py",
         "tests/test_ai_kind.py",
-        "pyproject.toml",
-        "docs/design-docs/adrs"
+        "scripts/harness_check.py",
+        "docs/design-docs/adrs/README.md",
+        "docs/design-docs/adrs/0009-ai-client-protocol-and-deterministic-stub.md",
+        "docs/exec-plans/active/FOLIO-H-011-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "docs/QUALITY_SCORE.md",
+        "AGENT_PROGRESS.md"
       ],
       "verification": {
-        "harness_check": null,
-        "drift_check": null,
-        "validate_docs": null,
-        "python_test": null
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true,
+        "python_test": true
       },
-      "notes": "Add the ai kind driver (anthropic SDK), prompt template expansion limited to {{ field }}, multi-target output_schema validation against the contract logicalType, deterministic stub mode for tests, retry policy, and cost_usd capture in provenance."
+      "notes": "Added the ai kind driver as a pure function over an AIClient Protocol with AnthropicClientAdapter for production and StubAIClient for tests; the {{ field }} template expansion; text/json single-target and multi-target parsing with output_schema enforcement; a per-model price table; and ADR-0009 anchoring the Protocol+Adapter+Stub design."
     },
     {
       "id": "FOLIO-H-012",
