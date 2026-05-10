@@ -716,7 +716,7 @@ function InspectorEditableHeader({
           title="Delete field"
           style={{ color: "var(--err)" }}
         >
-          <Icons.X size={12} />
+          <Icons.Trash size={13} />
         </button>
       </div>
       <input

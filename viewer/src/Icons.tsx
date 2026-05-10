@@ -55,6 +55,7 @@ export const Icons = {
   Clock: (p: IconProps) => <Icon {...p} d="M8 2a6 6 0 1 0 0 12 6 6 0 0 0 0-12ZM8 4.5V8l2.5 1.5" />,
   Copy: (p: IconProps) => <Icon {...p} d="M5.5 5.5h7v8h-7zM5.5 5.5V3.5h-3v8h3" />,
   Download: (p: IconProps) => <Icon {...p} d="M8 2v8M5 7l3 3 3-3M3 13h10" />,
+  Trash: (p: IconProps) => <Icon {...p} d="M3 4.5h10M5.5 4.5V3a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v1.5M4.5 4.5v8.5a1 1 0 0 0 1 1h5a1 1 0 0 0 1-1V4.5M6.5 7v4.5M9.5 7v4.5" />,
 };
 
 export type IconName = keyof typeof Icons;
