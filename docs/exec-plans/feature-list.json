@@ -206,25 +206,31 @@
       "id": "FOLIO-H-009",
       "title": "Implement Phase 1 derivation parsing and import kind",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "owner": "agent",
       "depends": ["FOLIO-H-008"],
-      "plan_url": null,
+      "plan_url": "docs/exec-plans/active/FOLIO-H-009-plan.md",
       "paths": [
+        "src/folio/__init__.py",
         "src/folio/derivation.py",
         "src/folio/_import_kind.py",
         "tests/test_derivation.py",
-        "tests/fixtures/import-kind",
+        "tests/test_import_kind.py",
+        "tests/fixtures/import-kind/customers.csv",
+        "tests/fixtures/import-kind/legacy.jsonl",
         "scripts/harness_check.py",
-        "docs/product-specs/phase-1-derivations-and-provenance.md"
+        "docs/exec-plans/active/FOLIO-H-009-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "docs/QUALITY_SCORE.md",
+        "AGENT_PROGRESS.md"
       ],
       "verification": {
-        "harness_check": null,
-        "drift_check": null,
-        "validate_docs": null,
-        "python_test": null
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true,
+        "python_test": true
       },
-      "notes": "Add Pydantic v2 models for derivations/<field>.yaml, validate-time cycle detection, the targets/output/output_schema correspondence rule, prompt vs prompt_ref collision rejection, and the import kind for CSV/JSONL/JSON sources."
+      "notes": "Added Pydantic v2 models for derivations/<field>.yaml using a kind-discriminated union (AIDerivation, ImportDerivation), MaterializationConfig defaults, prompt vs prompt_ref XOR, output/output_schema correspondence enforcement for ai kind, value_field vs value_fields XOR for import kind, load_derivation/load_derivations/detect_cycles/topological_sort, and an import-kind execution helper covering CSV/JSONL/JSON with sheet-relative path enforcement."
     },
     {
       "id": "FOLIO-H-010",

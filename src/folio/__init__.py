@@ -12,6 +12,17 @@ from .contract import (
     Schema,
     load_contract,
 )
+from .derivation import (
+    AIDerivation,
+    Derivation,
+    DerivationError,
+    ImportDerivation,
+    MaterializationConfig,
+    detect_cycles,
+    load_derivation,
+    load_derivations,
+    topological_sort,
+)
 from .exceptions import (
     ContractError,
     FolioError,
@@ -25,11 +36,16 @@ from .exceptions import (
 from .sheet import Sheet, open_sheet
 
 __all__ = [
+    "AIDerivation",
     "Contract",
     "ContractError",
+    "Derivation",
+    "DerivationError",
     "FolioError",
+    "ImportDerivation",
     "LockTimeoutError",
     "LogicalType",
+    "MaterializationConfig",
     "OperationError",
     "PermissionDeniedError",
     "Property",
@@ -38,8 +54,12 @@ __all__ = [
     "Schema",
     "Sheet",
     "SheetError",
+    "detect_cycles",
     "load_contract",
+    "load_derivation",
+    "load_derivations",
     "open_sheet",
+    "topological_sort",
 ]
 
 __version__ = "0.1.0"

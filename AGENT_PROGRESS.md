@@ -30,28 +30,39 @@ Last updated: 2026-05-10
   `query`, `list`, `count`, `upsert`, and `delete` over the SDK, defaults
   to JSON output, and converts every `FolioError` into a non-zero exit
   with a clean stderr message.
+- Phase 1 parsing surface lives at `src/folio/derivation.py`:
+  Pydantic v2 `AIDerivation` / `ImportDerivation` models with a `kind`
+  discriminator, `MaterializationConfig` defaults, prompt vs
+  prompt_ref XOR, output / output_schema correspondence enforcement,
+  value_field vs value_fields XOR, and `load_derivation` /
+  `load_derivations` / `detect_cycles` / `topological_sort`.
+  `src/folio/_import_kind.py` loads CSV / JSONL / JSON sources from
+  inside the sheet directory and applies single- or multi-value
+  mappings per record.
 - `make verify` runs harness shape (`harness-check`), drift detection
-  (`drift-check`), docs validation (`validate-docs`), 62 pytest cases
-  (`python-test`) including atomic-write rollback and concurrent-writer
-  serialization, and a deterministic CLI smoke (`cli-smoke`) that walks
-  the §23.3 scenario from the design overview.
+  (`drift-check`), docs validation (`validate-docs`), 98 pytest cases
+  (`python-test`) including atomic-write rollback, concurrent-writer
+  serialization, and the Phase 1 derivation + import-kind suites,
+  plus a deterministic CLI smoke (`cli-smoke`) that walks the §23.3
+  scenario from the design overview.
 - GitHub Actions installs dependencies via `uv sync --frozen` and runs the
   same `make verify` gate on pull requests and pushes to `main`.
 
 ## Next Action
 
-Phase 0 is complete and ADR-anchored. Phase 1 is now spec'd at
-`docs/product-specs/phase-1-derivations-and-provenance.md` and broken
-into four bounded tasks. Start in dependency order:
+Phase 1 is partially landed (`FOLIO-H-009` done). Continue in
+dependency order:
 
-- `FOLIO-H-009`: Pydantic models for `derivations/<field>.yaml`,
-  validate-time cycle detection, and the `import` kind.
-- `FOLIO-H-010`: `input_hash` (RFC 8785) + cache layer +
-  `provenance.jsonl` helpers.
-- `FOLIO-H-011`: `ai` kind via the `anthropic` SDK with deterministic
-  stub mode.
-- `FOLIO-H-012`: CLI verbs (`materialize`, `status`, `provenance`) +
-  deterministic offline smoke.
+- `FOLIO-H-010`: `input_hash` (RFC 8785 via the `rfc8785` package),
+  the cache root at `<user-cache>/folio/<sheet-id>/cache/`, and the
+  `provenance.jsonl` append + latest-wins read + history helpers.
+- `FOLIO-H-011`: `ai` kind via the `anthropic` SDK with a
+  deterministic stub mode (so `make verify` stays offline) and
+  `cost_usd` capture.
+- `FOLIO-H-012`: CLI verbs (`materialize`, `status`, `provenance`)
+  on top of the SDK, plus a deterministic
+  `scripts/smoke-materialize.sh` walking the §23.3 scenario through
+  the stub.
 
 `FOLIO-H-006` and `FOLIO-H-007` remain standing tasks and should be
 acted on the moment a concrete drift signal appears.
