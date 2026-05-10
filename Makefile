@@ -40,6 +40,10 @@ sync: ## Install Python dependencies into the project virtual environment.
 python-test: ## Run Folio Python unit tests.
 	@$(UV) run --frozen pytest tests
 
+.PHONY: cli-smoke
+cli-smoke: ## Run the folio CLI smoke against a temporary sheet.
+	@bash scripts/smoke-cli.sh
+
 .PHONY: verify
-verify: harness-check drift-check validate-docs python-test ## Run the current single verification gate.
+verify: harness-check drift-check validate-docs python-test cli-smoke ## Run the current single verification gate.
 	@echo "verify: ok"

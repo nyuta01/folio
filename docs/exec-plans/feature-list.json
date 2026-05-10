@@ -125,26 +125,31 @@
       "id": "FOLIO-H-004",
       "title": "Add the folio CLI MVP",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "owner": "agent",
       "depends": ["FOLIO-H-003"],
-      "plan_url": null,
+      "plan_url": "docs/exec-plans/active/FOLIO-H-004-plan.md",
       "paths": [
+        "pyproject.toml",
+        "uv.lock",
         "src/folio/cli.py",
-        "tests",
+        "tests/test_cli.py",
         "scripts/smoke-cli.sh",
+        "scripts/harness_check.py",
         "Makefile",
-        "docs/product-specs/phase-0-minimum-sheet.md",
+        "docs/exec-plans/active/FOLIO-H-004-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "docs/QUALITY_SCORE.md",
         "AGENT_PROGRESS.md"
       ],
       "verification": {
-        "harness_check": null,
-        "drift_check": null,
-        "validate_docs": null,
-        "python_test": null,
-        "cli_smoke": null
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true,
+        "python_test": true,
+        "cli_smoke": true
       },
-      "notes": "Add the Typer-based folio CLI for validate, query, list, count, upsert, and delete, plus a deterministic CLI smoke against a temporary sheet behind make verify."
+      "notes": "Added the Typer-based folio CLI with validate, query, list, count, upsert, and delete, registered as a project script (folio = folio.cli:main), plus 16 CliRunner tests and a deterministic scripts/smoke-cli.sh that exercises the §23.3 scenario from the design overview."
     },
     {
       "id": "FOLIO-H-005",

@@ -19,24 +19,28 @@ Last updated: 2026-05-10
   `upsert_records`, and `delete_records`. Writes acquire `.lock` with a
   30-second timeout via `filelock` and use atomic temp file + rename
   writes; `editable_by` patterns are matched with `fnmatch`.
+- `folio` CLI is wired as a Typer app at `src/folio/cli.py` and registered
+  as a project script (`folio = folio.cli:main`). It exposes `validate`,
+  `query`, `list`, `count`, `upsert`, and `delete` over the SDK, defaults
+  to JSON output, and converts every `FolioError` into a non-zero exit
+  with a clean stderr message.
 - `make verify` runs harness shape (`harness-check`), drift detection
-  (`drift-check`), docs validation (`validate-docs`), and 46 pytest cases
+  (`drift-check`), docs validation (`validate-docs`), 62 pytest cases
   (`python-test`) including atomic-write rollback and concurrent-writer
-  serialization.
+  serialization, and a deterministic CLI smoke (`cli-smoke`) that walks
+  the §23.3 scenario from the design overview.
 - GitHub Actions installs dependencies via `uv sync --frozen` and runs the
   same `make verify` gate on pull requests and pushes to `main`.
 
 ## Next Action
 
-Start one P0 backlog task in dependency order:
+Start one P1 backlog task:
 
-- `FOLIO-H-004`: Add the `folio` CLI MVP (`validate`, `query`, `list`,
-  `count`, `upsert`, `delete`) on top of the SDK with a deterministic
-  `cli-smoke` shell smoke behind `make verify`.
-- `FOLIO-H-005`: Record ADRs for the Phase 0 design choices (Python
-  reference implementation, ODCS subset, JSONL records, DuckDB SELECT-only
-  query layer, RFC 8785 cache-key canonicalization, cache/runtime placement
-  outside the sheet).
+- `FOLIO-H-005`: Record ADRs for the Phase 0 design choices already
+  encoded in the SDK and CLI (Python reference implementation, ODCS subset
+  for `contract.yaml`, JSONL records, DuckDB SELECT-only query layer,
+  filelock for `.lock`, fnmatch for `x-editable-by`, RFC 8785 cache-key
+  canonicalization, cache/runtime placement outside the sheet).
 
 ## Open Notes
 

@@ -56,6 +56,7 @@ REQUIRED_FILES = [
     "scripts/harness_drift.py",
     "scripts/validate_docs.py",
     "src/folio/__init__.py",
+    "src/folio/cli.py",
     "src/folio/contract.py",
     "src/folio/exceptions.py",
     "src/folio/sheet.py",
@@ -66,6 +67,8 @@ REQUIRED_FILES = [
     "tests/conftest.py",
     "tests/test_contract.py",
     "tests/test_sheet.py",
+    "tests/test_cli.py",
+    "scripts/smoke-cli.sh",
 ]
 
 for relative in REQUIRED_FILES:
@@ -186,6 +189,7 @@ if exists("Makefile"):
         r"^verify:.*drift-check",
         r"^verify:.*validate-docs",
         r"^verify:.*python-test",
+        r"^verify:.*cli-smoke",
     ):
         if not re.search(target_fragment, makefile, re.MULTILINE):
             fail(f"Makefile verify target must match {target_fragment}")
