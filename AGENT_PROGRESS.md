@@ -55,27 +55,43 @@ Last updated: 2026-05-10
   `anthropic`; tests and offline smokes use `StubAIClient`. Cost is
   computed from a small per-model `PRICE_TABLE_USD`; unknown models
   yield `cost_usd=None` rather than inventing numbers (ADR-0009).
-- `make verify` runs harness shape (`harness-check`), drift detection
-  (`drift-check`), docs validation (`validate-docs`), 148 pytest cases
-  (`python-test`) including atomic-write rollback, concurrent-writer
-  serialization, and the Phase 1 derivation / import-kind / cache /
-  provenance / ai-kind suites, plus a deterministic CLI smoke
-  (`cli-smoke`) that walks the §23.3 scenario from the design
-  overview.
+- `Sheet.materialize`, `Sheet.materialization_status`, and
+  `Sheet.provenance` are wired on top of the building blocks. The
+  materialize loop iterates derivation files in topological order,
+  processes every target produced by each file together (so
+  multi-target ai derivations cost one API call), short-circuits via
+  the cache, honors `respect_human_override` and stale `input_hash`
+  checks, persists `records.jsonl` atomically, and appends
+  provenance only after the records write succeeds. Failures are
+  reported as `{record_id, field, error, error_type}` entries on
+  the §10.6 envelope rather than raised.
+- `folio` CLI now exposes `materialize`, `status`, and `provenance`
+  verbs alongside the Phase 0 verbs.
+- `make verify` runs harness shape (`harness-check`), drift
+  detection (`drift-check`), docs validation (`validate-docs`), 156
+  pytest cases (`python-test`) covering Phase 0 and Phase 1 including
+  the materialize loop, plus `cli-smoke` (Phase 0 §23.2 scenario)
+  and `materialize-smoke` (Phase 1 §23.3 scenario through
+  `StubAIClient`).
 - GitHub Actions installs dependencies via `uv sync --frozen` and runs the
   same `make verify` gate on pull requests and pushes to `main`.
 
 ## Next Action
 
-Phase 1 building blocks are complete (`FOLIO-H-009`,
-`FOLIO-H-010`, `FOLIO-H-011`). Final integration task:
+Phase 0 and Phase 1 are both feature-complete. No P0/P1
+implementation tasks are pending. Standing tasks remain:
 
-- `FOLIO-H-012`: wire the materialize loop on `Sheet`
-  (`Sheet.materialize`, `Sheet.materialization_status`,
-  `Sheet.provenance`), add `folio materialize` / `folio status` /
-  `folio provenance` CLI verbs, and ship a deterministic
-  `scripts/smoke-materialize.sh` that walks the §23.3 scenario
-  through `StubAIClient`.
+- `FOLIO-H-006`: Self-PDCA loop maintenance. Natural next scope is a
+  semantic ADR-to-code drift check that asserts `anthropic` is
+  imported only in `AnthropicClientAdapter` (per ADR-0009) and that
+  `duckdb` and `filelock` remain in `src/folio/` (per ADR-0005 and
+  ADR-0006).
+- `FOLIO-H-007`: Permanent-fix loop maintenance. Acted on when a
+  concrete failure recurs.
+- Future phases: Phase 2 (`scripts/` + README frontmatter), Phase 3
+  (MCP + TOON), Phase 4 (extension kinds + `datapackage.json`),
+  Phase 5 (Viewer). Record a product spec under
+  `docs/product-specs/` before starting any of them.
 
 `FOLIO-H-006` and `FOLIO-H-007` remain standing tasks and should be
 acted on the moment a concrete drift signal appears.

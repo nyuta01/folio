@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable, Protocol
 
 from .derivation import AIDerivation
@@ -90,6 +91,33 @@ def compute_cost(
 
 
 _TEMPLATE_PATTERN = re.compile(r"\{\{\s*(\w+)\s*\}\}")
+
+
+def resolve_prompt_body(
+    sheet_path: Path | str,
+    derivation: AIDerivation,
+) -> str:
+    """Return the prompt body string regardless of inline / file source.
+
+    ``prompt`` is returned verbatim when present. ``prompt_ref`` is read
+    from the path relative to ``sheet_path``; the resolved path must
+    stay inside the sheet directory (consistent with import sources).
+    """
+    if derivation.prompt is not None:
+        return derivation.prompt
+    if derivation.prompt_ref is None:  # pragma: no cover - validated by Pydantic
+        raise AIKindError("derivation has neither prompt nor prompt_ref")
+    sheet_root = Path(sheet_path).resolve()
+    target = (sheet_root / derivation.prompt_ref).resolve()
+    try:
+        target.relative_to(sheet_root)
+    except ValueError as exc:
+        raise AIKindError(
+            f"prompt_ref must live under the sheet directory: {derivation.prompt_ref}"
+        ) from exc
+    if not target.is_file():
+        raise AIKindError(f"prompt_ref file not found: {target}")
+    return target.read_text(encoding="utf-8")
 
 
 def expand_template(template: str, inputs: dict[str, Any]) -> str:
@@ -307,4 +335,5 @@ __all__ = [
     "compute_cost",
     "expand_template",
     "materialize_ai",
+    "resolve_prompt_body",
 ]

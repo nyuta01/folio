@@ -12,12 +12,28 @@ from __future__ import annotations
 
 import fnmatch
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
-from . import _query, _records
+from . import _ai_kind, _import_kind, _provenance, _query, _records
+from ._cache import (
+    compute_input_hash,
+    default_cache_root,
+    read_cache,
+    sha256_file,
+    write_cache,
+)
 from ._lock import acquire_sheet_lock
 from .contract import Contract, Property, Schema, load_contract
+from .derivation import (
+    AIDerivation,
+    Derivation,
+    DerivationFile,
+    ImportDerivation,
+    load_derivation_files,
+    topological_sort,
+)
 from .exceptions import (
     OperationError,
     PermissionDeniedError,
@@ -209,6 +225,332 @@ class Sheet:
             "remaining": len(kept),
         }
 
+    # --- operation: materialize -----------------------------------------
+
+    def materialize(
+        self,
+        targets: Sequence[str] | None = None,
+        record_ids: Sequence[str] | None = None,
+        force: bool = False,
+        actor: str | None = None,
+        ai_client: _ai_kind.AIClient | None = None,
+    ) -> dict[str, Any]:
+        """Execute derivations for the selected records and targets.
+
+        Returns the §10.6 envelope: ``{materialized, skipped, failures,
+        total_cost}``. Failures are reported per record × field rather
+        than raised so a large materialize run remains reasonable.
+        """
+        effective_actor = self._require_actor(actor, "materialize")
+
+        files = load_derivation_files(self.path)
+        if not files:
+            return {
+                "materialized": 0,
+                "skipped": 0,
+                "failures": [],
+                "total_cost": 0.0,
+            }
+
+        by_target: dict[str, Derivation] = {}
+        file_for_target: dict[str, Path] = {}
+        for df in files:
+            for target in df.derivation.targets:
+                by_target[target] = df.derivation
+                file_for_target[target] = df.path
+
+        if targets is None:
+            selected = set(by_target.keys())
+        else:
+            selected = set(targets)
+            unknown = selected - set(by_target.keys())
+            if unknown:
+                raise OperationError(
+                    f"unknown derivation target(s): {sorted(unknown)}"
+                )
+
+        order = topological_sort(by_target)
+        target_position = {target: index for index, target in enumerate(order)}
+        ordered_files: list[DerivationFile] = []
+        seen_files: set[int] = set()
+        for target in order:
+            if target not in selected:
+                continue
+            df = next(f for f in files if target in f.derivation.targets)
+            if id(df) in seen_files:
+                continue
+            seen_files.add(id(df))
+            ordered_files.append(df)
+
+        cache_root = default_cache_root(self.contract.id)
+        client = ai_client if ai_client is not None else _default_ai_client_factory()
+        primary_key = self._primary_key_name()
+
+        materialized = 0
+        skipped = 0
+        failures: list[dict[str, Any]] = []
+        total_cost = 0.0
+        pending_provenance: list[dict[str, Any]] = []
+
+        with acquire_sheet_lock(self.path):
+            records = _records.read_records(self.records_path)
+            indices_by_id: dict[Any, int] = {}
+            for position, row in enumerate(records):
+                if primary_key in row:
+                    indices_by_id[row[primary_key]] = position
+
+            target_record_ids: list[Any]
+            if record_ids is None:
+                target_record_ids = list(indices_by_id.keys())
+            else:
+                target_record_ids = list(record_ids)
+
+            for df in ordered_files:
+                derivation = df.derivation
+                derivation_file_hash = sha256_file(df.path)
+                derivation_targets = [
+                    target for target in derivation.targets if target in selected
+                ]
+
+                prompt_body: str | None = None
+                source_rows: list[dict[str, Any]] | None = None
+                source_file_hash: str | None = None
+                if isinstance(derivation, AIDerivation):
+                    prompt_body = _ai_kind.resolve_prompt_body(self.path, derivation)
+                elif isinstance(derivation, ImportDerivation):
+                    source_path = (self.path / derivation.source).resolve()
+                    source_file_hash = sha256_file(source_path)
+                    source_rows = _import_kind.load_import_source(
+                        self.path, derivation.source
+                    )
+
+                for record_id in target_record_ids:
+                    position = indices_by_id.get(record_id)
+                    if position is None:
+                        for target in derivation_targets:
+                            failures.append(
+                                {
+                                    "record_id": record_id,
+                                    "field": target,
+                                    "error": f"record {record_id!r} not found",
+                                    "error_type": "RecordNotFound",
+                                }
+                            )
+                        continue
+
+                    record = records[position]
+                    inputs = {field_name: record.get(field_name) for field_name in derivation.inputs}
+
+                    # Spec import inputs: [] would collapse every record to the
+                    # same cache key. Augment with the primary-key value so the
+                    # cache differentiates records without changing the
+                    # ai-kind contract.
+                    hash_inputs = dict(inputs)
+                    if isinstance(derivation, ImportDerivation):
+                        hash_inputs[primary_key] = record.get(primary_key)
+
+                    try:
+                        input_hash = compute_input_hash(
+                            derivation,
+                            derivation_file_hash=derivation_file_hash,
+                            inputs=hash_inputs,
+                            prompt_body=prompt_body,
+                            source_file_hash=source_file_hash,
+                        )
+                    except Exception as exc:
+                        for target in derivation_targets:
+                            failures.append(
+                                {
+                                    "record_id": record_id,
+                                    "field": target,
+                                    "error": str(exc),
+                                    "error_type": type(exc).__name__,
+                                }
+                            )
+                        continue
+
+                    # respect_human_override applies per target
+                    blocked = False
+                    if not force and derivation.materialization.respect_human_override:
+                        for target in derivation_targets:
+                            latest = _provenance.latest_provenance(
+                                self.path, record_id, target
+                            )
+                            if latest is not None and latest.get("source") == "human_override":
+                                skipped += 1
+                                blocked = True
+                        if blocked and len(derivation_targets) == 1:
+                            continue
+                        if blocked:
+                            # Skip the whole derivation if any target is locked.
+                            continue
+
+                    if not force:
+                        # Stale check: if every target is fresh, skip the whole derivation.
+                        any_stale = False
+                        for target in derivation_targets:
+                            latest = _provenance.latest_provenance(
+                                self.path, record_id, target
+                            )
+                            if _provenance.is_stale(latest, input_hash):
+                                any_stale = True
+                                break
+                        if not any_stale:
+                            skipped += len(derivation_targets)
+                            continue
+
+                    cached = read_cache(cache_root, input_hash)
+                    cost_usd: float | None = None
+                    try:
+                        if cached is not None:
+                            values = cached["values"]
+                            cost_usd = cached.get("cost_usd")
+                        elif isinstance(derivation, AIDerivation):
+                            result = _ai_kind.materialize_ai(
+                                derivation,
+                                inputs,
+                                client=client,
+                                prompt_body=prompt_body,
+                            )
+                            values = result.values
+                            cost_usd = result.cost_usd
+                            write_cache(
+                                cache_root,
+                                input_hash,
+                                {
+                                    "values": result.values,
+                                    "cost_usd": result.cost_usd,
+                                    "input_tokens": result.input_tokens,
+                                    "output_tokens": result.output_tokens,
+                                },
+                            )
+                        elif isinstance(derivation, ImportDerivation):
+                            assert source_rows is not None
+                            values = _import_kind.apply_import(
+                                derivation, source_rows, record.get(primary_key)
+                            )
+                            if not values:
+                                skipped += len(derivation_targets)
+                                continue
+                            cost_usd = None
+                            write_cache(
+                                cache_root,
+                                input_hash,
+                                {"values": values, "cost_usd": None},
+                            )
+                        else:  # pragma: no cover - guarded by Pydantic discriminator
+                            raise OperationError(
+                                f"unsupported derivation kind: {type(derivation).__name__}"
+                            )
+                    except Exception as exc:
+                        for target in derivation_targets:
+                            failures.append(
+                                {
+                                    "record_id": record_id,
+                                    "field": target,
+                                    "error": str(exc),
+                                    "error_type": type(exc).__name__,
+                                }
+                            )
+                        continue
+
+                    # Apply values for targets that are part of the selection.
+                    timestamp = _utc_now_iso()
+                    for target in derivation_targets:
+                        if target in values:
+                            records[position][target] = values[target]
+
+                            entry: dict[str, Any] = {
+                                "record_id": record_id,
+                                "field": target,
+                                "source": derivation.kind,
+                                "actor": effective_actor,
+                                "at": timestamp,
+                                "input_hash": input_hash,
+                            }
+                            if isinstance(derivation, AIDerivation):
+                                entry["model"] = derivation.model
+                                if cost_usd is not None:
+                                    entry["cost_usd"] = cost_usd
+                                    total_cost += cost_usd
+                            pending_provenance.append(entry)
+                            materialized += 1
+
+            _records.atomic_write_records(self.records_path, records)
+            for entry in pending_provenance:
+                _provenance.append_provenance(self.path, entry)
+
+        return {
+            "materialized": materialized,
+            "skipped": skipped,
+            "failures": failures,
+            "total_cost": total_cost,
+        }
+
+    # --- operation: materialization_status ------------------------------
+
+    def materialization_status(
+        self,
+        targets: Sequence[str] | None = None,
+    ) -> dict[str, dict[str, Any]]:
+        """Return per-target materialization counts and the latest entry."""
+        files = load_derivation_files(self.path)
+        by_target: dict[str, Derivation] = {}
+        for df in files:
+            for target in df.derivation.targets:
+                by_target[target] = df.derivation
+
+        if targets is None:
+            selected = sorted(by_target.keys())
+        else:
+            unknown = [t for t in targets if t not in by_target]
+            if unknown:
+                raise OperationError(
+                    f"unknown derivation target(s): {sorted(unknown)}"
+                )
+            selected = list(targets)
+
+        primary_key = self._primary_key_name()
+        records = _records.read_records(self.records_path)
+        record_ids = [row[primary_key] for row in records if primary_key in row]
+        provenance_entries = _provenance.read_provenance(self.path)
+
+        result: dict[str, dict[str, Any]] = {}
+        for target in selected:
+            target_entries = [e for e in provenance_entries if e.get("field") == target]
+            ai_count = sum(1 for e in target_entries if e.get("source") == "ai")
+            import_count = sum(1 for e in target_entries if e.get("source") == "import")
+            human_count = sum(
+                1 for e in target_entries if e.get("source") == "human_override"
+            )
+            with_provenance = len({e.get("record_id") for e in target_entries})
+            last_at = target_entries[-1].get("at") if target_entries else None
+            last_actor = target_entries[-1].get("actor") if target_entries else None
+
+            result[target] = {
+                "total_records": len(record_ids),
+                "with_provenance": with_provenance,
+                "ai_count": ai_count,
+                "import_count": import_count,
+                "human_override_count": human_count,
+                "last_at": last_at,
+                "last_actor": last_actor,
+            }
+        return result
+
+    # --- operation: provenance ------------------------------------------
+
+    def provenance(
+        self,
+        record_id: str,
+        field: str,  # noqa: A002 — keeps spec naming
+        history: bool = False,
+    ) -> Any:
+        """Return the latest provenance entry, or the full history."""
+        if history:
+            return _provenance.field_history(self.path, record_id, field)
+        return _provenance.latest_provenance(self.path, record_id, field)
+
     # --- internal helpers -----------------------------------------------
 
     def _primary_key_name(self) -> str:
@@ -256,6 +598,19 @@ class Sheet:
 def open_sheet(path: str | Path, actor: str | None = None) -> Sheet:
     """Open a sheet directory and return a :class:`Sheet` handle."""
     return Sheet(path=Path(path), actor=actor)
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _default_ai_client_factory() -> _ai_kind.AIClient:
+    """Construct the default ``AIClient`` for production materialize calls.
+
+    Tests and the offline materialize smoke replace this factory with a
+    :class:`folio._ai_kind.StubAIClient`.
+    """
+    return _ai_kind.AnthropicClientAdapter()
 
 
 # ---------------------------------------------------------------------------

@@ -8,6 +8,7 @@ the standard kinds ``ai`` and ``import``; extension kinds (``sql``,
 from __future__ import annotations
 
 from collections import defaultdict
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Annotated, Any, Literal, Union
 
@@ -182,6 +183,43 @@ def load_derivation(path: Path) -> Derivation:
         raise DerivationError(f"{path}: {exc}") from exc
 
 
+@dataclass
+class DerivationFile:
+    """A loaded derivation paired with the file it came from.
+
+    Materialize loops use this to compute ``derivation_file_hash`` without
+    re-walking the directory.
+    """
+
+    derivation: Derivation
+    path: Path
+
+
+def load_derivation_files(sheet_path: str | Path) -> list[DerivationFile]:
+    """Load every ``derivations/*.yaml`` file with its source path.
+
+    Returns the files in lexicographic filename order and rejects
+    duplicate target declarations across files.
+    """
+    derivations_dir = Path(sheet_path) / "derivations"
+    if not derivations_dir.is_dir():
+        return []
+
+    files: list[DerivationFile] = []
+    declared_in: dict[str, Path] = {}
+    for path in sorted(derivations_dir.glob("*.yaml")):
+        derivation = load_derivation(path)
+        for target in derivation.targets:
+            if target in declared_in:
+                raise DerivationError(
+                    f"target {target!r} declared in both "
+                    f"{declared_in[target]} and {path}"
+                )
+            declared_in[target] = path
+        files.append(DerivationFile(derivation=derivation, path=path))
+    return files
+
+
 def load_derivations(sheet_path: str | Path) -> dict[str, Derivation]:
     """Load every ``derivations/*.yaml`` file under ``sheet_path``.
 
@@ -286,11 +324,13 @@ __all__ = [
     "AIDerivation",
     "Derivation",
     "DerivationError",
+    "DerivationFile",
     "ImportDerivation",
     "MaterializationConfig",
     "detect_cycles",
     "field_to_derivation",
     "load_derivation",
+    "load_derivation_files",
     "load_derivations",
     "topological_sort",
 ]

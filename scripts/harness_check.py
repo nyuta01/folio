@@ -78,9 +78,12 @@ REQUIRED_FILES = [
     "tests/test_cache.py",
     "tests/test_provenance.py",
     "tests/test_ai_kind.py",
+    "tests/test_materialize.py",
     "tests/fixtures/import-kind/customers.csv",
     "tests/fixtures/import-kind/legacy.jsonl",
     "scripts/smoke-cli.sh",
+    "scripts/smoke-materialize.sh",
+    "scripts/_materialize_smoke.py",
 ]
 
 for relative in REQUIRED_FILES:
@@ -202,6 +205,7 @@ if exists("Makefile"):
         r"^verify:.*validate-docs",
         r"^verify:.*python-test",
         r"^verify:.*cli-smoke",
+        r"^verify:.*materialize-smoke",
     ):
         if not re.search(target_fragment, makefile, re.MULTILINE):
             fail(f"Makefile verify target must match {target_fragment}")

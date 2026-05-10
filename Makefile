@@ -44,6 +44,10 @@ python-test: ## Run Folio Python unit tests.
 cli-smoke: ## Run the folio CLI smoke against a temporary sheet.
 	@bash scripts/smoke-cli.sh
 
+.PHONY: materialize-smoke
+materialize-smoke: ## Run the Phase 1 materialize smoke against a stubbed AI client.
+	@bash scripts/smoke-materialize.sh
+
 .PHONY: verify
-verify: harness-check drift-check validate-docs python-test cli-smoke ## Run the current single verification gate.
+verify: harness-check drift-check validate-docs python-test cli-smoke materialize-smoke ## Run the current single verification gate.
 	@echo "verify: ok"

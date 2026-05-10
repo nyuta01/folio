@@ -16,6 +16,7 @@ import typer
 
 from . import open_sheet
 from .exceptions import FolioError
+from .sheet import _default_ai_client_factory  # exposed for monkey-patching in tests
 
 app = typer.Typer(
     no_args_is_help=True,
@@ -213,6 +214,71 @@ def delete(
     s = open_sheet(sheet, actor=actor)
     result = s.delete_records(flat_ids)
     _emit_json(result)
+
+
+@app.command(help="Materialize derived fields. Defaults to every derivation.")
+@_handle_folio_errors
+def materialize(
+    sheet: Path = SHEET_ARGUMENT,
+    target: Optional[str] = typer.Argument(
+        None,
+        help="Single derivation target. Omit to materialize every derivation.",
+    ),
+    ids: Optional[list[str]] = typer.Option(
+        None,
+        "--ids",
+        help="Limit to specific record IDs (comma-separated or repeat --ids).",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force/--no-force",
+        help="Recompute even when the input_hash matches and human_override is set.",
+    ),
+    actor: str = typer.Option(..., "--actor", help="Actor performing the materialize."),
+) -> None:
+    s = open_sheet(sheet, actor=actor)
+    target_list = [target] if target else None
+    record_ids = _split_id_list(ids) if ids else None
+    result = s.materialize(
+        targets=target_list,
+        record_ids=record_ids or None,
+        force=force,
+    )
+    _emit_json(result)
+
+
+@app.command(help="Print materialization counts per derived field.")
+@_handle_folio_errors
+def status(
+    sheet: Path = SHEET_ARGUMENT,
+    target: Optional[str] = typer.Argument(
+        None, help="Single derivation target. Omit for every derivation."
+    ),
+) -> None:
+    s = open_sheet(sheet)
+    targets = [target] if target else None
+    result = s.materialization_status(targets=targets)
+    _emit_json(result)
+
+
+@app.command(help="Print provenance for a record × field.")
+@_handle_folio_errors
+def provenance(
+    sheet: Path = SHEET_ARGUMENT,
+    record_id: str = typer.Argument(..., help="Primary key of the record."),
+    field: str = typer.Argument(..., help="Field name."),
+    history: bool = typer.Option(
+        False,
+        "--history/--latest",
+        help="Print every entry in the append-only log instead of just the latest.",
+    ),
+) -> None:
+    s = open_sheet(sheet)
+    result = s.provenance(record_id=record_id, field=field, history=history)
+    if result is None:
+        _emit_json(None)
+    else:
+        _emit_json(result)
 
 
 def main() -> None:

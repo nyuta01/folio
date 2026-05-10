@@ -294,26 +294,34 @@
       "id": "FOLIO-H-012",
       "title": "Add Phase 1 CLI verbs and materialize smoke",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "owner": "agent",
       "depends": ["FOLIO-H-011"],
-      "plan_url": null,
+      "plan_url": "docs/exec-plans/active/FOLIO-H-012-plan.md",
       "paths": [
         "src/folio/cli.py",
-        "tests/test_cli.py",
+        "src/folio/sheet.py",
+        "src/folio/derivation.py",
+        "src/folio/_ai_kind.py",
+        "tests/test_materialize.py",
         "scripts/smoke-materialize.sh",
+        "scripts/_materialize_smoke.py",
+        "scripts/harness_check.py",
         "Makefile",
-        "scripts/harness_check.py"
+        "docs/exec-plans/active/FOLIO-H-012-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "docs/QUALITY_SCORE.md",
+        "AGENT_PROGRESS.md"
       ],
       "verification": {
-        "harness_check": null,
-        "drift_check": null,
-        "validate_docs": null,
-        "python_test": null,
-        "cli_smoke": null,
-        "materialize_smoke": null
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true,
+        "python_test": true,
+        "cli_smoke": true,
+        "materialize_smoke": true
       },
-      "notes": "Add folio materialize, folio status, and folio provenance verbs over the SDK, plus a deterministic scripts/smoke-materialize.sh that walks the §23.3 scenario from the design overview using the ai-kind stub."
+      "notes": "Wired Sheet.materialize / Sheet.materialization_status / Sheet.provenance with the §10.6 envelope, dependency-ordered iteration over derivation files, cache short-circuiting, respect_human_override, force, atomic records-then-provenance writes, and failures-as-list. Added folio materialize, folio status, and folio provenance CLI verbs plus a deterministic scripts/smoke-materialize.sh that walks the §23.3 scenario through StubAIClient."
     },
     {
       "id": "FOLIO-H-006",
