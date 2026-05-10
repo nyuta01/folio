@@ -1,351 +1,547 @@
 import { useEffect, useMemo, useState } from "react";
+import { Icons } from "./Icons";
+import { ProvenancePop, RecordsGrid, SelectionBar } from "./RecordsGrid";
+import { QueryBar } from "./QueryBar";
+import { RightPanel, type TabId } from "./RightPanel";
 import {
-  flexRender,
-  getCoreRowModel,
-  useReactTable,
-  type ColumnDef,
-} from "@tanstack/react-table";
-import {
-  Contract,
-  ContractProperty,
-  ProvenanceEntry,
+  deleteRecords,
   getContract,
   getProvenance,
+  getStatus,
   listRecords,
+  materializeAll,
+  runQuery,
   upsertRecord,
 } from "./api";
-import { Dashboard } from "./Dashboard";
-import { History } from "./History";
+import { useEventStream } from "./useEventStream";
+import type {
+  ActivityEntry,
+  Contract,
+  ProvenanceEntry,
+  QueryResult,
+  TargetStatus,
+} from "./types";
 
-type Row = Record<string, unknown>;
-type Tab = "records" | "dashboard" | "history";
+const cls = (...xs: Array<string | false | null | undefined>) =>
+  xs.filter(Boolean).join(" ");
 
-const KIND_LABEL: Record<string, string> = {
-  ai: "ai",
-  import: "import",
-  python: "python",
-  sql: "sql",
-  http: "http",
-  cross_sheet: "cross",
-  human: "human",
-};
-
-function isEditable(prop: ContractProperty, actor: string): boolean {
-  const patterns = prop["x-editable-by"];
-  if (!patterns?.length) return false;
-  return patterns.some((p) => p === actor || p === "*");
-}
-
-function ProvenanceCell({
-  recordId,
-  field,
-  value,
-  onClick,
-}: {
-  recordId: string;
-  field: string;
-  value: unknown;
-  onClick: () => void;
-}) {
-  const [entry, setEntry] = useState<ProvenanceEntry | null>(null);
-  useEffect(() => {
-    getProvenance(recordId, field)
-      .then(setEntry)
-      .catch(() => setEntry(null));
-  }, [recordId, field]);
-
-  const display =
-    value === null || value === undefined || value === ""
-      ? null
-      : String(value);
-  const tip = entry
-    ? `${entry.source} · ${entry.actor} · ${entry.timestamp}`
-    : "no provenance";
-
-  return (
-    <span
-      className="cell-provenance tooltip"
-      data-tip={tip}
-      onClick={onClick}
-    >
-      {display === null ? (
-        <span className="cell-empty">—</span>
-      ) : (
-        <span>{display}</span>
-      )}
-      {entry && entry.source !== "human" && (
-        <>
-          <span className={`kind-dot kind-${entry.source}`} />
-          <span className={`kind-label kind-text-${entry.source}`}>
-            {KIND_LABEL[entry.source] ?? entry.source}
-          </span>
-        </>
-      )}
-    </span>
-  );
-}
-
-function EditableCell({
-  recordId,
-  field,
-  value,
-  onSaved,
-}: {
-  recordId: string;
-  field: string;
-  value: unknown;
-  onSaved: () => void;
-}) {
-  const [draft, setDraft] = useState(
-    value === null || value === undefined ? "" : String(value),
-  );
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [dirty, setDirty] = useState(false);
-
-  useEffect(() => {
-    setDraft(value === null || value === undefined ? "" : String(value));
-    setDirty(false);
-  }, [value]);
-
-  async function commit() {
-    if (!dirty) return;
-    setSaving(true);
-    setError(null);
-    try {
-      await upsertRecord({ id: recordId, [field]: draft });
-      setDirty(false);
-      onSaved();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "save failed");
-    } finally {
-      setSaving(false);
-    }
+function evalFilterClient(
+  records: Record<string, unknown>[],
+  expr: string,
+): { rows: Record<string, unknown>[]; error: string | null } {
+  if (!expr || !expr.trim()) return { rows: records, error: null };
+  try {
+    const pieces = expr
+      .split(/\s+AND\s+/i)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const pred = (r: Record<string, unknown>) =>
+      pieces.every((p) => {
+        let m;
+        if ((m = p.match(/^(\w+)\s+IS\s+NULL$/i))) return r[m[1]] == null;
+        if ((m = p.match(/^(\w+)\s+IS\s+NOT\s+NULL$/i))) return r[m[1]] != null;
+        if ((m = p.match(/^(\w+)\s+LIKE\s+'(.+)'$/i))) {
+          const re = new RegExp(
+            "^" +
+              m[2]
+                .replace(/[.+?^${}()|[\]\\]/g, "\\$&")
+                .replace(/%/g, ".*")
+                .replace(/_/g, ".") +
+              "$",
+            "i",
+          );
+          return r[m[1]] != null && re.test(String(r[m[1]]));
+        }
+        if ((m = p.match(/^(\w+)\s+IN\s*\(([^)]+)\)$/i))) {
+          const vals = m[2]
+            .split(",")
+            .map((s) => s.trim().replace(/^'|'$/g, ""));
+          return vals.includes(String(r[m[1]]));
+        }
+        if ((m = p.match(/^(\w+)\s*(!=|<>|=)\s*'([^']*)'$/))) {
+          const v = r[m[1]];
+          return m[2] === "=" ? v === m[3] : v !== m[3];
+        }
+        throw new Error("unparsed clause: " + p);
+      });
+    return { rows: records.filter(pred), error: null };
+  } catch (e) {
+    return { rows: records, error: e instanceof Error ? e.message : String(e) };
   }
-
-  return (
-    <span className="cell-editable">
-      <input
-        value={draft}
-        onChange={(e) => {
-          setDraft(e.target.value);
-          setDirty(true);
-        }}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-          if (e.key === "Escape") {
-            setDraft(value === null || value === undefined ? "" : String(value));
-            setDirty(false);
-            (e.target as HTMLInputElement).blur();
-          }
-        }}
-        disabled={saving}
-        data-testid={`edit-${field}`}
-      />
-      <span className="pencil" aria-hidden="true">
-        ✎
-      </span>
-      {error && <span className="cell-error">{error}</span>}
-    </span>
-  );
 }
 
 export default function App() {
   const [contract, setContract] = useState<Contract | null>(null);
-  const [rows, setRows] = useState<Row[]>([]);
+  const [records, setRecords] = useState<Record<string, unknown>[]>([]);
+  const [provenance, setProvenance] = useState<
+    Record<string, ProvenanceEntry | null>
+  >({});
+  const [status, setStatus] = useState<Record<string, TargetStatus>>({});
+  const [activity, setActivity] = useState<ActivityEntry[]>([]);
   const [actor] = useState("agent:human");
-  const [reloadKey, setReloadKey] = useState(0);
-  const [tab, setTab] = useState<Tab>("records");
-  const [historyTarget, setHistoryTarget] = useState<{
+  const [agentOnline] = useState(true);
+
+  const [filter, setFilter] = useState("");
+  const [activeFilter, setActiveFilter] = useState("");
+  const [queryResult, setQueryResult] = useState<
+    QueryResult | { error: string } | null
+  >(null);
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [history, setHistory] = useState<
+    Array<{ q: string; rows: number | null; at: string }>
+  >([]);
+
+  const [editing, setEditing] = useState<{ recordId: string; field: string } | null>(null);
+  const [hovered, setHovered] = useState<{
     recordId: string;
     field: string;
+    x: number;
+    y: number;
   } | null>(null);
+  const [pulsingCells, setPulsingCells] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
 
+  const [rpCollapsed, setRpCollapsed] = useState(false);
+  const [rpTab, setRpTab] = useState<TabId>("schema");
+  const [inspectorField, setInspectorField] = useState<string | null>(null);
+
+  const evt = useEventStream();
+
+  // initial load
   useEffect(() => {
-    getContract().then(setContract).catch(console.error);
+    Promise.all([getContract(), listRecords({ limit: 500 }), getStatus()])
+      .then(([c, recs, st]) => {
+        setContract(c);
+        setRecords(recs.records);
+        setStatus(st);
+      })
+      .catch((e) => console.error(e));
   }, []);
 
+  // refresh records & status after materialize finishes
   useEffect(() => {
-    listRecords({ limit: 200 })
-      .then((envelope) => setRows(envelope.records as Row[]))
-      .catch(console.error);
-  }, [reloadKey]);
-
-  const properties = contract?.schema?.[0]?.properties ?? [];
-  const primaryKey =
-    properties.find((p) => p.primaryKey)?.name ?? properties[0]?.name ?? "id";
-
-  const columns = useMemo<ColumnDef<Row>[]>(() => {
-    return properties.map((prop) => {
-      const isPk = prop.primaryKey === true;
-      return {
-        id: prop.name,
-        accessorKey: prop.name,
-        header: () => (
-          <span title={prop.description || ""}>
-            <span className="col-name">{prop.name}</span>
-            <span className={`type-chip${prop["x-derived"] ? " derived" : ""}`}>
-              {prop["x-derived"] ? "derived" : prop.logicalType}
-            </span>
-            {prop.required && <span className="col-flag-required">·req</span>}
-          </span>
+    if (!evt.latest) return;
+    if (evt.latest.kind === "materialize.start") {
+      addActivity({
+        id: "ms" + Date.now(),
+        kind: "materialize.start",
+        actor: String(evt.latest.actor || "system"),
+        at: String(evt.latest.ts),
+        meta: evt.latest as Record<string, unknown>,
+      });
+    } else if (
+      evt.latest.kind === "materialize.end" ||
+      evt.latest.kind === "materialize.error"
+    ) {
+      addActivity({
+        id: "me" + Date.now(),
+        kind: evt.latest.kind as "materialize.end" | "materialize.error",
+        actor: String(evt.latest.actor || "system"),
+        at: String(evt.latest.ts),
+        meta: evt.latest as Record<string, unknown>,
+      });
+      // Reload records + status; flag changed cells with pulse animation.
+      const beforeKeys = new Set(
+        records.flatMap((r) =>
+          Object.entries(r)
+            .filter(([_, v]) => v != null)
+            .map(([k]) => `${String(r.id)}::${k}`),
         ),
-        cell: ({ row }) => {
-          const recordId = String(row.original[primaryKey] ?? "");
-          const value = row.original[prop.name];
-          if (isPk) {
-            return <span className="mono">{String(value ?? "")}</span>;
+      );
+      Promise.all([listRecords({ limit: 500 }), getStatus()])
+        .then(([recs, st]) => {
+          setRecords(recs.records);
+          setStatus(st);
+          const newPulses = new Set<string>();
+          recs.records.forEach((r) => {
+            Object.entries(r).forEach(([k, v]) => {
+              const key = `${String(r.id)}::${k}`;
+              if (v != null && !beforeKeys.has(key)) newPulses.add(key);
+            });
+          });
+          if (newPulses.size > 0) {
+            setPulsingCells((s) => {
+              const n = new Set(s);
+              newPulses.forEach((k) => n.add(k));
+              return n;
+            });
+            setTimeout(() => {
+              setPulsingCells((s) => {
+                const n = new Set(s);
+                newPulses.forEach((k) => n.delete(k));
+                return n;
+              });
+            }, 1400);
           }
-          if (isEditable(prop, actor)) {
-            return (
-              <EditableCell
-                recordId={recordId}
-                field={prop.name}
-                value={value}
-                onSaved={() => setReloadKey((k) => k + 1)}
-              />
-            );
-          }
-          return (
-            <ProvenanceCell
-              recordId={recordId}
-              field={prop.name}
-              value={value}
-              onClick={() => {
-                setHistoryTarget({ recordId, field: prop.name });
-                setTab("history");
-              }}
-            />
-          );
-        },
-        meta: { isPk },
-      };
-    });
-  }, [properties, primaryKey, actor]);
+        })
+        .catch((e) => console.error(e));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [evt.latest]);
 
-  const table = useReactTable({
-    data: rows,
-    columns,
-    getCoreRowModel: getCoreRowModel(),
-  });
+  // memoized derived state
+  const fields = contract?.schema[0]?.properties ?? [];
+  const primaryKey = useMemo(
+    () => fields.find((p) => p.primaryKey)?.name ?? "id",
+    [fields],
+  );
+  const filteredEval = useMemo(
+    () => evalFilterClient(records, activeFilter),
+    [records, activeFilter],
+  );
+  const filtered = filteredEval.rows;
+  const filterErr = filteredEval.error;
+
+  const derivations = useMemo(() => {
+    // Build a placeholder derivations map from contract; if unknown, just kind: "?"
+    const out: Record<string, { kind: string; targets?: string[]; inputs?: string[] }> = {};
+    fields
+      .filter((p) => p["x-derived"])
+      .forEach((p) => {
+        const kind = inferKindFromStatus(status, p.name);
+        out[p.name + ".yaml"] = {
+          kind,
+          targets: [p.name],
+          inputs: p["x-inputs"],
+        };
+      });
+    return out;
+  }, [fields, status]);
+
+  // ─── activity helpers ────────────────────────────────────────────────
+  const addActivity = (a: ActivityEntry) =>
+    setActivity((prev) => [...prev.slice(-499), a]);
+
+  // ─── load provenance lazily on hover ─────────────────────────────────
+  useEffect(() => {
+    if (!hovered) return;
+    const k = `${hovered.recordId}::${hovered.field}`;
+    if (provenance[k] !== undefined) return; // cached (null counts)
+    getProvenance(hovered.recordId, hovered.field)
+      .then((p) => setProvenance((s) => ({ ...s, [k]: p })))
+      .catch(() =>
+        setProvenance((s) => ({ ...s, [k]: null })),
+      );
+  }, [hovered]);  // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ─── handlers ────────────────────────────────────────────────────────
+  const onApplyWhere = () => {
+    setActiveFilter(filter);
+    if (filter.trim()) {
+      setHistory((h) => [
+        ...h.slice(-49),
+        { q: filter, rows: null, at: new Date().toLocaleTimeString() },
+      ]);
+      addActivity({
+        id: "q" + Date.now(),
+        kind: "query",
+        actor,
+        sql: filter,
+        at: new Date().toISOString(),
+      });
+    }
+  };
+
+  const onClear = () => {
+    setFilter("");
+    setActiveFilter("");
+    setQueryResult(null);
+  };
+
+  const onRunSql = async (
+    sql: string,
+  ): Promise<QueryResult | { error: string }> => {
+    try {
+      const out = await runQuery(sql);
+      setHistory((h) => [
+        ...h.slice(-49),
+        { q: sql, rows: out.count, at: new Date().toLocaleTimeString() },
+      ]);
+      addActivity({
+        id: "q" + Date.now(),
+        kind: "query",
+        actor,
+        sql,
+        at: new Date().toISOString(),
+      });
+      return out;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return { error: msg };
+    }
+  };
+
+  const onMaterialize = async () => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const env = await materializeAll(actor);
+      addActivity({
+        id: "m" + Date.now(),
+        kind: "note",
+        actor,
+        at: new Date().toISOString(),
+        text: `materialize → ${env.materialized} ok · ${env.skipped} skipped · ${env.failures.length} failed`,
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      addActivity({
+        id: "m" + Date.now(),
+        kind: "note",
+        actor,
+        at: new Date().toISOString(),
+        text: `materialize failed: ${msg}`,
+      });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onSimulate = () => onMaterialize();
+
+  const commitEdit = async (rid: string, field: string, value: string) => {
+    setEditing(null);
+    const prev = records.find((r) => String(r[primaryKey]) === rid)?.[field];
+    const next = value === "" ? null : value;
+    if (prev === next) return;
+    try {
+      await upsertRecord({ [primaryKey]: rid, [field]: next }, actor);
+      setRecords((rs) =>
+        rs.map((r) =>
+          String(r[primaryKey]) === rid ? { ...r, [field]: next } : r,
+        ),
+      );
+      // invalidate provenance cache for this cell
+      setProvenance((s) => {
+        const n = { ...s };
+        delete n[`${rid}::${field}`];
+        return n;
+      });
+      addActivity({
+        id: "h" + Date.now(),
+        kind: "human_edit",
+        actor,
+        record_id: rid,
+        field,
+        value: next,
+        prior: prev,
+        at: new Date().toISOString(),
+      });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      addActivity({
+        id: "h" + Date.now(),
+        kind: "note",
+        actor,
+        text: `edit failed: ${msg}`,
+        at: new Date().toISOString(),
+      });
+    }
+  };
+
+  const onDeleteSelected = async () => {
+    if (selected.size === 0) return;
+    const ids = [...selected];
+    if (!confirm(`Delete ${ids.length} record(s)?`)) return;
+    try {
+      await deleteRecords(ids, actor);
+      setRecords((rs) =>
+        rs.filter((r) => !selected.has(String(r[primaryKey]))),
+      );
+      setProvenance((s) => {
+        const n = { ...s };
+        Object.keys(n).forEach((k) => {
+          if (ids.some((id) => k.startsWith(id + "::"))) delete n[k];
+        });
+        return n;
+      });
+      addActivity({
+        id: "d" + Date.now(),
+        kind: "delete",
+        actor,
+        at: new Date().toISOString(),
+        meta: { count: ids.length, ids: ids.join(", ") },
+      });
+      setSelected(new Set());
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      addActivity({
+        id: "d" + Date.now(),
+        kind: "note",
+        actor,
+        text: `delete failed: ${msg}`,
+        at: new Date().toISOString(),
+      });
+    }
+  };
+
+  // keyboard
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setEditing(null);
+      }
+      if ((e.metaKey || e.ctrlKey) && e.key === "/") {
+        e.preventDefault();
+        setRpCollapsed((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   if (!contract) {
     return (
-      <div className="app-shell">
-        <div className="loading">Loading sheet…</div>
+      <div className="app">
+        <div className="empty">Loading sheet…</div>
       </div>
     );
   }
 
   return (
-    <div className="app-shell">
-      <header className="app-header">
-        <div className="app-title">
-          <h1>{contract.name}</h1>
-          <div className="meta">
-            <span>{contract.id}</span>
-            <span className="sep">·</span>
-            <span>v{contract.version}</span>
-            <span className="sep">·</span>
-            <span>{rows.length} records</span>
-          </div>
-        </div>
-        <div style={{ display: "flex", gap: 14, alignItems: "center" }}>
-          <div className="actor-pill">
-            <span className="dot" />
-            {actor}
-          </div>
-          <div className="segmented" role="tablist">
-            {(["records", "dashboard", "history"] as Tab[]).map((t) => (
-              <button
-                key={t}
-                role="tab"
-                aria-selected={tab === t}
-                onClick={() => setTab(t)}
-                data-testid={`tab-${t}`}
-              >
-                {t}
-              </button>
-            ))}
-          </div>
-        </div>
-      </header>
-
-      <main className="app-main">
-        {tab === "records" && (
-          <div className="records-frame">
-            <div className="records-toolbar">
-              <span>
-                <span className="count">{rows.length}</span> records
-              </span>
-              <span className="mono" style={{ color: "var(--ink-subtle)" }}>
-                primaryKey · <code>{primaryKey}</code>
-              </span>
-            </div>
-            <div className="table-scroll">
-              <table
-                className="folio-table"
-                data-testid="records-table"
-              >
-                <thead>
-                  {table.getHeaderGroups().map((group) => (
-                    <tr key={group.id}>
-                      {group.headers.map((header) => {
-                        const isPk = (header.column.columnDef.meta as { isPk?: boolean } | undefined)?.isPk;
-                        return (
-                          <th key={header.id} className={isPk ? "pk" : ""}>
-                            {flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
-                          </th>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </thead>
-                <tbody>
-                  {table.getRowModel().rows.map((row) => (
-                    <tr key={row.id}>
-                      {row.getVisibleCells().map((cell) => {
-                        const isPk = (cell.column.columnDef.meta as { isPk?: boolean } | undefined)?.isPk;
-                        return (
-                          <td key={cell.id} className={isPk ? "pk" : ""}>
-                            {flexRender(
-                              cell.column.columnDef.cell,
-                              cell.getContext(),
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {tab === "dashboard" && <Dashboard actor={actor} />}
-
-        {tab === "history" && historyTarget && (
-          <History
-            recordId={historyTarget.recordId}
-            field={historyTarget.field}
+    <div className="app">
+      <QueryBar
+        filter={filter}
+        setFilter={setFilter}
+        activeFilter={activeFilter}
+        filterErr={filterErr}
+        filtered={filtered}
+        totalRecords={records.length}
+        busy={busy}
+        onApplyWhere={onApplyWhere}
+        onClear={onClear}
+        onRunSql={onRunSql}
+        onMaterialize={onMaterialize}
+        fields={fields}
+        history={history}
+        drawerOpen={drawerOpen}
+        setDrawerOpen={setDrawerOpen}
+        queryResult={queryResult}
+        setQueryResult={setQueryResult}
+      />
+      <div className={cls("body", rpCollapsed && "rp-collapsed")}>
+        <main className="grid-pane">
+          {selected.size > 0 && (
+            <SelectionBar
+              count={selected.size}
+              onClear={() => setSelected(new Set())}
+              onDelete={onDeleteSelected}
+            />
+          )}
+          <RecordsGrid
+            records={filtered}
+            cols={fields}
+            primaryKey={primaryKey}
+            actor={actor}
+            provenance={provenance}
+            pulsingCells={pulsingCells}
+            editing={editing}
+            setEditing={setEditing}
+            selected={selected}
+            setSelected={setSelected}
+            onHover={setHovered}
+            onCommit={commitEdit}
+            onPickField={(name) => {
+              setInspectorField(name);
+              setRpTab("inspector");
+              if (rpCollapsed) setRpCollapsed(false);
+            }}
           />
-        )}
+          <Statusbar
+            total={records.length}
+            shown={filtered.length}
+            actor={actor}
+            activeFilter={activeFilter}
+            busy={busy}
+          />
+        </main>
+        <RightPanel
+          contract={contract}
+          records={records}
+          derivations={derivations}
+          activity={activity}
+          agentOnline={agentOnline}
+          inspectorField={inspectorField}
+          setInspectorField={setInspectorField}
+          collapsed={rpCollapsed}
+          onToggle={() => setRpCollapsed((v) => !v)}
+          activeTab={rpTab}
+          setActiveTab={setRpTab}
+          onSimulate={onSimulate}
+        />
+      </div>
+      {hovered && (
+        <ProvenancePop
+          rid={hovered.recordId}
+          field={hovered.field}
+          x={hovered.x}
+          y={hovered.y}
+          provenance={provenance}
+        />
+      )}
+    </div>
+  );
+}
 
-        {tab === "history" && !historyTarget && (
-          <div className="card empty">
-            <div className="empty-mark">↺</div>
-            <div>
-              Click a non-editable cell on <strong>records</strong> to inspect
-              its append-only history.
-            </div>
-          </div>
-        )}
-      </main>
+function inferKindFromStatus(
+  status: Record<string, TargetStatus>,
+  name: string,
+): string {
+  const s = status[name];
+  if (s?.derivation_kind) return s.derivation_kind;
+  // fallback: pick whichever count is non-zero
+  if ((s?.ai_count ?? 0) > 0) return "ai";
+  if ((s?.import_count ?? 0) > 0) return "import";
+  return "derived";
+}
+
+function Statusbar({
+  total,
+  shown,
+  actor,
+  activeFilter,
+  busy,
+}: {
+  total: number;
+  shown: number;
+  actor: string;
+  activeFilter: string;
+  busy: boolean;
+}) {
+  return (
+    <div className="statusbar mono">
+      <span>
+        <Icons.Cell size={10} /> {shown}/{total} records
+      </span>
+      <span className="sep">·</span>
+      <span>
+        actor <span className="mono">{actor}</span>
+      </span>
+      {activeFilter && (
+        <>
+          <span className="sep">·</span>
+          <span>
+            filter <span className="mono">{activeFilter}</span>
+          </span>
+        </>
+      )}
+      <span className="spacer" />
+      <span>
+        <Icons.Lock size={10} /> .lock idle
+      </span>
+      <span className="sep">·</span>
+      <span>
+        <Icons.Shield size={10} /> writes via SDK
+      </span>
+      {busy && (
+        <>
+          <span className="sep">·</span>
+          <span className="busy">
+            <span className="dot" /> materializing
+          </span>
+        </>
+      )}
     </div>
   );
 }

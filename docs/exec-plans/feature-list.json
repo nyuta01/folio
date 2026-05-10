@@ -672,8 +672,6 @@
         "src/folio_viewer/server.py",
         "src/folio_viewer/_events.py",
         "src/folio/cli.py",
-        "viewer/src/Dashboard.tsx",
-        "viewer/src/History.tsx",
         "viewer/src/useEventStream.ts",
         "viewer/src/App.tsx",
         "viewer/src/api.ts",
@@ -720,6 +718,41 @@
         "python_test": true
       },
       "notes": "Added validate_adr_anchored_invariants in harness_drift.py: anthropic must be imported only in _ai_kind.py (ADR-0009); duckdb (ADR-0005) and filelock (ADR-0006) must each be imported somewhere under src/folio/; tests/fixtures sheets must not bundle .cache / .venv / .folio-cache / .folio-runtime per ADR-0008."
+    },
+    {
+      "id": "FOLIO-H-027",
+      "title": "Redesign Viewer per Claude Design handoff",
+      "priority": "P2",
+      "status": "done",
+      "owner": "agent",
+      "depends": ["FOLIO-H-025"],
+      "plan_url": "docs/exec-plans/active/FOLIO-H-027-plan.md",
+      "paths": [
+        "viewer/src/App.tsx",
+        "viewer/src/QueryBar.tsx",
+        "viewer/src/RightPanel.tsx",
+        "viewer/src/RecordsGrid.tsx",
+        "viewer/src/Icons.tsx",
+        "viewer/src/types.ts",
+        "viewer/src/api.ts",
+        "viewer/src/useEventStream.ts",
+        "viewer/src/index.css",
+        "viewer/package.json",
+        "viewer/package-lock.json",
+        "src/folio/sheet.py",
+        "scripts/harness_check.py",
+        "docs/exec-plans/active/FOLIO-H-027-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "AGENT_PROGRESS.md"
+      ],
+      "verification": {
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true,
+        "python_test": true,
+        "viewer_smoke": true
+      },
+      "notes": "Re-implemented the Viewer frontend against the Claude Design (claude.ai/design) handoff bundle: integrated single-view layout (QueryBar → grid + right panel), unified query bar (WHERE clauses or DuckDB SELECT in one input, with a resizable Result/History/Schema drawer), Sheets-flavored grid with sticky header, inline cell editor (Enter to commit, Esc to cancel) for x-editable-by fields, click-to-select rows with bulk delete, click derived header → Inspector tab, hover any cell for the provenance pop, and a 3-tab right panel (Schema · Activity · Inspector) with a persistent rail. Materialize lifecycle SSE frames are folded into the activity feed and pulse the cells that just filled. Backend addition: materialization_status now returns derivation_kind + per-kind counts (python/sql/http/cross_sheet) so the UI can color the per-target dot."
     },
     {
       "id": "FOLIO-H-006",

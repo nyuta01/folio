@@ -664,6 +664,12 @@ class Sheet:
             target_entries = [e for e in provenance_entries if e.get("field") == target]
             ai_count = sum(1 for e in target_entries if e.get("source") == "ai")
             import_count = sum(1 for e in target_entries if e.get("source") == "import")
+            python_count = sum(1 for e in target_entries if e.get("source") == "python")
+            sql_count = sum(1 for e in target_entries if e.get("source") == "sql")
+            http_count = sum(1 for e in target_entries if e.get("source") == "http")
+            cross_sheet_count = sum(
+                1 for e in target_entries if e.get("source") == "cross_sheet"
+            )
             human_count = sum(
                 1 for e in target_entries if e.get("source") == "human_override"
             )
@@ -676,9 +682,14 @@ class Sheet:
                 "with_provenance": with_provenance,
                 "ai_count": ai_count,
                 "import_count": import_count,
+                "python_count": python_count,
+                "sql_count": sql_count,
+                "http_count": http_count,
+                "cross_sheet_count": cross_sheet_count,
                 "human_override_count": human_count,
                 "last_at": last_at,
                 "last_actor": last_actor,
+                "derivation_kind": by_target[target].kind,
             }
         return result
 

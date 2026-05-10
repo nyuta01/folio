@@ -1,56 +1,11 @@
-export type LogicalType =
-  | "string"
-  | "integer"
-  | "number"
-  | "boolean"
-  | "date"
-  | "timestamp"
-  | "array"
-  | "object";
-
-export interface ContractProperty {
-  name: string;
-  logicalType: LogicalType;
-  description?: string;
-  primaryKey?: boolean;
-  required?: boolean;
-  ["x-derived"]?: boolean;
-  ["x-inputs"]?: string[];
-  ["x-editable-by"]?: string[];
-}
-
-export interface ContractSchema {
-  name: string;
-  physicalType: string;
-  properties: ContractProperty[];
-}
-
-export interface Contract {
-  apiVersion: string;
-  kind: string;
-  id: string;
-  name: string;
-  version: string;
-  schema: ContractSchema[];
-}
-
-export interface RecordsEnvelope {
-  records: Record<string, unknown>[];
-  format: "json" | "toon";
-  limit: number;
-  next_cursor: string | null;
-}
-
-export interface ProvenanceEntry {
-  record_id: string;
-  field: string;
-  source: "ai" | "import" | "human" | "sql" | "http" | "python" | "cross_sheet";
-  actor: string;
-  timestamp: string;
-  input_hash?: string;
-  cost_usd?: number | null;
-  model?: string;
-}
+import type {
+  Contract,
+  MaterializeEnvelope,
+  ProvenanceEntry,
+  QueryResult,
+  RecordsEnvelope,
+  TargetStatus,
+} from "./types";
 
 let cachedCsrf: string | null = null;
 
@@ -62,9 +17,17 @@ async function csrfToken(): Promise<string> {
   return cachedCsrf;
 }
 
+async function unwrapError(response: Response): Promise<never> {
+  const body = await response.json().catch(() => null);
+  const message =
+    body?.error?.message ||
+    `${response.status} ${response.statusText}`;
+  throw new Error(message);
+}
+
 export async function getContract(): Promise<Contract> {
   const response = await fetch("/api/contract", { credentials: "include" });
-  if (!response.ok) throw new Error(`getContract: ${response.status}`);
+  if (!response.ok) await unwrapError(response);
   return response.json();
 }
 
@@ -73,7 +36,7 @@ export async function listRecords(params: {
   limit?: number;
   cursor?: string;
   filter?: string;
-}): Promise<RecordsEnvelope> {
+} = {}): Promise<RecordsEnvelope> {
   const search = new URLSearchParams();
   if (params.fields?.length) search.set("fields", params.fields.join(","));
   if (params.limit !== undefined) search.set("limit", String(params.limit));
@@ -82,11 +45,14 @@ export async function listRecords(params: {
   const response = await fetch(`/api/records?${search.toString()}`, {
     credentials: "include",
   });
-  if (!response.ok) throw new Error(`listRecords: ${response.status}`);
+  if (!response.ok) await unwrapError(response);
   return response.json();
 }
 
-export async function upsertRecord(record: Record<string, unknown>): Promise<void> {
+export async function upsertRecord(
+  record: Record<string, unknown>,
+  actor?: string,
+): Promise<{ inserted: number; updated: number; total: number }> {
   const token = await csrfToken();
   const response = await fetch("/api/records", {
     method: "POST",
@@ -95,12 +61,41 @@ export async function upsertRecord(record: Record<string, unknown>): Promise<voi
       "Content-Type": "application/json",
       "X-CSRF-Token": token,
     },
-    body: JSON.stringify({ records: [record] }),
+    body: JSON.stringify({ records: [record], actor }),
   });
-  if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    throw new Error(body?.error?.message || `upsertRecord: ${response.status}`);
-  }
+  if (!response.ok) await unwrapError(response);
+  return response.json();
+}
+
+export async function deleteRecords(
+  ids: string[],
+  actor?: string,
+): Promise<{ deleted: number; remaining: number }> {
+  const token = await csrfToken();
+  const search = new URLSearchParams({ ids: ids.join(",") });
+  const headers: Record<string, string> = { "X-CSRF-Token": token };
+  if (actor) headers["X-Folio-Actor"] = actor;
+  const response = await fetch(`/api/records?${search.toString()}`, {
+    method: "DELETE",
+    credentials: "include",
+    headers,
+  });
+  if (!response.ok) await unwrapError(response);
+  return response.json();
+}
+
+export async function runQuery(
+  sql: string,
+  params: unknown[] = [],
+): Promise<QueryResult> {
+  const response = await fetch("/api/query", {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ sql, params }),
+  });
+  if (!response.ok) await unwrapError(response);
+  return response.json();
 }
 
 export async function getProvenance(
@@ -111,9 +106,12 @@ export async function getProvenance(
   const response = await fetch(`/api/provenance?${search.toString()}`, {
     credentials: "include",
   });
-  if (response.status === 404) return null;
-  if (!response.ok) throw new Error(`getProvenance: ${response.status}`);
-  return response.json();
+  if (!response.ok) {
+    if (response.status === 404) return null;
+    await unwrapError(response);
+  }
+  const body = await response.json();
+  return body == null ? null : body;
 }
 
 export async function getProvenanceHistory(
@@ -128,30 +126,14 @@ export async function getProvenanceHistory(
   const response = await fetch(`/api/provenance?${search.toString()}`, {
     credentials: "include",
   });
-  if (!response.ok) throw new Error(`getProvenanceHistory: ${response.status}`);
+  if (!response.ok) await unwrapError(response);
   return response.json();
-}
-
-export interface TargetStatus {
-  ai_count?: number;
-  import_count?: number;
-  human_count?: number;
-  none_count?: number;
-  last_run?: string | null;
-  derivation_kind?: string;
 }
 
 export async function getStatus(): Promise<Record<string, TargetStatus>> {
   const response = await fetch("/api/status", { credentials: "include" });
-  if (!response.ok) throw new Error(`getStatus: ${response.status}`);
+  if (!response.ok) await unwrapError(response);
   return response.json();
-}
-
-export interface MaterializeEnvelope {
-  materialized: number;
-  skipped: number;
-  failures: unknown[];
-  total_cost: number | null;
 }
 
 export async function materializeAll(actor: string): Promise<MaterializeEnvelope> {
@@ -165,9 +147,6 @@ export async function materializeAll(actor: string): Promise<MaterializeEnvelope
     },
     body: JSON.stringify({ actor }),
   });
-  if (!response.ok) {
-    const body = await response.json().catch(() => null);
-    throw new Error(body?.error?.message || `materializeAll: ${response.status}`);
-  }
+  if (!response.ok) await unwrapError(response);
   return response.json();
 }

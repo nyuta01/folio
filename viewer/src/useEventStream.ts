@@ -1,20 +1,19 @@
-import { useEffect, useState } from "react";
-
-export interface FolioEvent {
-  kind: string;
-  ts: string;
-  [key: string]: unknown;
-}
+import { useEffect, useRef, useState } from "react";
+import type { FolioEvent } from "./types";
 
 /**
  * Subscribe to the Viewer SSE stream.
  *
- * Returns the most recent event (or `null` until one arrives) so
- * components can render lightweight indicators without buffering
- * everything in React state.
+ * Returns the most recent event plus a callback to fetch the running log.
+ * Components that only need the latest re-render on every frame; the log
+ * can be peeked synchronously without re-rendering.
  */
-export function useEventStream(): FolioEvent | null {
+export function useEventStream(): {
+  latest: FolioEvent | null;
+  log: () => FolioEvent[];
+} {
   const [latest, setLatest] = useState<FolioEvent | null>(null);
+  const logRef = useRef<FolioEvent[]>([]);
 
   useEffect(() => {
     if (typeof EventSource === "undefined") return;
@@ -22,17 +21,20 @@ export function useEventStream(): FolioEvent | null {
     const handler = (event: MessageEvent) => {
       try {
         const parsed = JSON.parse(event.data) as FolioEvent;
+        logRef.current = [...logRef.current.slice(-499), parsed];
         setLatest(parsed);
       } catch {
-        // ignore malformed frames
+        // ignore malformed
       }
     };
     source.onmessage = handler;
-    source.addEventListener("materialize.start", handler as EventListener);
-    source.addEventListener("materialize.end", handler as EventListener);
-    source.addEventListener("materialize.error", handler as EventListener);
+    [
+      "materialize.start",
+      "materialize.end",
+      "materialize.error",
+    ].forEach((kind) => source.addEventListener(kind, handler as EventListener));
     return () => source.close();
   }, []);
 
-  return latest;
+  return { latest, log: () => logRef.current };
 }
