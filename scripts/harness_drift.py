@@ -243,6 +243,23 @@ def validate_adr_anchored_invariants() -> None:
                 "in src/folio/_ai_kind.py per ADR-0009"
             )
 
+    # FastAPI / uvicorn are Phase 5 Viewer dependencies and must not leak
+    # into the SDK or the MCP server. Both ship under src/folio_viewer/.
+    viewer_only = re.compile(
+        r"^\s*(import\s+(fastapi|uvicorn)|from\s+(fastapi|uvicorn)\b)",
+        re.MULTILINE,
+    )
+    for module_dir in ("folio", "folio_mcp"):
+        module_root = ROOT / "src" / module_dir
+        if not module_root.is_dir():
+            continue
+        for path in sorted(module_root.rglob("*.py")):
+            if viewer_only.search(path.read_text(encoding="utf-8")):
+                fail(
+                    f"{path.relative_to(ROOT)}: fastapi / uvicorn may only "
+                    "be imported from src/folio_viewer/"
+                )
+
     # ADR-0005: DuckDB must remain in use somewhere under src/folio/.
     if not _any_module_imports(src_files, "duckdb"):
         fail("ADR-0005 anchor: no module under src/folio/ imports duckdb")

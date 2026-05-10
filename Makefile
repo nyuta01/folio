@@ -60,6 +60,10 @@ mcp-smoke: ## Run the Phase 3 MCP server smoke through FastMCP's in-process clie
 extension-kinds-smoke: ## Run the Phase 4 sql + http extension-kind smoke offline.
 	@bash scripts/smoke-extension-kinds.sh
 
+.PHONY: viewer-smoke
+viewer-smoke: ## Run the Phase 5 Viewer backend smoke (uvicorn + REST round-trip).
+	@bash scripts/smoke-viewer.sh
+
 .PHONY: verify
-verify: harness-check drift-check validate-docs python-test cli-smoke materialize-smoke scripts-smoke mcp-smoke extension-kinds-smoke ## Run the current single verification gate.
+verify: harness-check drift-check validate-docs python-test cli-smoke materialize-smoke scripts-smoke mcp-smoke extension-kinds-smoke viewer-smoke ## Run the current single verification gate.
 	@echo "verify: ok"

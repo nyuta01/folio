@@ -93,33 +93,44 @@ Last updated: 2026-05-10
   foreign records hash folded into `input_hash`).
   `src/folio/datapackage.py` + `folio export datapackage` map the
   contract to a Frictionless v1 descriptor.
+- Phase 5 (Viewer V0–V3) is implemented: `src/folio_viewer/`
+  ships a FastAPI backend (`folio-viewer` console script) that
+  imports the SDK directly. REST routes mirror §19.4 — contract,
+  records (list / get / upsert / delete), query, status,
+  materialize, provenance, plus `/api/csrf` — and every mutating
+  verb requires the `X-CSRF-Token` header to match the
+  `folio_csrf` cookie. `FolioError` is mapped to a typed JSON
+  error envelope. The Vite + React + TanStack Table scaffold
+  under `viewer/` covers V0 (records grid), V1 (type chips +
+  description tooltips), V2 (inline editor for `x-editable-by`
+  fields, persisted via `POST /api/records` with the CSRF
+  token), and V3 (provenance hover with `kind` badges). The
+  Node toolchain is **not** wired into CI; `make viewer-smoke`
+  boots `uvicorn` on a random port and round-trips the API.
 - ADR-to-code drift checks (`scripts/harness_drift.py::
   validate_adr_anchored_invariants`) pin ADR-0005 / ADR-0006 /
-  ADR-0008 / ADR-0009 against silent regressions: anthropic only
-  imports in `_ai_kind.py`, duckdb / filelock must remain in
-  `src/folio/`, sample fixtures cannot bundle env state.
+  ADR-0008 / ADR-0009 against silent regressions: anthropic
+  only imports in `_ai_kind.py`, duckdb / filelock must remain
+  in `src/folio/`, sample fixtures cannot bundle env state.
+  Phase 5 adds a viewer-only invariant: `fastapi` and `uvicorn`
+  may be imported only from `src/folio_viewer/`.
 - `make verify` runs harness shape (`harness-check`), drift
   detection (`drift-check`), docs validation (`validate-docs`),
-  259 pytest cases (`python-test`) covering Phase 0 / 1 / 2 / 3 / 4,
-  plus five smokes: `cli-smoke`, `materialize-smoke`,
-  `scripts-smoke`, `mcp-smoke`, `extension-kinds-smoke`. All run
-  offline through `StubAIClient` / `StubHTTPTransport` / mocked
-  filesystems.
+  pytest (`python-test`) covering Phase 0 / 1 / 2 / 3 / 4 / 5,
+  plus six smokes: `cli-smoke`, `materialize-smoke`,
+  `scripts-smoke`, `mcp-smoke`, `extension-kinds-smoke`,
+  `viewer-smoke`. All run offline through `StubAIClient` /
+  `StubHTTPTransport` / mocked filesystems.
 - GitHub Actions installs dependencies via `uv sync --frozen` and
   runs the same gate on pull requests and pushes to `main`.
 
 ## Next Action
 
-Phase 5 (Viewer) is the only remaining product backlog:
-
-- `FOLIO-H-024`: V0–V3. FastAPI backend, REST routes mapped to the
-  SDK, React + Vite + TanStack Table / Virtual frontend, type
-  chips, provenance hover, derivation badges, edit affordance for
-  `x-editable-by` fields, CSRF token plumbing, and the backend
-  smoke.
-- `FOLIO-H-025`: V4–V6. Materialize dashboard (driven by an
-  injected `StubAIClient`), history view, SSE event stream,
-  Playwright frontend smoke, and the `folio serve` CLI alias.
+Phase 5 V4–V6 (`FOLIO-H-025`) is the only remaining product
+backlog: materialize dashboard (driven by an injected
+`StubAIClient`), history view, SSE event stream, Playwright
+frontend smoke, and the `folio serve` CLI alias over
+`folio-viewer`.
 
 `FOLIO-H-006` and `FOLIO-H-007` remain standing tasks; act on them
 the moment a concrete drift signal or repeated failure appears.

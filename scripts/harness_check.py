@@ -74,6 +74,9 @@ REQUIRED_FILES = [
     "src/folio_mcp/__init__.py",
     "src/folio_mcp/server.py",
     "src/folio_mcp/cli.py",
+    "src/folio_viewer/__init__.py",
+    "src/folio_viewer/server.py",
+    "src/folio_viewer/cli.py",
     "src/folio/kinds/__init__.py",
     "src/folio/kinds/_sql.py",
     "src/folio/kinds/_http.py",
@@ -100,8 +103,14 @@ REQUIRED_FILES = [
     "tests/test_kind_python.py",
     "tests/test_kind_cross_sheet.py",
     "tests/test_datapackage.py",
+    "tests/test_viewer.py",
     "tests/fixtures/import-kind/customers.csv",
     "tests/fixtures/import-kind/legacy.jsonl",
+    "viewer/package.json",
+    "viewer/index.html",
+    "viewer/src/main.tsx",
+    "viewer/src/App.tsx",
+    "viewer/src/api.ts",
     "scripts/smoke-cli.sh",
     "scripts/smoke-materialize.sh",
     "scripts/_materialize_smoke.py",
@@ -110,6 +119,8 @@ REQUIRED_FILES = [
     "scripts/_mcp_smoke.py",
     "scripts/smoke-extension-kinds.sh",
     "scripts/_extension_kinds_smoke.py",
+    "scripts/smoke-viewer.sh",
+    "scripts/_viewer_smoke.py",
 ]
 
 for relative in REQUIRED_FILES:
@@ -235,6 +246,7 @@ if exists("Makefile"):
         r"^verify:.*scripts-smoke",
         r"^verify:.*mcp-smoke",
         r"^verify:.*extension-kinds-smoke",
+        r"^verify:.*viewer-smoke",
     ):
         if not re.search(target_fragment, makefile, re.MULTILINE):
             fail(f"Makefile verify target must match {target_fragment}")
