@@ -15,6 +15,48 @@ npm package.
 
 — Nothing yet.
 
+## [0.1.6] — 2026-05-11
+
+Pre-public-release audit fixes. No behavioural changes; the wheel
+and SDK are identical in shape to 0.1.5.
+
+### Added
+
+- **`LICENSE`** at the repo root, in the PyPI sdist + wheel, and in
+  the `folio-agent-skills` npm pack. MIT was declared in metadata
+  but no license text was shipped — now it is.
+- **`SECURITY.md`** with private vulnerability-reporting channels.
+- **`CONTRIBUTING.md`** with the `make verify` quick start.
+- **`CODE_OF_CONDUCT.md`** (Contributor Covenant 2.1).
+- **`.github/`** scaffolding: issue templates (bug, feature),
+  PR template, `CODEOWNERS`, `dependabot.yml` covering Python +
+  every npm workspace + GitHub Actions.
+
+### Fixed
+
+- **Desktop app install hint** — the "folio-viewer not found"
+  error dialog now recommends `pipx install folio-kit`. Previous
+  versions recommended `pipx install folio`, which is an unrelated
+  abandoned 2014 PyPI package.
+- **Docs site stale CLI flags** — `apps/docs/src/content/docs/cli/`
+  `materialize.mdx` and `status.mdx`, plus
+  `get-started/materialize-lifecycle.mdx`, documented `--target` and
+  `--record-ids` flags that don't exist. Corrected to the real
+  positional-target + `--ids` syntax. Same class of bug as the
+  `folio-agent-skills@0.1.1` SKILL.md fix.
+- **README sheet count** — README.md said "four use-case sheets" but
+  `examples/` ships five (the customer-revenue sidecar was missed).
+- **`docs/methodology/release.md`** — `folio-X.Y.Z-py3-none-any.whl`
+  → `folio_kit-X.Y.Z-py3-none-any.whl` (rename leftover).
+- **`apps/docs/package.json`** bumped to match other manifests.
+- **`.gitignore`** widened to cover `apps/desktop/out/`,
+  `viewer/dist/`, `apps/docs/dist/`, `*.log`, `coverage/`, `.turbo/`.
+
+### Changed
+
+- **`scripts/bump-version.sh`** now also updates `apps/docs/package.json`
+  so every manifest in the monorepo moves together.
+
 ## `folio-agent-skills` [0.1.1] — 2026-05-11
 
 ### Fixed
@@ -124,7 +166,8 @@ install `folio-kit>=0.1.5`.
   Python SDK, FastMCP server, viewer backend, and the macOS / Windows /
   Linux Electron viewer app.
 
-[Unreleased]: https://github.com/nyuta01/folio/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/nyuta01/folio/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/nyuta01/folio/releases/tag/v0.1.6
 [0.1.5]: https://github.com/nyuta01/folio/releases/tag/v0.1.5
 [0.1.4]: https://pypi.org/project/folio-kit/0.1.4/
 [0.1.3]: https://github.com/nyuta01/folio/releases/tag/v0.1.3

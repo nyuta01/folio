@@ -38,8 +38,9 @@ echo "bump-version: ${CURRENT} -> ${NEW}"
 sed -i.bak -E "1,/^version = /s/^version = \"${CURRENT}\"\$/version = \"${NEW}\"/" pyproject.toml
 rm pyproject.toml.bak
 
-# apps/desktop/package.json + viewer/package.json — the first "version": "..." key.
-for f in apps/desktop/package.json viewer/package.json; do
+# apps/desktop/package.json + viewer/package.json + apps/docs/package.json
+# — the first "version": "..." key.
+for f in apps/desktop/package.json viewer/package.json apps/docs/package.json; do
   sed -i.bak -E "s/\"version\": \"${CURRENT}\"/\"version\": \"${NEW}\"/" "${f}"
   rm "${f}.bak"
 done
@@ -51,9 +52,10 @@ echo "bump-version: updated"
 echo "  pyproject.toml             $(awk -F'"' '/^version = / { print $2; exit }' pyproject.toml)"
 echo "  apps/desktop/package.json  $(grep -m1 '"version"' apps/desktop/package.json | sed -E 's/.*"version": "([^"]+)".*/\1/')"
 echo "  viewer/package.json        $(grep -m1 '"version"' viewer/package.json | sed -E 's/.*"version": "([^"]+)".*/\1/')"
+echo "  apps/docs/package.json     $(grep -m1 '"version"' apps/docs/package.json | sed -E 's/.*"version": "([^"]+)".*/\1/')"
 echo
 echo "Next: review with 'git diff', then commit + tag:"
-echo "  git add pyproject.toml apps/desktop/package.json viewer/package.json uv.lock"
+echo "  git add pyproject.toml apps/desktop/package.json viewer/package.json apps/docs/package.json uv.lock"
 echo "  git commit -m \"Bump to ${NEW}\""
 echo "  git tag -a v${NEW} -m \"v${NEW}\""
 echo "  git push origin main v${NEW}"
