@@ -24,3 +24,4 @@
 {"record_id": "cust_003", "field": "current_revenue_usd", "source": "cross_sheet", "actor": "agent:demo", "at": "2026-05-10T10:43:47Z", "input_hash": "sha256:e9fed20df3c68b2992bfbd1793338e4d7c6656797d30f3a1d7020ac2e3dddf71"}
 {"record_id": "cust_004", "field": "current_revenue_usd", "source": "cross_sheet", "actor": "agent:demo", "at": "2026-05-10T10:43:47Z", "input_hash": "sha256:b4406a0b1834932aaf1a2a9b422130557858a7605f408387f001b1756683ad61"}
 {"record_id": "cust_005", "field": "current_revenue_usd", "source": "cross_sheet", "actor": "agent:demo", "at": "2026-05-10T10:43:47Z", "input_hash": "sha256:7c0cc4dc92369531f6c7e5b95025bb5e789741396f77be5d98a287ba9696c9e5"}
+{"record_id": "cust_008", "field": "country_code", "source": "python", "actor": "agent:human", "at": "2026-05-10T14:40:01Z", "input_hash": "sha256:8230703339c2b613a6b3d03f6ed5a20ee121865b1ef8bb1eab6c0d977b52aefa"}

@@ -3,44 +3,45 @@ kind: DataContract
 id: example-customers
 name: customers
 version: 1.0.0
-description: |
-  Use Case 2.1 — Customer Master Enrichment. Humans (or AI agents)
-  populate company_name / country / industry_name. Two derived
-  fields run fully offline:
-    - country_code (python kind)  : ISO-3166-1 alpha-2 from country
-    - current_revenue (cross_sheet kind) : pulled from sibling
-                                            sheet customer-revenue/
+description: "Use Case 2.1 — Customer Master Enrichment. Humans (or AI agents)\npopulate\
+  \ company_name / country / industry_name. Two derived\nfields run fully offline:\n\
+  \  - country_code (python kind)  : ISO-3166-1 alpha-2 from country\n  - current_revenue\
+  \ (cross_sheet kind) : pulled from sibling\n                                   \
+  \       sheet customer-revenue/\n"
 schema:
-  - name: items
-    physicalType: jsonl
-    properties:
-      - name: id
-        logicalType: string
-        primaryKey: true
-        required: true
-        description: Stable customer id.
-      - name: company_name
-        logicalType: string
-        required: true
-        description: Display name.
-        x-editable-by: ["agent:human"]
-      - name: country
-        logicalType: string
-        required: true
-        description: Country of the headquarters (free text).
-        x-editable-by: ["agent:human"]
-      - name: industry_name
-        logicalType: string
-        required: true
-        description: Industry as declared by the customer.
-        x-editable-by: ["agent:human"]
-      - name: country_code
-        logicalType: string
-        description: ISO-3166-1 alpha-2 code derived from country (python kind).
-        x-derived: true
-        x-inputs: [country]
-      - name: current_revenue_usd
-        logicalType: number
-        description: Most recent revenue, pulled from customer-revenue/ (cross_sheet).
-        x-derived: true
-        x-inputs: []
+- name: items
+  physicalType: jsonl
+  properties:
+  - name: id
+    logicalType: string
+    primaryKey: true
+    required: true
+    description: Stable customer id.
+  - name: company_name
+    logicalType: string
+    required: true
+    description: Display name.
+    x-editable-by:
+    - agent:human
+  - name: country
+    logicalType: string
+    required: true
+    description: Country of the headquarters (free text).
+    x-editable-by:
+    - agent:human
+  - name: industry_name
+    logicalType: string
+    required: true
+    description: Industry as declared by the customer.
+    x-editable-by:
+    - agent:human
+  - name: country_code
+    logicalType: string
+    description: ISO-3166-1 alpha-2 code derived from country (python kind).
+    x-derived: true
+    x-inputs:
+    - country
+  - name: current_revenue_usd
+    logicalType: number
+    description: Most recent revenue, pulled from customer-revenue/ (cross_sheet).
+    x-derived: true

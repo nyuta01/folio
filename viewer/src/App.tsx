@@ -99,6 +99,7 @@ export default function App() {
   >([]);
 
   const [editing, setEditing] = useState<{ recordId: string; field: string } | null>(null);
+  const [focused, setFocused] = useState<{ recordId: string; field: string } | null>(null);
   const [hovered, setHovered] = useState<{
     recordId: string;
     field: string;
@@ -108,6 +109,7 @@ export default function App() {
   const [pulsingCells, setPulsingCells] = useState<Set<string>>(new Set());
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [busy, setBusy] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   const [rpCollapsed, setRpCollapsed] = useState(false);
   const [rpTab, setRpTab] = useState<TabId>("schema");
@@ -307,44 +309,82 @@ export default function App() {
 
   const onSimulate = () => onMaterialize();
 
-  const commitEdit = async (rid: string, field: string, value: string) => {
+  const commitEdit = async (
+    rid: string,
+    field: string,
+    value: string,
+    move: "down" | "up" | "right" | "left" | "none" = "none",
+  ) => {
     setEditing(null);
+    setFocused({ recordId: rid, field });
     const prev = records.find((r) => String(r[primaryKey]) === rid)?.[field];
     const next = value === "" ? null : value;
-    if (prev === next) return;
-    try {
-      await upsertRecord({ [primaryKey]: rid, [field]: next }, actor);
-      setRecords((rs) =>
-        rs.map((r) =>
-          String(r[primaryKey]) === rid ? { ...r, [field]: next } : r,
-        ),
-      );
-      // invalidate provenance cache for this cell
-      setProvenance((s) => {
-        const n = { ...s };
-        delete n[`${rid}::${field}`];
-        return n;
-      });
-      addActivity({
-        id: "h" + Date.now(),
-        kind: "human_edit",
-        actor,
-        record_id: rid,
-        field,
-        value: next,
-        prior: prev,
-        at: new Date().toISOString(),
-      });
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      addActivity({
-        id: "h" + Date.now(),
-        kind: "note",
-        actor,
-        text: `edit failed: ${msg}`,
-        at: new Date().toISOString(),
-      });
+    if (prev !== next) {
+      try {
+        await upsertRecord({ [primaryKey]: rid, [field]: next }, actor);
+        setRecords((rs) =>
+          rs.map((r) =>
+            String(r[primaryKey]) === rid ? { ...r, [field]: next } : r,
+          ),
+        );
+        setProvenance((s) => {
+          const n = { ...s };
+          delete n[`${rid}::${field}`];
+          return n;
+        });
+        addActivity({
+          id: "h" + Date.now(),
+          kind: "human_edit",
+          actor,
+          record_id: rid,
+          field,
+          value: next,
+          prior: prev,
+          at: new Date().toISOString(),
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        addActivity({
+          id: "h" + Date.now(),
+          kind: "note",
+          actor,
+          text: `edit failed: ${msg}`,
+          at: new Date().toISOString(),
+        });
+      }
     }
+    if (move !== "none") moveFocus(move, { recordId: rid, field });
+  };
+
+  // ─── Focus movement ──────────────────────────────────────────────────
+  const moveFocus = (
+    dir: "up" | "down" | "left" | "right",
+    from?: { recordId: string; field: string } | null,
+  ) => {
+    const origin = from ?? focused ?? null;
+    if (!origin) {
+      // No focus yet: start at the first non-PK column of the first record.
+      const first = filtered[0];
+      if (!first) return;
+      const firstField = fields.find((f) => !f.primaryKey)?.name ?? primaryKey;
+      setFocused({ recordId: String(first[primaryKey]), field: firstField });
+      return;
+    }
+    const rowIdx = filtered.findIndex(
+      (r) => String(r[primaryKey]) === origin.recordId,
+    );
+    const colIdx = fields.findIndex((f) => f.name === origin.field);
+    if (rowIdx < 0 || colIdx < 0) return;
+    let nr = rowIdx;
+    let nc = colIdx;
+    if (dir === "up") nr = Math.max(0, rowIdx - 1);
+    if (dir === "down") nr = Math.min(filtered.length - 1, rowIdx + 1);
+    if (dir === "left") nc = Math.max(0, colIdx - 1);
+    if (dir === "right") nc = Math.min(fields.length - 1, colIdx + 1);
+    setFocused({
+      recordId: String(filtered[nr][primaryKey]),
+      field: fields[nc].name,
+    });
   };
 
   const onDeleteSelected = async () => {
@@ -513,20 +553,213 @@ export default function App() {
     }
   };
 
-  // keyboard
+  // ─── Global keymap ──────────────────────────────────────────────────
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      const isInputFocused =
+        tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+      const isCellEditor = target?.classList.contains("cell-input") === true;
+
+      // Esc — close help, hover, drawer, editor (editor handles itself).
       if (e.key === "Escape") {
-        setEditing(null);
+        if (helpOpen) {
+          setHelpOpen(false);
+          return;
+        }
+        if (hovered) setHovered(null);
+        if (!isInputFocused) setEditing(null);
       }
+
+      // Help: ? (Shift+/) — only when no input is focused
+      if (
+        !isInputFocused &&
+        (e.key === "?" || (e.key === "/" && e.shiftKey && !e.metaKey && !e.ctrlKey))
+      ) {
+        e.preventDefault();
+        setHelpOpen((v) => !v);
+        return;
+      }
+
+      // ⌘/ — toggle right panel
       if ((e.metaKey || e.ctrlKey) && e.key === "/") {
         e.preventDefault();
         setRpCollapsed((v) => !v);
+        return;
+      }
+
+      // ⌘F — focus the query bar
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        document.querySelector<HTMLInputElement>(".qbar-input input")?.focus();
+        return;
+      }
+
+      // ⌘Enter — Materialize (always available unless an editor is open)
+      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+        if (isCellEditor) return;
+        e.preventDefault();
+        onMaterialize();
+        return;
+      }
+
+      // ⌘⇧N — add row
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        e.shiftKey &&
+        e.key.toLowerCase() === "n"
+      ) {
+        e.preventDefault();
+        onAddRow();
+        return;
+      }
+
+      // ⌘A — select all rows (only when no input focused)
+      if (
+        !isInputFocused &&
+        (e.metaKey || e.ctrlKey) &&
+        e.key.toLowerCase() === "a"
+      ) {
+        e.preventDefault();
+        setSelected(new Set(filtered.map((r) => String(r[primaryKey]))));
+        return;
+      }
+
+      // ⌘Backspace — delete selected rows
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        e.key === "Backspace" &&
+        selected.size > 0 &&
+        !isInputFocused
+      ) {
+        e.preventDefault();
+        onDeleteSelected();
+        return;
+      }
+
+      // From here on, rules apply only when no input is focused.
+      if (isInputFocused) return;
+
+      // Arrow keys / Tab — move focus
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        moveFocus("up");
+        return;
+      }
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        moveFocus("down");
+        return;
+      }
+      if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        moveFocus("left");
+        return;
+      }
+      if (e.key === "ArrowRight") {
+        e.preventDefault();
+        moveFocus("right");
+        return;
+      }
+      if (e.key === "Tab") {
+        e.preventDefault();
+        moveFocus(e.shiftKey ? "left" : "right");
+        return;
+      }
+
+      // Enter / F2 — start editing the focused cell (if editable)
+      if ((e.key === "Enter" || e.key === "F2") && focused) {
+        const field = fields.find((f) => f.name === focused.field);
+        if (!field) return;
+        const editable = (field["x-editable-by"] || []).some(
+          (p) =>
+            p === actor ||
+            p === "*" ||
+            new RegExp(
+              "^" +
+                p
+                  .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+                  .replace(/\*/g, ".*")
+                  .replace(/\?/g, ".") +
+                "$",
+            ).test(actor),
+        );
+        if (editable && !field.primaryKey) {
+          e.preventDefault();
+          setEditing(focused);
+        }
+        return;
+      }
+
+      // Delete / Backspace — clear focused cell value
+      if ((e.key === "Delete" || e.key === "Backspace") && focused) {
+        const field = fields.find((f) => f.name === focused.field);
+        if (!field || field.primaryKey || field["x-derived"]) return;
+        const editable = (field["x-editable-by"] || []).some(
+          (p) =>
+            p === actor ||
+            p === "*" ||
+            new RegExp(
+              "^" +
+                p
+                  .replace(/[.+^${}()|[\]\\]/g, "\\$&")
+                  .replace(/\*/g, ".*")
+                  .replace(/\?/g, ".") +
+                "$",
+            ).test(actor),
+        );
+        if (editable) {
+          e.preventDefault();
+          commitEdit(focused.recordId, focused.field, "", "none");
+        }
+        return;
+      }
+
+      // Space — toggle the focused row's checkbox
+      if (e.key === " " && focused) {
+        e.preventDefault();
+        const id = focused.recordId;
+        setSelected((s) => {
+          const n = new Set(s);
+          if (n.has(id)) n.delete(id);
+          else n.add(id);
+          return n;
+        });
+        return;
+      }
+
+      // ⌘⇧F handled separately so it doesn't conflict with ⌘F (find)
+      if (
+        (e.metaKey || e.ctrlKey) &&
+        e.shiftKey &&
+        e.key.toLowerCase() === "f"
+      ) {
+        e.preventDefault();
+        setRpTab("schema");
+        if (rpCollapsed) setRpCollapsed(false);
+        // Auto-expand the add-field form by clicking it programmatically.
+        // The Schema tab listens for this via an event; here we just open it.
+        setTimeout(() => {
+          document.querySelector<HTMLButtonElement>('.rp-section-title button.ghost-btn')?.click();
+        }, 0);
+        return;
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    helpOpen,
+    hovered,
+    focused,
+    filtered,
+    fields,
+    primaryKey,
+    selected,
+    actor,
+    rpCollapsed,
+  ]);
 
   if (!contract) {
     return (
@@ -575,6 +808,8 @@ export default function App() {
             pulsingCells={pulsingCells}
             editing={editing}
             setEditing={setEditing}
+            focused={focused}
+            setFocused={setFocused}
             selected={selected}
             setSelected={setSelected}
             onHover={setHovered}
@@ -596,6 +831,7 @@ export default function App() {
             actor={actor}
             activeFilter={activeFilter}
             busy={busy}
+            onOpenHelp={() => setHelpOpen(true)}
           />
         </main>
         <RightPanel
@@ -625,6 +861,95 @@ export default function App() {
           provenance={provenance}
         />
       )}
+      {helpOpen && <ShortcutHelp onClose={() => setHelpOpen(false)} />}
+    </div>
+  );
+}
+
+const SHORTCUTS: Array<{
+  group: string;
+  items: Array<{ keys: string; desc: string }>;
+}> = [
+  {
+    group: "Navigation",
+    items: [
+      { keys: "↑ ↓ ← →", desc: "Move focused cell" },
+      { keys: "Tab / ⇧Tab", desc: "Move horizontally" },
+      { keys: "Enter / F2", desc: "Edit focused cell" },
+    ],
+  },
+  {
+    group: "Editing",
+    items: [
+      { keys: "Enter", desc: "Commit + move down" },
+      { keys: "⇧Enter", desc: "Commit + move up" },
+      { keys: "Tab / ⇧Tab", desc: "Commit + move right / left" },
+      { keys: "Esc", desc: "Cancel edit" },
+      { keys: "Delete / Backspace", desc: "Clear focused cell" },
+    ],
+  },
+  {
+    group: "Selection",
+    items: [
+      { keys: "Space", desc: "Toggle focused row" },
+      { keys: "⌘A", desc: "Select all rows" },
+      { keys: "⌘Backspace", desc: "Delete selected rows" },
+    ],
+  },
+  {
+    group: "Sheet",
+    items: [
+      { keys: "⌘Enter", desc: "Materialize" },
+      { keys: "⌘F", desc: "Focus query bar" },
+      { keys: "⌘K", desc: "Open query drawer" },
+      { keys: "⌘/", desc: "Toggle right panel" },
+      { keys: "⌘⇧N", desc: "Add row" },
+      { keys: "⌘⇧F", desc: "Add field" },
+    ],
+  },
+  {
+    group: "Help",
+    items: [
+      { keys: "?", desc: "Toggle this help" },
+      { keys: "Esc", desc: "Close help / popovers" },
+    ],
+  },
+];
+
+function ShortcutHelp({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      className="help-overlay"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="help-card">
+        <div className="help-head">
+          <span className="mono" style={{ fontWeight: 600 }}>
+            Keyboard shortcuts
+          </span>
+          <span className="spacer" />
+          <button className="icon-btn" onClick={onClose} title="Close">
+            <Icons.X size={11} />
+          </button>
+        </div>
+        <div className="help-body">
+          {SHORTCUTS.map((g) => (
+            <div className="help-group" key={g.group}>
+              <div className="help-group-title">{g.group}</div>
+              <ul className="help-list">
+                {g.items.map((it) => (
+                  <li key={it.keys}>
+                    <span className="help-keys mono">{it.keys}</span>
+                    <span className="help-desc">{it.desc}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -647,12 +972,14 @@ function Statusbar({
   actor,
   activeFilter,
   busy,
+  onOpenHelp,
 }: {
   total: number;
   shown: number;
   actor: string;
   activeFilter: string;
   busy: boolean;
+  onOpenHelp: () => void;
 }) {
   return (
     <div className="statusbar mono">
@@ -672,6 +999,14 @@ function Statusbar({
         </>
       )}
       <span className="spacer" />
+      <button
+        className="status-hint"
+        onClick={onOpenHelp}
+        title="Keyboard shortcuts (?)"
+      >
+        <span className="kbd-tiny">?</span> shortcuts
+      </button>
+      <span className="sep">·</span>
       <span>
         <Icons.Lock size={10} /> .lock idle
       </span>

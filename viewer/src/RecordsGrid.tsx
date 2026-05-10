@@ -34,7 +34,7 @@ export { FieldBadge };
 
 interface CellEditorProps {
   value: unknown;
-  onCommit: (value: string) => void;
+  onCommit: (value: string, move?: "down" | "up" | "right" | "left" | "none") => void;
   onCancel: () => void;
 }
 function CellEditor({ value, onCommit, onCancel }: CellEditorProps) {
@@ -50,13 +50,15 @@ function CellEditor({ value, onCommit, onCancel }: CellEditorProps) {
       className="cell-input mono"
       value={v}
       onChange={(e) => setV(e.target.value)}
-      onBlur={() => onCommit(v)}
+      onBlur={() => onCommit(v, "none")}
       onKeyDown={(e) => {
         if (e.key === "Enter") {
           e.preventDefault();
-          onCommit(v);
-        }
-        if (e.key === "Escape") {
+          onCommit(v, e.shiftKey ? "up" : "down");
+        } else if (e.key === "Tab") {
+          e.preventDefault();
+          onCommit(v, e.shiftKey ? "left" : "right");
+        } else if (e.key === "Escape") {
           e.preventDefault();
           onCancel();
         }
@@ -96,10 +98,17 @@ interface CellProps {
   stale: boolean;
   pulsing: boolean;
   editing: boolean;
+  focused: boolean;
   editable: boolean;
   setEditing: (v: { recordId: string; field: string } | null) => void;
+  setFocused: (v: { recordId: string; field: string } | null) => void;
   onHover: (info: { recordId: string; field: string; x: number; y: number } | null) => void;
-  onCommit: (recordId: string, field: string, value: string) => void;
+  onCommit: (
+    recordId: string,
+    field: string,
+    value: string,
+    move?: "down" | "up" | "right" | "left" | "none",
+  ) => void;
 }
 
 function Cell({
@@ -110,8 +119,10 @@ function Cell({
   stale,
   pulsing,
   editing,
+  focused,
   editable,
   setEditing,
+  setFocused,
   onHover,
   onCommit,
 }: CellProps) {
@@ -128,6 +139,7 @@ function Cell({
   };
   const handleLeave = () => onHover(null);
   const handleClick = () => {
+    setFocused({ recordId, field: field.name });
     if (editable && !isPK) setEditing({ recordId, field: field.name });
   };
 
@@ -136,7 +148,7 @@ function Cell({
       <td className="td td-edit">
         <CellEditor
           value={value}
-          onCommit={(v) => onCommit(recordId, field.name, v)}
+          onCommit={(v, move) => onCommit(recordId, field.name, v, move)}
           onCancel={() => setEditing(null)}
         />
       </td>
@@ -153,6 +165,7 @@ function Cell({
         pulsing && "td-pulse",
         value == null && "td-null",
         isPK && "td-pk",
+        focused && "td-focused",
       )}
       onMouseEnter={handleEnter}
       onMouseLeave={handleLeave}
@@ -184,10 +197,17 @@ interface RecordsGridProps {
   pulsingCells: Set<string>;
   editing: { recordId: string; field: string } | null;
   setEditing: (v: { recordId: string; field: string } | null) => void;
+  focused: { recordId: string; field: string } | null;
+  setFocused: (v: { recordId: string; field: string } | null) => void;
   selected: Set<string>;
   setSelected: (s: Set<string>) => void;
   onHover: (info: { recordId: string; field: string; x: number; y: number } | null) => void;
-  onCommit: (recordId: string, field: string, value: string) => void;
+  onCommit: (
+    recordId: string,
+    field: string,
+    value: string,
+    move?: "down" | "up" | "right" | "left" | "none",
+  ) => void;
   onPickField: (name: string) => void;
 }
 
@@ -210,6 +230,8 @@ export function RecordsGrid({
   pulsingCells,
   editing,
   setEditing,
+  focused,
+  setFocused,
   selected,
   setSelected,
   onHover,
@@ -299,8 +321,14 @@ export function RecordsGrid({
                       editing={
                         editing?.recordId === id && editing?.field === c.name
                       }
+                      focused={
+                        !editing &&
+                        focused?.recordId === id &&
+                        focused?.field === c.name
+                      }
                       editable={isEditable(c)}
                       setEditing={setEditing}
+                      setFocused={setFocused}
                       onHover={onHover}
                       onCommit={onCommit}
                     />
