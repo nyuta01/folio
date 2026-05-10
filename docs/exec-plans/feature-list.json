@@ -428,26 +428,33 @@
       "id": "FOLIO-H-017",
       "title": "Implement Phase 3 MCP server",
       "priority": "P2",
-      "status": "todo",
+      "status": "done",
       "owner": "agent",
       "depends": ["FOLIO-H-016"],
-      "plan_url": null,
+      "plan_url": "docs/exec-plans/active/FOLIO-H-017-plan.md",
       "paths": [
-        "src/folio_mcp",
+        "src/folio_mcp/__init__.py",
+        "src/folio_mcp/server.py",
+        "src/folio_mcp/cli.py",
         "pyproject.toml",
+        "uv.lock",
         "tests/test_mcp.py",
         "scripts/smoke-mcp.sh",
+        "scripts/_mcp_smoke.py",
         "Makefile",
-        "scripts/harness_check.py"
+        "scripts/harness_check.py",
+        "docs/exec-plans/active/FOLIO-H-017-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "AGENT_PROGRESS.md"
       ],
       "verification": {
-        "harness_check": null,
-        "drift_check": null,
-        "validate_docs": null,
-        "python_test": null,
-        "mcp_smoke": null
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true,
+        "python_test": true,
+        "mcp_smoke": true
       },
-      "notes": "Add the folio-mcp package with a FastMCP server exposing the nine SDK operations as MCP tools (with when-to-use guidance), per-tool Pydantic input models, in-process MCP tests, and a deterministic scripts/smoke-mcp.sh."
+      "notes": "Added the folio-mcp sibling package with build_server exposing the nine SDK operations as FastMCP tools (with when-to-use docstrings), sheet-path resolution against --root with traversal rejection, AIClient injection for materialize, the folio-mcp serve CLI (stdio + http), in-process Client tests, and a deterministic scripts/smoke-mcp.sh harness wired into make verify."
     },
     {
       "id": "FOLIO-H-018",

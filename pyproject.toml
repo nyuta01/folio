@@ -16,6 +16,7 @@ classifiers = [
 dependencies = [
     "anthropic>=0.40",
     "duckdb>=1.0",
+    "fastmcp>=2.6",
     "filelock>=3.13",
     "platformdirs>=4.2",
     "pydantic>=2.6",
@@ -26,6 +27,7 @@ dependencies = [
 
 [project.scripts]
 folio = "folio.cli:main"
+folio-mcp = "folio_mcp.cli:main"
 
 [project.urls]
 Homepage = "https://github.com/nyuta01/folio"
@@ -41,7 +43,7 @@ requires = ["hatchling>=1.21"]
 build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/folio"]
+packages = ["src/folio", "src/folio_mcp"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -52,6 +52,10 @@ materialize-smoke: ## Run the Phase 1 materialize smoke against a stubbed AI cli
 scripts-smoke: ## Run the Phase 2 reusable-script smoke against a temporary sheet.
 	@bash scripts/smoke-scripts.sh
 
+.PHONY: mcp-smoke
+mcp-smoke: ## Run the Phase 3 MCP server smoke through FastMCP's in-process client.
+	@bash scripts/smoke-mcp.sh
+
 .PHONY: verify
-verify: harness-check drift-check validate-docs python-test cli-smoke materialize-smoke scripts-smoke ## Run the current single verification gate.
+verify: harness-check drift-check validate-docs python-test cli-smoke materialize-smoke scripts-smoke mcp-smoke ## Run the current single verification gate.
 	@echo "verify: ok"
