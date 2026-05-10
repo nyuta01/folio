@@ -32,6 +32,10 @@ drift-check: ## Validate plan/failure-log drift invariants.
 validate-docs: ## Validate design docs, ADR structure, and docs-local links.
 	@$(PYTHON) scripts/validate_docs.py
 
+.PHONY: verify-spec
+verify-spec: ## Verify SPECIFICATION.md matches the reference implementation.
+	@$(UV) run --frozen python scripts/verify_spec.py
+
 .PHONY: sync
 sync: ## Install Python dependencies into the project virtual environment.
 	@$(UV) sync
@@ -65,5 +69,5 @@ viewer-smoke: ## Run the Phase 5 Viewer backend smoke (uvicorn + REST round-trip
 	@bash scripts/smoke-viewer.sh
 
 .PHONY: verify
-verify: harness-check drift-check validate-docs python-test cli-smoke materialize-smoke scripts-smoke mcp-smoke extension-kinds-smoke viewer-smoke ## Run the current single verification gate.
+verify: harness-check drift-check validate-docs verify-spec python-test cli-smoke materialize-smoke scripts-smoke mcp-smoke extension-kinds-smoke viewer-smoke ## Run the current single verification gate.
 	@echo "verify: ok"
