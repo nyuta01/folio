@@ -316,6 +316,46 @@ script_app = typer.Typer(
 app.add_typer(script_app, name="script")
 
 
+export_app = typer.Typer(
+    no_args_is_help=True,
+    add_completion=False,
+    help="Export sheet metadata in interoperable formats.",
+)
+app.add_typer(export_app, name="export")
+
+
+@export_app.command(
+    "datapackage",
+    help="Emit a Frictionless Data Package descriptor for a sheet.",
+)
+@_handle_folio_errors
+def export_datapackage(
+    sheet: Path = SHEET_ARGUMENT,
+    out: Optional[Path] = typer.Option(
+        None,
+        "--out",
+        help="Destination JSON file (defaults to <sheet>/datapackage.json).",
+    ),
+    stdout: bool = typer.Option(
+        False,
+        "--stdout/--write",
+        help="Print the descriptor to stdout instead of writing a file.",
+    ),
+) -> None:
+    from .contract import load_contract
+    from .datapackage import build_descriptor, write_datapackage
+
+    if stdout:
+        descriptor = build_descriptor(load_contract(sheet))
+        typer.echo(
+            json.dumps(descriptor, ensure_ascii=False, indent=2, sort_keys=True)
+        )
+        return
+
+    target = write_datapackage(sheet, out)
+    typer.echo(f"wrote {target}")
+
+
 @script_app.command("list", help="List runnable scripts under sheet/scripts/.")
 @_handle_folio_errors
 def script_list(

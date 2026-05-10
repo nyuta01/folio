@@ -566,23 +566,26 @@
       "id": "FOLIO-H-022",
       "title": "Implement Phase 4 datapackage.json generation",
       "priority": "P2",
-      "status": "todo",
+      "status": "done",
       "owner": "agent",
       "depends": ["FOLIO-H-019"],
-      "plan_url": null,
+      "plan_url": "docs/exec-plans/active/FOLIO-H-022-plan.md",
       "paths": [
         "src/folio/datapackage.py",
         "src/folio/cli.py",
         "tests/test_datapackage.py",
-        "pyproject.toml"
+        "scripts/harness_check.py",
+        "docs/exec-plans/active/FOLIO-H-022-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "AGENT_PROGRESS.md"
       ],
       "verification": {
-        "harness_check": null,
-        "drift_check": null,
-        "validate_docs": null,
-        "python_test": null
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true,
+        "python_test": true
       },
-      "notes": "Map the contract + records into a Frictionless Data Package descriptor per design overview §14.2, expose folio export datapackage, and validate the output against the frictionless library."
+      "notes": "Added build_descriptor / write_datapackage that map a Folio contract to a Frictionless v1 descriptor per §14.2 (logicalType -> Frictionless type, single primaryKey, propagated descriptions, required constraints, folioDerived flag). folio export datapackage CLI writes <sheet>/datapackage.json or pipes to stdout."
     },
     {
       "id": "FOLIO-H-023",
