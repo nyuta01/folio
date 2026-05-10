@@ -211,15 +211,32 @@ interface RecordsGridProps {
   onPickField: (name: string) => void;
 }
 
+// Per-field "preferred for content" widths — used as a floor so common
+// columns (like company_name) stay roomy even when their header is short.
 const COL_WIDTHS: Record<string, number> = {
-  id: 110,
   company_name: 240,
   company_url: 230,
   industry_tag: 150,
+  industry_name: 180,
   employee_size: 130,
   hq_country: 100,
   created_at: 170,
 };
+
+const COL_MIN_WIDTH = 60;
+
+// Compute the natural width to show the full header (name + chips) without
+// truncation, then take the max with any "content-preferred" override.
+function defaultColWidth(prop: ContractProperty): number {
+  // JetBrains Mono 11px ≈ 7.5px / char; field-badge ~32, type-chip ~58, gutter ~32.
+  const nameW = prop.name.length * 7.5;
+  const badgeW = (prop.primaryKey ? 32 : 0) + (prop["x-derived"] ? 32 : 0);
+  const typeW = 58;
+  const gutter = 32;
+  const headerFit = Math.ceil(nameW + badgeW + typeW + gutter);
+  const explicit = COL_WIDTHS[prop.name];
+  return Math.max(headerFit, explicit ?? 0);
+}
 
 export function RecordsGrid({
   records,
@@ -238,6 +255,40 @@ export function RecordsGrid({
   onCommit,
   onPickField,
 }: RecordsGridProps) {
+  const [colOverrides, setColOverrides] = useState<Record<string, number>>({});
+  const widthOf = (c: ContractProperty) =>
+    colOverrides[c.name] ?? defaultColWidth(c);
+
+  const startColResize = (
+    name: string,
+    startWidth: number,
+    e: React.MouseEvent<HTMLDivElement>,
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const onMove = (ev: MouseEvent) => {
+      const next = Math.max(COL_MIN_WIDTH, startWidth + (ev.clientX - startX));
+      setColOverrides((s) => ({ ...s, [name]: next }));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      document.body.classList.remove("col-resizing");
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    document.body.classList.add("col-resizing");
+  };
+
+  const resetColWidth = (name: string) =>
+    setColOverrides((s) => {
+      if (!(name in s)) return s;
+      const n = { ...s };
+      delete n[name];
+      return n;
+    });
+
   const toggleSel = (id: string) => {
     const n = new Set(selected);
     if (n.has(id)) n.delete(id);
@@ -263,7 +314,7 @@ export function RecordsGrid({
         <colgroup>
           <col style={{ width: 36 }} />
           {cols.map((c) => (
-            <col key={c.name} style={{ width: COL_WIDTHS[c.name] || 140 }} />
+            <col key={c.name} style={{ width: widthOf(c) }} />
           ))}
         </colgroup>
         <thead>
@@ -286,6 +337,17 @@ export function RecordsGrid({
                   <FieldBadge prop={c} />
                   <TypeChip t={c.logicalType} />
                 </div>
+                <div
+                  className="th-resize"
+                  onMouseDown={(e) => startColResize(c.name, widthOf(c), e)}
+                  onDoubleClick={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    resetColWidth(c.name);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  title="Drag to resize · double-click to auto-fit"
+                />
               </th>
             ))}
           </tr>

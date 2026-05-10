@@ -309,7 +309,6 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
 .qdrawer {
   display: flex;
   flex-direction: column;
-  border-top: 1px solid var(--line);
   background: var(--panel);
   position: relative;
 }
@@ -506,6 +505,7 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   cursor: pointer;
   user-select: none;
   white-space: nowrap;
+  overflow: hidden;
 }
 .grid thead th:hover { background: var(--hover); }
 .grid thead th.th-derived { background: oklch(0.985 0.018 40); }
@@ -519,6 +519,41 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
+}
+/* Header text never truncates — columns are sized to fit, and users can
+   resize via the right-edge handle. The ellipsis is a last-ditch safety net
+   only when a user manually narrows a column below its natural width. */
+.th-inner > .mono {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+  flex-shrink: 1;
+}
+.th-inner > .pill,
+.th-inner > .type-chip {
+  flex-shrink: 0;
+}
+
+/* Column resize handle — Excel / Sheets-style draggable right edge. */
+.grid thead th .th-resize {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  user-select: none;
+  z-index: 3;
+}
+.grid thead th .th-resize:hover,
+body.col-resizing .grid thead th .th-resize {
+  background: color-mix(in oklab, var(--accent) 35%, transparent);
+}
+body.col-resizing,
+body.col-resizing * {
+  cursor: col-resize !important;
+  user-select: none !important;
 }
 
 .grid tbody td {
