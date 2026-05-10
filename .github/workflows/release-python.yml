@@ -1,0 +1,109 @@
+name: release-python
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag name to package (skip release publish if not pushed yet)"
+        required: false
+      publish-pypi:
+        description: "Also publish to PyPI (requires OIDC trusted publisher)"
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: write    # softprops/action-gh-release@v2 needs this for release assets
+  id-token: write    # PyPI OIDC trusted publishing needs an OIDC token
+
+jobs:
+  build-and-release:
+    name: Build wheel + sdist and attach to GitHub Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Sync dev dependencies (build backend lives in pyproject)
+        run: uv sync --frozen
+
+      - name: Build sdist + wheel
+        run: make dist
+
+      - name: Smoke-test the wheel in a fresh venv
+        run: make dist-check
+
+      - name: Compute artifact metadata
+        id: artifacts
+        run: |
+          set -euo pipefail
+          wheel="$(ls dist/folio-*.whl)"
+          sdist="$(ls dist/folio-*.tar.gz)"
+          {
+            echo "wheel=${wheel}"
+            echo "sdist=${sdist}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Generate SHA-256 checksums
+        run: |
+          cd dist
+          shasum -a 256 folio-*.whl folio-*.tar.gz > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create / update GitHub Release with assets
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: true
+          files: |
+            ${{ steps.artifacts.outputs.wheel }}
+            ${{ steps.artifacts.outputs.sdist }}
+            dist/SHA256SUMS.txt
+
+      - name: Upload artifacts to workflow run (always)
+        uses: actions/upload-artifact@v4
+        with:
+          name: folio-python-${{ github.ref_name }}
+          path: |
+            dist/folio-*.whl
+            dist/folio-*.tar.gz
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      # ── PyPI publish (OIDC trusted publishing) ──────────────────────
+      #
+      # Configure once at https://pypi.org/manage/account/publishing/
+      # with: project=folio, owner=nyuta01, repo=folio,
+      # workflow=release-python.yml, environment=pypi.
+      #
+      # Until the project name is reserved on PyPI, leave the
+      # `publish-pypi` input as false (and don't set the environment).
+      # The job below is gated by the explicit dispatch input — tag
+      # pushes do not auto-publish to avoid surprises.
+      - name: Publish to PyPI (trusted publisher / OIDC)
+        if: >-
+          inputs.publish-pypi == true
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist
+          # Skip files we don't want shipped — only wheel + sdist go up.
+          # The action filters to .whl/.tar.gz by default; SHA256SUMS.txt
+          # is harmlessly excluded.

@@ -2,8 +2,17 @@ import { defineConfig } from "astro/config";
 import starlight from "@astrojs/starlight";
 
 // https://astro.build/config
+//
+// Hosting: GitHub Pages under https://nyuta01.github.io/folio/. The `base`
+// is read by Astro to prefix internal asset URLs and Starlight slugs so the
+// site works under a sub-path. Override either with the SITE / BASE env vars
+// at build time when deploying to a different host.
+const SITE = process.env.SITE ?? "https://nyuta01.github.io";
+const BASE = process.env.BASE ?? "/folio";
+
 export default defineConfig({
-  site: "https://folio.dev",
+  site: SITE,
+  base: BASE,
   integrations: [
     starlight({
       title: "Folio",

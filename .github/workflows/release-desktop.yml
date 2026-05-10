@@ -1,0 +1,179 @@
+name: release-desktop
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag name to package (skip release upload if not pushed yet)"
+        required: false
+
+permissions:
+  contents: write    # softprops/action-gh-release@v2 needs this to attach assets
+
+jobs:
+  build:
+    name: ${{ matrix.platform }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.runs-on }}
+    timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos
+            arch: arm64
+            runs-on: macos-14
+            build-cmd: dist:mac
+            artifact-glob: |
+              apps/desktop/out/*.dmg
+              apps/desktop/out/*.zip
+          - platform: linux
+            arch: x64
+            runs-on: ubuntu-24.04
+            build-cmd: dist:linux
+            artifact-glob: |
+              apps/desktop/out/*.AppImage
+              apps/desktop/out/*.deb
+          - platform: windows
+            arch: x64
+            runs-on: windows-latest
+            build-cmd: dist:win
+            artifact-glob: |
+              apps/desktop/out/*.exe
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: |
+            viewer/package-lock.json
+            apps/desktop/package-lock.json
+
+      - name: Build the renderer (viewer/dist/)
+        working-directory: viewer
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install desktop dependencies
+        working-directory: apps/desktop
+        run: npm ci
+
+      # ── Code signing (best-effort) ───────────────────────────────────
+      #
+      # Signing is gated behind repository secrets. If a secret is missing
+      # the unsigned artifact still ships — useful for forks and trial
+      # releases. Configure at:
+      #   Settings → Secrets and variables → Actions → New repository secret
+      #
+      # macOS:                                         (notarization on top)
+      #   APPLE_ID                — Apple Developer account email
+      #   APPLE_APP_SPECIFIC_PASSWORD
+      #                           — app-specific password from appleid.apple.com
+      #   APPLE_TEAM_ID           — 10-char Team ID
+      #   CSC_LINK                — base64-encoded .p12 (Developer ID Application)
+      #   CSC_KEY_PASSWORD        — password for the above .p12
+      # Windows:
+      #   WIN_CSC_LINK            — base64-encoded .pfx
+      #   WIN_CSC_KEY_PASSWORD    — password for the above .pfx
+      - name: Detect signing readiness (macOS)
+        if: matrix.platform == 'macos'
+        id: mac-signing
+        shell: bash
+        env:
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+        run: |
+          if [[ -n "${CSC_LINK}" && -n "${APPLE_ID}" ]]; then
+            echo "ready=true" >> "${GITHUB_OUTPUT}"
+            echo "::notice::macOS signing + notarization secrets present — signed build."
+          else
+            echo "ready=false" >> "${GITHUB_OUTPUT}"
+            echo "::warning::macOS signing secrets missing — building UNSIGNED artifact. Users will see a Gatekeeper warning."
+          fi
+
+      - name: Detect signing readiness (Windows)
+        if: matrix.platform == 'windows'
+        id: win-signing
+        shell: bash
+        env:
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+        run: |
+          if [[ -n "${WIN_CSC_LINK}" ]]; then
+            echo "ready=true" >> "${GITHUB_OUTPUT}"
+            echo "::notice::Windows signing secrets present — signed build."
+          else
+            echo "ready=false" >> "${GITHUB_OUTPUT}"
+            echo "::warning::Windows signing secret missing — building UNSIGNED artifact. SmartScreen will warn on first launch."
+          fi
+
+      - name: Build the desktop app
+        working-directory: apps/desktop
+        env:
+          # Skip electron-builder's auto-publish; we attach explicitly below.
+          GH_TOKEN: ""
+
+          # Auto-disable signing discovery only when the secrets are absent,
+          # so signed and unsigned paths share one workflow file.
+          CSC_IDENTITY_AUTO_DISCOVERY: >-
+            ${{
+              (matrix.platform == 'macos' && steps.mac-signing.outputs.ready == 'true') ||
+              (matrix.platform == 'windows' && steps.win-signing.outputs.ready == 'true')
+              && 'true' || 'false'
+            }}
+
+          # macOS — populated only when secrets exist.
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_LINK: ${{ secrets.CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+
+          # Windows — populated only when secrets exist.
+          WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+        run: npm run ${{ matrix.build-cmd }} -- --publish=never
+
+      - name: Compute SHA-256 checksums
+        shell: bash
+        working-directory: apps/desktop/out
+        run: |
+          set -euo pipefail
+          # Strip nested directories that electron-builder leaves behind
+          # (mac-arm64/, etc.) so only the distributable installers remain.
+          shopt -s nullglob
+          mkdir -p _release
+          for f in *.dmg *.zip *.AppImage *.deb *.exe; do
+            [[ -f "$f" ]] && cp "$f" _release/
+          done
+          cd _release
+          if [[ -n "$(ls 2>/dev/null)" ]]; then
+            shasum -a 256 * > SHA256SUMS-${{ matrix.platform }}-${{ matrix.arch }}.txt
+            cat SHA256SUMS-*.txt
+          fi
+
+      - name: Upload artifacts to workflow run
+        uses: actions/upload-artifact@v4
+        with:
+          name: folio-desktop-${{ matrix.platform }}-${{ matrix.arch }}
+          path: apps/desktop/out/_release/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Attach to GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          generate_release_notes: false
+          files: |
+            apps/desktop/out/_release/*

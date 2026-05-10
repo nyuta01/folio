@@ -13,7 +13,11 @@ interface Settings {
 // dist/main/main.js → up 4 levels = repo root (dist/main → dist → desktop → apps → repo).
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, "..", "..", "..", "..");
-const defaultStaticDir = join(repoRoot, "viewer", "dist");
+// In dev (source checkout), the renderer assets sit at <repo>/viewer/dist.
+// When packaged by electron-builder, they're copied into the app's resources
+// dir as `viewer-dist/` (configured via `extraResources` in package.json).
+const devStaticDir = join(repoRoot, "viewer", "dist");
+const packagedStaticDir = join(process.resourcesPath, "viewer-dist");
 const venvBin = join(repoRoot, ".venv", "bin", "folio-viewer");
 const settingsFile = join(app.getPath("userData"), "settings.json");
 const preloadEntry = join(here, "..", "preload", "preload.cjs");
@@ -76,7 +80,8 @@ function findFolioBin(): string {
 
 function resolveStaticDir(): string | undefined {
   if (process.env.FOLIO_STATIC_DIR) return process.env.FOLIO_STATIC_DIR;
-  if (existsSync(defaultStaticDir)) return defaultStaticDir;
+  if (app.isPackaged && existsSync(packagedStaticDir)) return packagedStaticDir;
+  if (existsSync(devStaticDir)) return devStaticDir;
   return undefined;
 }
 
@@ -109,10 +114,12 @@ async function startWithSheet(sheetPath: string): Promise<void> {
   const staticDir = resolveStaticDir();
   if (!staticDir) {
     logLine(
-      `WARNING: viewer/dist not found — run \`npm --prefix ${join(
-        repoRoot,
-        "viewer",
-      )} run build\` first, or set FOLIO_STATIC_DIR.`,
+      app.isPackaged
+        ? `WARNING: bundled viewer-dist not found at ${packagedStaticDir} — the packaged app is corrupt; reinstall.`
+        : `WARNING: viewer/dist not found — run \`npm --prefix ${join(
+            repoRoot,
+            "viewer",
+          )} run build\` first, or set FOLIO_STATIC_DIR.`,
     );
   }
 
@@ -134,12 +141,50 @@ async function startWithSheet(sheetPath: string): Promise<void> {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     logLine(`failed to start folio-viewer: ${msg}`);
-    await dialog.showMessageBox({
+    const enoent =
+      msg.includes("ENOENT") ||
+      msg.includes("not found") ||
+      msg.includes("exited before ready");
+    const detail = enoent
+      ? [
+          "The Folio Desktop app shells out to the `folio-viewer` Python CLI",
+          "and could not find it on this machine.",
+          "",
+          `Lookup order: FOLIO_VIEWER_BIN → ${venvBin} → PATH.`,
+          "",
+          "To install Folio:",
+          "  pipx install folio       # recommended",
+          "  uv tool install folio    # alternative",
+          "",
+          "Or if you are running from a source checkout, `uv sync` from the",
+          "repo root creates `.venv/bin/folio-viewer` automatically.",
+          "",
+          `Underlying error: ${msg}`,
+        ].join("\n")
+      : `${msg}\n\nMake sure the picked directory is a Folio sheet (contains contract.yaml).\n\nRecent logs:\n${recentLogs.slice(0, 8).join("\n")}`;
+    const choice = await dialog.showMessageBox({
       type: "error",
-      message: "Could not start folio-viewer",
-      detail: `${msg}\n\nMake sure \`folio-viewer\` is installed (run \`uv sync\` from the repo root) and that the picked directory is a Folio sheet.\n\nRecent logs:\n${recentLogs.slice(0, 8).join("\n")}`,
-      buttons: ["OK"],
+      message: enoent
+        ? "Folio is not installed on this machine"
+        : "Could not start folio-viewer",
+      detail,
+      buttons: enoent
+        ? ["Open install docs", "Try again", "Quit"]
+        : ["OK"],
+      defaultId: 0,
+      cancelId: enoent ? 2 : 0,
     });
+    if (enoent && choice.response === 0) {
+      void shell.openExternal(
+        "https://nyuta01.github.io/folio/get-started/installation/",
+      );
+    }
+    if (enoent && choice.response === 1) {
+      void startWithSheet(sheetPath);
+    }
+    if (enoent && choice.response === 2) {
+      app.quit();
+    }
     return;
   }
 

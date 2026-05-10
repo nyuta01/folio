@@ -36,6 +36,16 @@ validate-docs: ## Validate design docs, ADR structure, and docs-local links.
 verify-spec: ## Verify SPECIFICATION.md matches the reference implementation.
 	@$(UV) run --frozen python scripts/verify_spec.py
 
+.PHONY: dist
+dist: ## Build the Python sdist + wheel into dist/.
+	@rm -rf dist
+	@$(UV) build
+	@ls -lh dist/
+
+.PHONY: dist-check
+dist-check: dist ## Build dist/ artifacts and smoke-test the wheel in a clean venv.
+	@bash scripts/smoke-dist.sh
+
 .PHONY: sync
 sync: ## Install Python dependencies into the project virtual environment.
 	@$(UV) sync

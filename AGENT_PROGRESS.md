@@ -1,6 +1,6 @@
 # Agent Progress
 
-Last updated: 2026-05-10
+Last updated: 2026-05-11
 
 ## Current State
 
@@ -139,6 +139,26 @@ Last updated: 2026-05-10
   `StubHTTPTransport` / mocked filesystems.
 - GitHub Actions installs dependencies via `uv sync --frozen` and
   runs the same gate on pull requests and pushes to `main`.
+- `SPECIFICATION.md` at the repo root is the canonical, AI-agent-readable
+  specification. `scripts/verify_spec.py` parses every machine-marked
+  table and asserts it matches the live code; `make verify-spec` is part
+  of the `verify` gate. Drift fails CI.
+- Distribution artifacts:
+  - `make dist` builds `dist/folio-*.whl` + `dist/folio-*.tar.gz` via
+    `uv build`. `make dist-check` smokes the wheel in a clean venv.
+  - `.github/workflows/release-python.yml` fires on `v*.*.*` tag push,
+    builds and smokes the wheel, attaches the wheel + sdist +
+    `SHA256SUMS.txt` to a draft GitHub Release.
+  - `.github/workflows/release-desktop.yml` builds the Electron app on
+    macOS / Linux / Windows runners (DMG + zip / AppImage + deb /
+    NSIS Setup + portable) and attaches them to the same Release.
+    `apps/desktop/` carries an `electron-builder` config; `npm run pack`
+    produces a launchable `.app` locally.
+  - `.github/workflows/release-docs.yml` deploys `apps/docs/` to GitHub
+    Pages on every push to `main` that touches the docs.
+  - The Desktop app does NOT bundle a Python interpreter
+    (`docs/methodology/desktop-runtime.md`); when `folio-viewer` is
+    missing, the launcher offers an "Open install docs" dialog.
 
 ## Next Action
 
