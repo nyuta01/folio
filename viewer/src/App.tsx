@@ -14,6 +14,8 @@ import {
   listRecords,
   upsertRecord,
 } from "./api";
+import { Dashboard } from "./Dashboard";
+import { History } from "./History";
 
 type Row = Record<string, unknown>;
 
@@ -123,11 +125,18 @@ function EditableCell({
   );
 }
 
+type Tab = "records" | "dashboard" | "history";
+
 export default function App() {
   const [contract, setContract] = useState<Contract | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [actor] = useState("agent:human");
   const [reloadKey, setReloadKey] = useState(0);
+  const [tab, setTab] = useState<Tab>("records");
+  const [historyTarget, setHistoryTarget] = useState<{
+    recordId: string;
+    field: string;
+  } | null>(null);
 
   useEffect(() => {
     getContract().then(setContract).catch(console.error);
@@ -172,11 +181,19 @@ export default function App() {
           );
         }
         return (
-          <ProvenanceCell
-            recordId={recordId}
-            field={prop.name}
-            value={value}
-          />
+          <span
+            onClick={() => {
+              setHistoryTarget({ recordId, field: prop.name });
+              setTab("history");
+            }}
+            style={{ cursor: "pointer" }}
+          >
+            <ProvenanceCell
+              recordId={recordId}
+              field={prop.name}
+              value={value}
+            />
+          </span>
         );
       },
     }));
@@ -196,41 +213,67 @@ export default function App() {
       <p style={{ color: "#666" }}>
         {contract.id} · v{contract.version} · actor {actor}
       </p>
-      <table data-testid="records-table" style={{ borderCollapse: "collapse" }}>
-        <thead>
-          {table.getHeaderGroups().map((group) => (
-            <tr key={group.id}>
-              {group.headers.map((header) => (
-                <th
-                  key={header.id}
-                  style={{
-                    border: "1px solid #ccc",
-                    padding: "4px 8px",
-                    background: "#f5f5f5",
-                    textAlign: "left",
-                  }}
-                >
-                  {flexRender(header.column.columnDef.header, header.getContext())}
-                </th>
-              ))}
-            </tr>
-          ))}
-        </thead>
-        <tbody>
-          {table.getRowModel().rows.map((row) => (
-            <tr key={row.id}>
-              {row.getVisibleCells().map((cell) => (
-                <td
-                  key={cell.id}
-                  style={{ border: "1px solid #eee", padding: "4px 8px" }}
-                >
-                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <nav data-testid="nav" style={{ marginBottom: 12 }}>
+        {(["records", "dashboard", "history"] as Tab[]).map((t) => (
+          <button
+            key={t}
+            data-testid={`tab-${t}`}
+            onClick={() => setTab(t)}
+            disabled={tab === t}
+            style={{
+              marginRight: 6,
+              padding: "4px 10px",
+              fontWeight: tab === t ? 700 : 400,
+            }}
+          >
+            {t}
+          </button>
+        ))}
+      </nav>
+      {tab === "records" && (
+        <table data-testid="records-table" style={{ borderCollapse: "collapse" }}>
+          <thead>
+            {table.getHeaderGroups().map((group) => (
+              <tr key={group.id}>
+                {group.headers.map((header) => (
+                  <th
+                    key={header.id}
+                    style={{
+                      border: "1px solid #ccc",
+                      padding: "4px 8px",
+                      background: "#f5f5f5",
+                      textAlign: "left",
+                    }}
+                  >
+                    {flexRender(header.column.columnDef.header, header.getContext())}
+                  </th>
+                ))}
+              </tr>
+            ))}
+          </thead>
+          <tbody>
+            {table.getRowModel().rows.map((row) => (
+              <tr key={row.id}>
+                {row.getVisibleCells().map((cell) => (
+                  <td
+                    key={cell.id}
+                    style={{ border: "1px solid #eee", padding: "4px 8px" }}
+                  >
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      {tab === "dashboard" && <Dashboard actor={actor} />}
+      {tab === "history" && historyTarget && (
+        <History recordId={historyTarget.recordId} field={historyTarget.field} />
+      )}
+      {tab === "history" && !historyTarget && (
+        <p>Click a non-editable cell on the records tab to view its history.</p>
+      )}
     </div>
   );
 }

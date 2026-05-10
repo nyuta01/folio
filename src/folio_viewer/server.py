@@ -10,13 +10,15 @@ scope for Phase 5 (deferred to Phase 7).
 
 from __future__ import annotations
 
+import asyncio
+import json
 import secrets
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, AsyncIterator
 
 from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ValidationError
 
@@ -33,6 +35,8 @@ from folio.exceptions import (
     SheetError,
 )
 
+from ._events import EventBus, make_event
+
 CSRF_COOKIE_NAME = "folio_csrf"
 CSRF_HEADER_NAME = "X-CSRF-Token"
 
@@ -46,6 +50,7 @@ class ViewerSettings:
     ai_client: AIClient | None = None
     static_dir: Path | None = None
     csrf_token: str = field(default_factory=lambda: secrets.token_urlsafe(32))
+    event_bus: EventBus = field(default_factory=EventBus)
 
 
 # --- Pydantic request bodies ---------------------------------------------
@@ -135,6 +140,7 @@ def build_app(
     default_actor: str | None = None,
     ai_client: AIClient | None = None,
     static_dir: Path | str | None = None,
+    event_bus: EventBus | None = None,
 ) -> FastAPI:
     """Construct a FastAPI app that serves the sheet at ``sheet_path``.
 
@@ -146,6 +152,7 @@ def build_app(
         default_actor=default_actor,
         ai_client=ai_client,
         static_dir=Path(static_dir).resolve() if static_dir is not None else None,
+        event_bus=event_bus or EventBus(),
     )
 
     if not settings.sheet_path.is_dir():
@@ -266,12 +273,44 @@ def build_app(
         actor = body.actor or settings.default_actor
         if actor is None:
             raise HTTPException(status_code=400, detail="actor is required")
-        return _open(actor=actor).materialize(
-            targets=body.targets,
-            record_ids=body.record_ids,
-            force=body.force,
-            ai_client=settings.ai_client,
+        bus = settings.event_bus
+        bus.publish(
+            make_event(
+                "materialize.start",
+                actor=actor,
+                targets=body.targets,
+                record_ids=body.record_ids,
+                force=body.force,
+            )
         )
+        try:
+            envelope = _open(actor=actor).materialize(
+                targets=body.targets,
+                record_ids=body.record_ids,
+                force=body.force,
+                ai_client=settings.ai_client,
+            )
+        except FolioError as exc:
+            bus.publish(
+                make_event(
+                    "materialize.error",
+                    actor=actor,
+                    error_type=type(exc).__name__,
+                    message=str(exc),
+                )
+            )
+            raise
+        bus.publish(
+            make_event(
+                "materialize.end",
+                actor=actor,
+                materialized=envelope.get("materialized"),
+                skipped=envelope.get("skipped"),
+                failures=len(envelope.get("failures") or []),
+                total_cost=envelope.get("total_cost"),
+            )
+        )
+        return envelope
 
     # --- provenance ------------------------------------------------------
 
@@ -286,6 +325,38 @@ def build_app(
         _ensure_csrf_cookie(request, response, settings.csrf_token)
         return _open().provenance(record_id=record_id, field=field, history=history)
 
+    # --- SSE event stream ------------------------------------------------
+
+    async def _event_stream(request: Request) -> AsyncIterator[bytes]:
+        queue = settings.event_bus.subscribe()
+        try:
+            yield b": connected\n\n"
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=15.0)
+                except asyncio.TimeoutError:
+                    yield b": keepalive\n\n"
+                    continue
+                payload = json.dumps(event, separators=(",", ":")).encode("utf-8")
+                yield b"event: " + event["kind"].encode("utf-8") + b"\n"
+                yield b"data: " + payload + b"\n\n"
+        finally:
+            settings.event_bus.unsubscribe(queue)
+
+    @app.get("/events")
+    async def events(request: Request) -> StreamingResponse:
+        return StreamingResponse(
+            _event_stream(request),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+                "Connection": "keep-alive",
+            },
+        )
+
     # --- static frontend -------------------------------------------------
 
     if settings.static_dir is not None and settings.static_dir.is_dir():
@@ -298,4 +369,11 @@ def build_app(
     return app
 
 
-__all__ = ["CSRF_COOKIE_NAME", "CSRF_HEADER_NAME", "ViewerSettings", "build_app"]
+__all__ = [
+    "CSRF_COOKIE_NAME",
+    "CSRF_HEADER_NAME",
+    "EventBus",
+    "ViewerSettings",
+    "build_app",
+    "make_event",
+]

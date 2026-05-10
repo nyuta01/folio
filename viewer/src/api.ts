@@ -115,3 +115,59 @@ export async function getProvenance(
   if (!response.ok) throw new Error(`getProvenance: ${response.status}`);
   return response.json();
 }
+
+export async function getProvenanceHistory(
+  recordId: string,
+  field: string,
+): Promise<ProvenanceEntry[]> {
+  const search = new URLSearchParams({
+    record_id: recordId,
+    field,
+    history: "true",
+  });
+  const response = await fetch(`/api/provenance?${search.toString()}`, {
+    credentials: "include",
+  });
+  if (!response.ok) throw new Error(`getProvenanceHistory: ${response.status}`);
+  return response.json();
+}
+
+export interface TargetStatus {
+  ai_count?: number;
+  import_count?: number;
+  human_count?: number;
+  none_count?: number;
+  last_run?: string | null;
+  derivation_kind?: string;
+}
+
+export async function getStatus(): Promise<Record<string, TargetStatus>> {
+  const response = await fetch("/api/status", { credentials: "include" });
+  if (!response.ok) throw new Error(`getStatus: ${response.status}`);
+  return response.json();
+}
+
+export interface MaterializeEnvelope {
+  materialized: number;
+  skipped: number;
+  failures: unknown[];
+  total_cost: number | null;
+}
+
+export async function materializeAll(actor: string): Promise<MaterializeEnvelope> {
+  const token = await csrfToken();
+  const response = await fetch("/api/materialize", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRF-Token": token,
+    },
+    body: JSON.stringify({ actor }),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => null);
+    throw new Error(body?.error?.message || `materializeAll: ${response.status}`);
+  }
+  return response.json();
+}

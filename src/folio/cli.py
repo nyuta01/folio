@@ -400,6 +400,53 @@ def script_run(
     )
 
 
+@app.command(
+    name="serve",
+    help="Serve <sheet> via folio-viewer (alias for `folio-viewer serve`).",
+)
+def serve(
+    sheet: Path = SHEET_ARGUMENT,
+    host: str = typer.Option(
+        "127.0.0.1",
+        "--host",
+        help="Bind address (defaults to 127.0.0.1; do not change without a reason).",
+    ),
+    port: int = typer.Option(
+        3000,
+        "--port",
+        min=1,
+        max=65535,
+        help="TCP port to bind.",
+    ),
+    actor: Optional[str] = typer.Option(
+        None,
+        "--actor",
+        help="Default actor for write routes when callers do not pass one.",
+    ),
+    static_dir: Optional[Path] = typer.Option(
+        None,
+        "--static-dir",
+        exists=False,
+        file_okay=False,
+        dir_okay=True,
+        resolve_path=True,
+        help="Optional pre-built frontend directory (defaults to <repo>/viewer/dist if present).",
+    ),
+) -> None:
+    # Lazy-import so `folio` does not pay the fastapi/uvicorn import cost
+    # for unrelated verbs, and so drift-check's viewer-only invariant
+    # holds at static analysis time.
+    from folio_viewer.cli import serve as viewer_serve  # noqa: PLC0415
+
+    viewer_serve(
+        sheet=sheet,
+        host=host,
+        port=port,
+        actor=actor,
+        static_dir=static_dir,
+    )
+
+
 def main() -> None:
     """Entry point registered as the ``folio`` console script."""
     app()

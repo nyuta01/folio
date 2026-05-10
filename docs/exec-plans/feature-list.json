@@ -663,24 +663,40 @@
       "id": "FOLIO-H-025",
       "title": "Implement Phase 5 Viewer V4-V6",
       "priority": "P2",
-      "status": "todo",
+      "status": "done",
       "owner": "agent",
       "depends": ["FOLIO-H-024"],
-      "plan_url": null,
+      "plan_url": "docs/exec-plans/active/FOLIO-H-025-plan.md",
       "paths": [
-        "src/folio_viewer",
-        "viewer",
-        "tests/test_viewer.py",
-        "scripts/smoke-viewer.sh"
+        "src/folio_viewer/__init__.py",
+        "src/folio_viewer/server.py",
+        "src/folio_viewer/_events.py",
+        "src/folio/cli.py",
+        "viewer/src/Dashboard.tsx",
+        "viewer/src/History.tsx",
+        "viewer/src/useEventStream.ts",
+        "viewer/src/App.tsx",
+        "viewer/src/api.ts",
+        "viewer/playwright.config.ts",
+        "viewer/tests/grid.spec.ts",
+        "viewer/package.json",
+        "viewer/README.md",
+        "tests/test_viewer_events.py",
+        "scripts/_viewer_smoke.py",
+        "scripts/harness_check.py",
+        "docs/exec-plans/active/FOLIO-H-025-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "docs/QUALITY_SCORE.md",
+        "AGENT_PROGRESS.md"
       ],
       "verification": {
-        "harness_check": null,
-        "drift_check": null,
-        "validate_docs": null,
-        "python_test": null,
-        "viewer_smoke": null
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true,
+        "python_test": true,
+        "viewer_smoke": true
       },
-      "notes": "Materialize dashboard backed by StubAIClient, history view, SSE event stream, Playwright frontend smoke, and the folio serve CLI alias over folio-viewer."
+      "notes": "Added the in-process EventBus and /events SSE endpoint that publishes materialize.start / materialize.end / materialize.error frames around Sheet.materialize, the Dashboard.tsx and History.tsx React views, the useEventStream hook, and the folio serve CLI alias that lazy-imports folio_viewer.cli to keep drift-check's viewer-only invariant. The smoke now opens an SSE consumer thread before triggering materialize and asserts the lifecycle frames arrive. Playwright config + a lightweight grid spec are scaffolded under viewer/tests/ and documented as opt-in (Node toolchain is intentionally not wired into make verify)."
     },
     {
       "id": "FOLIO-H-026",

@@ -130,6 +130,30 @@ def _request(
         return exc.code, dict(exc.headers.items()) if exc.headers else {}, decoded_err
 
 
+def _consume_events(base_url: str, cookie: str, expected_kinds: set[str]) -> set[str]:
+    """Open ``/events`` and read until every kind in ``expected_kinds`` arrives.
+
+    Times out after 10 s so a stuck pipeline fails the smoke loudly.
+    """
+    deadline = time.time() + 10.0
+    seen: set[str] = set()
+    req = urllib.request.Request(f"{base_url}/events")
+    req.add_header("Cookie", cookie)
+    req.add_header("Accept", "text/event-stream")
+    with urllib.request.urlopen(req, timeout=10.0) as response:
+        if response.status != 200:
+            raise AssertionError(f"smoke-viewer: /events status {response.status}")
+        while time.time() < deadline and not expected_kinds.issubset(seen):
+            line = response.readline()
+            if not line:
+                break
+            text = line.decode("utf-8", errors="replace").rstrip("\n")
+            if text.startswith("data:"):
+                payload = json.loads(text[len("data:"):].strip())
+                seen.add(payload["kind"])
+    return seen
+
+
 def _walk(base_url: str) -> None:
     status, headers, csrf_body = _request(base_url, "GET", "/api/csrf")
     _expect("csrf status", 200, status)
@@ -151,6 +175,22 @@ def _walk(base_url: str) -> None:
     _expect("list status", 200, status)
     _expect("list count", 2, len(listing["records"]))
 
+    # Open /events first so the SSE consumer is registered before
+    # materialize publishes its lifecycle frames.
+    sse_result: dict[str, set[str]] = {}
+
+    def _sse_worker() -> None:
+        sse_result["seen"] = _consume_events(
+            base_url,
+            cookie,
+            expected_kinds={"materialize.start", "materialize.end"},
+        )
+
+    sse_thread = threading.Thread(target=_sse_worker, daemon=True)
+    sse_thread.start()
+    # Give the SSE subscriber a moment to register before publishing.
+    time.sleep(0.2)
+
     status, _, materialize_result = _request(
         base_url,
         "POST",
@@ -163,6 +203,13 @@ def _walk(base_url: str) -> None:
     if materialize_result["failures"]:
         raise AssertionError(
             f"smoke-viewer: unexpected failures: {materialize_result['failures']}"
+        )
+
+    sse_thread.join(timeout=12.0)
+    seen = sse_result.get("seen", set())
+    if not {"materialize.start", "materialize.end"}.issubset(seen):
+        raise AssertionError(
+            f"smoke-viewer: SSE missing lifecycle events; saw {sorted(seen)!r}"
         )
 
     status, _, prov = _request(

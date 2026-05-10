@@ -31,7 +31,7 @@ npm run build      # writes viewer/dist/
 Re-run `folio-viewer serve <sheet>` and it will auto-detect
 `viewer/dist/` (or pass `--static-dir <path>` explicitly).
 
-## Stages implemented (V0–V3)
+## Stages implemented (V0–V6)
 
 | Stage | Implementation |
 |---|---|
@@ -39,16 +39,23 @@ Re-run `folio-viewer serve <sheet>` and it will auto-detect
 | V1 | Type chips and description tooltips on each column header. |
 | V2 | Inline `<input>` editor on `x-editable-by` fields, persisted via `POST /api/records` with the CSRF token. |
 | V3 | Provenance hover (cell `title`) and a colored badge per non-`human` source. |
+| V4 | `Dashboard.tsx`: per-target `ai_count` / `import_count` / `human_count` / `none_count`, last run, and a "Materialize all" button. |
+| V5 | `History.tsx`: append-only provenance chain shown when a non-editable cell is clicked from the records grid. |
+| V6 | `useEventStream.ts`: subscribes to `/events` (SSE) and surfaces a "running…" banner on the dashboard during a materialize run. |
 
-## Out of scope (Phase 5 V4–V6 lives in `FOLIO-H-025`)
+## Playwright (opt-in, not in CI)
 
-- Materialize dashboard.
-- History view.
-- SSE event stream.
-- Playwright frontend smoke.
+```bash
+cd viewer
+npm install
+npx playwright install --with-deps chromium
+# Backend on :3000, Vite dev on :5173 (proxies /api)
+uv run folio serve <sheet> --port 3000 --actor agent:human &
+npm run test:e2e
+```
 
 ## CI note
 
 The Node toolchain is **not** wired into `make verify`. Backend tests +
-`scripts/smoke-viewer.sh` cover the API surface. The Playwright smoke
-that boots the dev server lands with `FOLIO-H-025`.
+`scripts/smoke-viewer.sh` (which now includes the SSE round-trip)
+cover the API surface deterministically.
