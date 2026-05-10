@@ -1,0 +1,135 @@
+---
+title: Editing and provenance
+description: How human edits, agent edits, and derivations cohabit. Who wins, who blocks whom, and what gets logged.
+---
+
+import KindBadge from "../../../components/KindBadge.astro";
+
+A Folio sheet is a multi-actor file. This page covers what happens when more
+than one actor writes the same field.
+
+## Two kinds of writes
+
+Folio recognizes two operations that change `records.jsonl`:
+
+- **Direct writes** — `Sheet.upsert_records` (CLI: `folio upsert`, Viewer:
+  the inline editor, MCP: the `upsert_records` tool). The actor is
+  whoever you pass; provenance is logged with `source: human`.
+- **Derivation writes** — `Sheet.materialize`. The actor is whoever you
+  pass; provenance is logged with `source: <kind>` (`ai`, `python`, …).
+
+Direct writes always win against the cache. Derivation writes respect
+`x-editable-by` *and* `respect_human_override`.
+
+## The `x-editable-by` contract attribute
+
+Each property on the contract can declare who is allowed to write it:
+
+```yaml
+- name: company_name
+  logicalType: string
+  required: true
+  x-editable-by: ["agent:human", "agent:ops:*"]
+```
+
+Patterns are matched against the actor with [`fnmatch`](https://docs.python.org/3/library/fnmatch.html)
+([ADR-0007](/reference/adrs/)). `agent:ops:akiko` matches `agent:ops:*` and
+is allowed to write the field; `agent:enrichment` is rejected with
+`PermissionDeniedError` (HTTP 403 in the Viewer).
+
+If a property has no `x-editable-by`, the field is **not** human-editable.
+Only derivations may write it.
+
+## Conventional actor strings
+
+Folio doesn't enforce a format, but the convention is:
+
+- `agent:human` — generic human user (the Viewer's default).
+- `agent:human:<id>` — a specific human (e.g. `agent:human:akiko`).
+- `agent:<role>` — a specific bot (`agent:enrichment`, `agent:research`).
+- `agent:demo` — used in this documentation and `examples/`.
+
+The contract's `x-editable-by` patterns let you say things like:
+
+```yaml
+x-editable-by: ["agent:human:*", "agent:reviewer:*"]
+```
+
+— any human, plus any reviewer bot.
+
+## What `respect_human_override` does
+
+By default, `Sheet.materialize` reads the latest provenance for each cell. If
+the latest line has `source: "human"`, materialize **skips** that cell. The
+human's edit stays.
+
+```text
+provenance for cust_001.country_code:
+  ┌──────────────────┬─────────┬───────────────┐
+  │ at               │ source  │ actor         │
+  ├──────────────────┼─────────┼───────────────┤
+  │ 2026-05-09 10:22 │ python  │ agent:demo    │
+  │ 2026-05-10 14:08 │ human   │ agent:human   │  ← latest; materialize skips
+  └──────────────────┴─────────┴───────────────┘
+```
+
+To override, pass `--force` (CLI) or `force=True` (SDK). Materialize will
+recompute and overwrite, appending a new derivation provenance entry on top.
+
+## What gets logged
+
+A `provenance.jsonl` line records:
+
+```jsonl
+{"record_id":"cust_001","field":"country_code","source":"python",
+ "actor":"agent:demo","at":"2026-05-10T10:16:35Z",
+ "input_hash":"sha256:ce82..."}
+```
+
+Field-by-field:
+
+| Field | Set by | Notes |
+|---|---|---|
+| `record_id` | Folio | The primary key. |
+| `field` | Folio | The field that was written. |
+| `source` | Folio | One of: `human`, `ai`, `import`, `python`, `sql`, `http`, `cross_sheet`. |
+| `actor` | the caller | Whatever you passed. Folio does not transform it. |
+| `at` | Folio | UTC ISO-8601, second precision. |
+| `input_hash` | Folio | `sha256:` over the canonical JSON of the inputs. Empty for `human`. |
+| `model` | the kind | `ai` only — the model id (e.g. `claude-sonnet-4-6`). |
+| `cost_usd` | the kind | `ai` only — cost in USD, or `null` for unknown models ([ADR-0009](/reference/adrs/)). |
+
+## A typical lifecycle
+
+1. **Agent fills.** `agent:enrichment` runs `folio materialize` and an `ai`
+   derivation populates `industry_tag` for 1,000 customers. Provenance: 1,000
+   lines with `source: "ai"`.
+2. **Human reviews.** `agent:human:akiko` opens the Viewer, finds five wrong
+   industries, and edits them inline. Provenance: 5 lines with `source: "human"`
+   appended on top of those 5 cells.
+3. **Agent re-runs.** Tomorrow `agent:enrichment` runs materialize again. The
+   995 untouched cells cache-hit. The 5 human-edited cells are skipped because
+   their latest provenance is `human`.
+4. **Spec drifts.** Someone tweaks the `ai` derivation's prompt. `input_hash`
+   changes. The 995 cache-hits become misses; the 5 human edits stay (still
+   `respect_human_override`). Materialize recomputes the 995 and appends 995
+   new `ai` provenance lines.
+
+This is the loop Folio is designed for: agents do the bulk, humans correct
+the long tail, and provenance keeps the audit trail honest.
+
+## Forcing a clean slate
+
+If you really want to discard human overrides:
+
+```bash
+folio materialize . --actor agent:demo --force
+```
+
+`--force` ignores both the cache and `respect_human_override`. The previous
+human entries stay in `provenance.jsonl` (it's append-only), so you can
+always recover what the human said by reading the history.
+
+```bash
+folio provenance . cust_001 country_code --history
+```

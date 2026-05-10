@@ -1,0 +1,101 @@
+---
+title: Viewer overview
+description: folio-viewer — a local-only FastAPI + React app for human review.
+---
+
+The Viewer is the human surface. It binds to `127.0.0.1` only and serves
+a React UI alongside a FastAPI REST API that wraps the same Python SDK
+the CLI and MCP use.
+
+```bash
+folio serve ./customers --port 3000 --actor agent:human
+# → http://127.0.0.1:3000/
+```
+
+## What it shows
+
+Three tabs against one sheet:
+
+- **Records** — TanStack Table grid with type chips per column, provenance
+  dots per cell, inline editing for `x-editable-by` fields, and per-cell
+  history-on-click.
+- **Dashboard** — per-target counts, last run timestamp, "Materialize all"
+  button, and a live SSE indicator that flashes during a materialize.
+- **History** — vertical timeline for one cell, with the source-colored
+  ring and `model` / `cost_usd` / `input_hash` per entry.
+
+Open the Viewer against any of the
+[`examples/`](https://github.com/nyuta01/folio/tree/main/examples) sheets
+to see the design language in action.
+
+## Architecture
+
+```
+        ┌──────────────────────────────────────┐
+        │  folio-viewer (process)              │
+        │                                      │
+        │  uvicorn + FastAPI  ←──── /api/* ────│
+        │       │                              │
+        │       └─── folio Python SDK ─────────│ same files as CLI / MCP
+        │                                      │
+        │  StaticFiles  ←─── / (HTML / JS / CSS)
+        │                                      │
+        │  EventBus  ←──── /events (SSE) ──────│
+        └──────────────────────────────────────┘
+```
+
+- **Backend** — `src/folio_viewer/server.py`. Imports the SDK directly.
+  Every mutating verb requires a CSRF token. `FolioError` is mapped to a
+  typed JSON envelope.
+- **Frontend** — `viewer/` (Vite + React + TanStack Table). Build output
+  lands in `viewer/dist/` and the backend serves it as static files.
+- **EventBus** — in-process pub/sub. The materialize route publishes
+  `materialize.start` / `materialize.end` / `materialize.error` frames;
+  `/events` streams them as SSE.
+
+## Local-only by design
+
+The Viewer binds to `127.0.0.1` by default. There is **no built-in
+authentication**. CSRF tokens guard against browser-side cross-origin
+attacks; they don't substitute for real auth.
+
+If you need to expose the Viewer beyond localhost, front it with a
+reverse proxy (nginx, Caddy, Cloudflare Tunnel) that adds auth and TLS.
+Multi-user / hosted Viewer is **out of scope** for Phase 5
+([§15 of the design overview](https://github.com/nyuta01/folio/blob/main/docs/design-docs/overview.md)).
+
+## What it does *not* do
+
+- Edit the contract or derivations (those are file edits — the Viewer
+  intentionally doesn't try).
+- Real-time collaboration (single-writer per `.lock`).
+- Mobile-optimized layouts (desktop-first).
+- Authentication / multi-user.
+
+## TOON
+
+Folio ships a tiny **TOON encoder** for token-efficient tabular output —
+useful when an agent reads a list of records into its context. The Viewer
+itself uses JSON (the browser is fine with it), but the same `Sheet.list_records(format="toon")`
+that powers the MCP `list_records` tool works server-side too.
+
+The format:
+
+```text
+[3]{id, country}:
+cust_001, Japan
+cust_002, "United States"
+cust_003, Sweden
+```
+
+Header row declares column names and total count. Subsequent rows are
+comma-separated; strings with commas / quotes / newlines are JSON-encoded.
+Compact, grep-able, and ~3-5x smaller than JSON for tabular data.
+
+## See also
+
+- [Install and run](/viewer/install-and-run/) — backend + frontend setup,
+  ports, `--static-dir`.
+- [REST API](/viewer/rest-api/) — every endpoint with curl examples.
+- [Events (SSE)](/viewer/events/) — `/events` stream, frame shapes.
+- [Frontend build](/viewer/frontend/) — Vite, build artifact, npm scripts.

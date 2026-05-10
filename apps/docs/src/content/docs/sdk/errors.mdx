@@ -1,0 +1,148 @@
+---
+title: Errors
+description: The exception hierarchy and which method raises which exception.
+---
+
+```text
+FolioError                       # base — catch this in application code
+├── ContractError                # contract.yaml invalid
+├── SheetError                   # sheet directory invalid / not found
+├── RecordsError                 # records.jsonl unreadable
+├── QueryError                   # SELECT-only violation, DuckDB rejection
+├── OperationError               # write-time validation failure
+│   └── PermissionDeniedError    # x-editable-by mismatch
+├── DerivationError              # derivation file invalid / cycle
+└── LockTimeoutError             # could not acquire .lock within 30 s
+```
+
+## `FolioError`
+
+The base. Catch this when you want to fail soft on any Folio-related
+issue:
+
+```python
+from folio.exceptions import FolioError
+
+try:
+    sheet.materialize()
+except FolioError as exc:
+    log.error("materialize failed: %s", exc)
+```
+
+The Viewer maps `FolioError` to a typed JSON envelope; the CLI prints
+`error: <message>` to stderr and exits non-zero.
+
+## `ContractError`
+
+`contract.yaml` is missing, malformed, or fails [validation](/sheet/contract/).
+Raised by:
+
+- `open_sheet`
+- `load_contract`
+- `folio validate`
+
+Examples:
+
+- `unknown logicalType: numerc`
+- `property 'industry_tag' marks x-derived: true but x-inputs is empty`
+- `more than one property has primaryKey: true`
+
+## `SheetError`
+
+The sheet directory itself is wrong. Raised by `open_sheet` when:
+
+- the path doesn't exist,
+- the path is a file, not a directory,
+- the path lacks `contract.yaml`.
+
+Also raised by `cross_sheet` derivations when `source_sheet` resolves
+outside the sheet's parent.
+
+## `RecordsError`
+
+`records.jsonl` is broken at parse time:
+
+- a non-empty line isn't valid JSON,
+- a line is a JSON value but not an object.
+
+The error message names the line number.
+
+## `QueryError`
+
+DuckDB rejected the query, **or** the query violates the SELECT-only rule.
+
+Examples:
+
+- `only SELECT statements are allowed` (`UPDATE`, `INSERT`, `ATTACH`, …
+  all raise this — see [ADR-0005](/reference/adrs/)).
+- `DuckDB error: Catalog Error: ...`
+
+## `OperationError`
+
+Write-time validation. Raised by `upsert_records`, `delete_records`, and
+`materialize` when:
+
+- a record is missing the primary key field,
+- a required field is absent on a new row,
+- a `logicalType` mismatch is detected on write,
+- the actor is missing for a write that needs one,
+- script/derivation arguments don't satisfy a kind's local rules.
+
+### `PermissionDeniedError` (extends `OperationError`)
+
+The actor doesn't match any pattern in the field's `x-editable-by`. Raised
+by `upsert_records` *before* any record is written — the whole batch
+fails atomically.
+
+The Viewer maps this to HTTP 403.
+
+## `DerivationError`
+
+A derivation file is invalid, or the dependency graph between derivations
+is broken:
+
+- malformed YAML,
+- `targets` references a property that's not declared `x-derived` on the
+  contract,
+- `inputs` references a property that doesn't exist,
+- cycle in the derivation dependency graph.
+
+Raised at `Sheet.materialize` start (before any record runs).
+
+## `LockTimeoutError`
+
+`.lock` couldn't be acquired within 30 seconds. Another process is
+holding the lock — usually another `folio materialize` in flight.
+
+Recovery: wait, retry, or kill the stuck process. Folio uses
+[filelock](https://py-filelock.readthedocs.io/), so the lock is an OS-level
+flock and clears automatically on process death.
+
+## Error envelope on `materialize`
+
+`materialize` does **not** raise per-record errors. It catches them and
+reports on the envelope:
+
+```python
+result = sheet.materialize()
+result["failures"]
+# [{"record_id": "cust_006", "field": "industry_tag",
+#   "error": "...", "error_type": "FolioError"}]
+```
+
+What does raise from `materialize`:
+
+- `SheetError`, `ContractError`, `DerivationError` — sheet-level failures
+  (the run can't start).
+- `LockTimeoutError` — couldn't even begin.
+
+After that, every per-record failure is reported on the envelope.
+
+## Error mapping by surface
+
+| Layer | What you see |
+|---|---|
+| Python SDK | The exception is raised. |
+| CLI | `error: <message>` on stderr, exit code 1. |
+| MCP | Tool result includes `isError: true` with the message; FastMCP wraps. |
+| Viewer (REST) | JSON `{"error": {"type": "...", "message": "..."}}` with HTTP status: 400 / 403 / 404 / 409 / 500 depending on type. |

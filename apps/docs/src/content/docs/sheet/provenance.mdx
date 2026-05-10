@@ -1,0 +1,137 @@
+---
+title: provenance.jsonl
+description: Append-only audit log. Every materialized cell writes one line; the file ships with the sheet.
+---
+
+`provenance.jsonl` is Folio's audit log. Every successful write to a derived
+field — and every successful direct write — appends one line. The file is
+**append-only by convention** (Folio never rewrites or compacts it) and
+ships inside the sheet so the audit trail moves with the data.
+
+## Schema
+
+```jsonl
+{"record_id":"cust_001","field":"country_code","source":"python",
+ "actor":"agent:demo","at":"2026-05-10T10:16:35Z",
+ "input_hash":"sha256:ce82..."}
+```
+
+| Field | Always present | Notes |
+|---|:-:|---|
+| `record_id` | ✓ | Primary-key value of the record. |
+| `field` | ✓ | The field that was written. |
+| `source` | ✓ | One of: `human`, `ai`, `import`, `python`, `sql`, `http`, `cross_sheet`. |
+| `actor` | ✓ | The string passed at write time (Folio doesn't rewrite it). |
+| `at` | ✓ | UTC ISO-8601, second precision. |
+| `input_hash` | when derived | `sha256:…`; absent for `source: human`. |
+| `model` | for `ai` | Model id (e.g. `claude-sonnet-4-6`). |
+| `cost_usd` | for `ai` | Number, or `null` for unknown models. |
+
+## What gets logged
+
+- **Direct writes** (`Sheet.upsert_records` / `delete_records`) log one line
+  per *changed* field per record. A no-op upsert (same value) does **not**
+  add a line.
+- **Materialize writes** log one line per materialized cell. Cache hits do
+  **not** log — the line that's there from a prior run is the canonical
+  record.
+- **Failures** do not log. Provenance only describes successful writes.
+
+## Reading provenance
+
+The CLI surfaces it directly:
+
+```bash
+folio provenance ./customers cust_001 country_code
+folio provenance ./customers cust_001 country_code --history
+```
+
+The SDK exposes the same:
+
+```python
+sheet.provenance(record_id="cust_001", field="country_code")          # latest
+sheet.provenance(record_id="cust_001", field="country_code", history=True)  # full chain
+```
+
+The Viewer's history tab reads `--history` and renders it as a vertical
+timeline.
+
+## Append-only invariant
+
+Folio never rewrites `provenance.jsonl`. Every write seeks to the end and
+appends. The file is safe under concurrent readers (a reader sees the
+file as of the moment it opened) and writes happen under the same single-writer
+lock that protects `records.jsonl`.
+
+If the file grows large, you can rotate it by hand:
+
+```bash
+mv provenance.jsonl provenance.jsonl.2025
+touch provenance.jsonl
+```
+
+Folio doesn't ship a rotation utility because in practice rotation is rare;
+provenance lines are small (a few hundred bytes each) and the file compresses
+extremely well.
+
+## Why the entries are this small
+
+Folio resists the urge to log more than it needs. Specifically not in
+`provenance.jsonl`:
+
+- The previous value of the field. (The whole point of an append-only log is
+  that the prior value is the previous line.)
+- The new value. (The new value is in `records.jsonl`, alongside the
+  primary key.)
+- Free-form notes. (Editors can add notes via dedicated `notes` columns
+  on the contract.)
+
+The schema is fixed so the file stays grep-able and the lines stay
+machine-readable.
+
+## Provenance and `respect_human_override`
+
+`Sheet.materialize` reads only the **latest** provenance entry per cell to
+decide whether to skip. If the latest line says `source: human`, materialize
+skips. If the latest line says `source: ai` and the cache says hit, it skips
+silently. Otherwise it runs.
+
+This means the order of the file matters for the read path. Folio always
+appends in time order, so the last line is the latest by construction.
+
+## Inspecting from the shell
+
+```bash
+# All provenance for one record
+grep '"record_id":"cust_001"' provenance.jsonl
+
+# Latest entry per (record, field), most-recent-first
+tac provenance.jsonl | jq -r '"\(.record_id) \(.field) \(.source) \(.at)"' \
+  | awk '!seen[$1,$2]++'
+
+# Costs over time
+jq -c 'select(.cost_usd != null) | {at,model,cost_usd}' provenance.jsonl
+```
+
+## What if it grows too large?
+
+A provenance line is on the order of 200 bytes. A sheet with 100k records
+× 5 derived fields × 10 re-materialize cycles is 100 MB. That's manageable
+on disk but slow to grep.
+
+Two practical choices, neither shipped:
+
+1. **Rotate by hand** when you take a snapshot of the sheet (the rotated
+   file lives outside the sheet).
+2. **Compact** by writing a tool that reads the file and emits only the
+   latest line per `(record_id, field)`. The append-only invariant is for
+   *Folio's* writes; you can rewrite by hand if you really need to.
+
+The default position is: don't compact. The history is what makes the audit
+trail useful.
+
+## Where to next
+
+- [Editing and provenance](/get-started/editing-and-provenance/) — the
+  human/agent interaction patterns.
+- [`folio provenance`](/cli/provenance/) — the CLI verb.

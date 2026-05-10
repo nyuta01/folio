@@ -1,0 +1,92 @@
+---
+title: folio list
+description: List records as a paginated envelope. Supports JSON and TOON output.
+---
+
+```text
+folio list <SHEET>
+  [--filter <where>] [--params <json-array>]
+  [--fields <a,b,c>]
+  [--limit <n>] [--cursor <opaque>]
+  [--format json|toon]
+```
+
+Returns a JSON envelope with `records`, `format`, `limit`, and
+`next_cursor`. Built for agent and tool consumption — pair with the MCP
+server's `list_records` tool, or with the Viewer's `/api/records`
+endpoint.
+
+## Default output
+
+```bash
+$ folio list ./customers --limit 2
+{
+  "records": [
+    {"id":"cust_001","company_name":"Acme Manufacturing","country":"Japan",...},
+    {"id":"cust_002","company_name":"DataFlow","country":"United States",...}
+  ],
+  "format": "json",
+  "limit": 2,
+  "next_cursor": "2"
+}
+```
+
+## Pagination
+
+```bash
+folio list ./customers --limit 100              # page 1
+folio list ./customers --limit 100 --cursor 100 # page 2
+```
+
+`next_cursor` is opaque; treat it as a string and pass it back unchanged.
+When there are no more rows, `next_cursor` is `null`.
+
+## Field projection
+
+```bash
+folio list ./customers --fields id,country,country_code
+```
+
+Returns only those three keys per row. If you ask for a field the contract
+doesn't declare, Folio still includes it (records can carry extras), but
+columns out of the contract aren't typed.
+
+## Filters
+
+`--filter` accepts a DuckDB WHERE clause. Use `?` placeholders for any
+user-supplied value and supply them via `--params`:
+
+```bash
+folio list ./customers \
+  --filter "country = ? AND industry_name = ?" \
+  --params '["Japan", "Manufacturing"]'
+```
+
+Folio auto-binds the parameters in order. The same SELECT-only rules from
+`folio query` apply to the filter — you can't use `--filter` to mutate.
+
+## TOON output
+
+```bash
+folio list ./customers --fields id,country --format toon
+```
+
+```json
+{
+  "records": "[7]{id, country}:\ncust_001, Japan\ncust_002, \"United States\"\n...",
+  "format": "toon",
+  "limit": 50,
+  "next_cursor": null
+}
+```
+
+[TOON](/viewer/overview/#toon) is a token-efficient table format Folio
+ships for agent contexts. The `records` field is a single string instead
+of a JSON array — saves ~3-5x in token count compared to JSON for tabular
+data.
+
+## When to use
+
+- **`folio list`** when an agent wants a paginated table of rows with
+  cursor support. The natural mapping to the MCP `list_records` tool.
+- **`folio query`** when you need joins, aggregations, or windows.

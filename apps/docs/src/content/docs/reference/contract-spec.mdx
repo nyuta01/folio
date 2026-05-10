@@ -1,0 +1,138 @@
+---
+title: contract.yaml spec
+description: Exhaustive reference for every accepted attribute. ODCS subset plus the x- extensions Folio adds.
+---
+
+A normative reference. For tutorial coverage, see [contract.yaml](/sheet/contract/).
+
+## Top-level
+
+```yaml
+apiVersion: v3.0.0
+kind: DataContract
+id: <slug>
+name: <display-name>
+version: <semver>
+description: <string | mapping>
+schema:
+  - name: <string>
+    physicalType: jsonl
+    properties: [...]
+```
+
+| Field | Type | Required | Notes |
+|---|---|:-:|---|
+| `apiVersion` | string | ✓ | Must be `v3.0.0`. Tracks ODCS v3.0.0. |
+| `kind` | string | ✓ | Must be `DataContract`. |
+| `id` | string | ✓ | Stable slug; scopes the cache and runtime directories. |
+| `name` | string | ✓ | Human-readable display name. |
+| `version` | string | ✓ | Semver (`MAJOR.MINOR.PATCH`). |
+| `description` | string \| mapping | – | Free-form, or a `{locale: text}` mapping. |
+| `schema` | array | ✓ | Must contain exactly one entry. |
+
+## `schema[]`
+
+```yaml
+schema:
+  - name: items
+    physicalType: jsonl
+    properties:
+      - name: id
+        ...
+```
+
+| Field | Type | Required | Notes |
+|---|---|:-:|---|
+| `name` | string | ✓ | Logical name of the table. Convention: `items`. |
+| `physicalType` | string | ✓ | Must be `jsonl`. |
+| `properties` | array | ✓ | One entry per column. |
+
+## `properties[]`
+
+```yaml
+- name: country_code
+  logicalType: string
+  description: ISO 3166-1 alpha-2.
+  required: false
+  primaryKey: false
+  x-derived: true
+  x-inputs: [country]
+  x-editable-by: ["agent:human"]
+```
+
+| Field | Type | Required | Notes |
+|---|---|:-:|---|
+| `name` | string | ✓ | Column name. ASCII letters, digits, `_`, `-`. |
+| `logicalType` | enum | ✓ | One of: `string`, `integer`, `number`, `boolean`, `date`, `timestamp`, `array`, `object`. |
+| `description` | string \| mapping | – | Multilingual via `{locale: text}` mapping. |
+| `required` | boolean | – | Default `false`. |
+| `primaryKey` | boolean | – | Default `false`. Exactly one property must be `true`. |
+| `x-derived` | boolean | – | Default `false`. When `true`, requires `x-inputs`. |
+| `x-inputs` | array of strings | conditional | Required when `x-derived: true`. Must reference declared properties. |
+| `x-editable-by` | array of strings | – | Default `[]` ⇒ field not human-editable. `fnmatch` patterns. |
+
+## `logicalType` mapping
+
+| Folio | JSON shape | Frictionless export |
+|---|---|---|
+| `string` | string | `string` |
+| `integer` | integer | `integer` |
+| `number` | number | `number` |
+| `boolean` | boolean | `boolean` |
+| `date` | string `YYYY-MM-DD` | `date` |
+| `timestamp` | string ISO-8601 with offset | `datetime` |
+| `array` | array | `array` |
+| `object` | object | `object` |
+
+Folio does not validate inner shape for `array` and `object` — that's an
+application concern.
+
+## What's rejected
+
+`folio validate` (and `Sheet(...)` construction) reject contracts with:
+
+- More than one or zero `primaryKey: true` properties.
+- A `logicalType` value not in the enum above.
+- `x-derived: true` without `x-inputs`.
+- `x-inputs` referencing a non-existent property.
+- `properties[].name` containing characters outside `[A-Za-z0-9_-]`.
+- Top-level fields other than the eight in the table above (typo of
+  `Names` instead of `name` is loud).
+- Properties with unknown attribute names (typo of `primaryKeys` is
+  loud).
+- A second `schema[]` entry (1 sheet = 1 model — [§6.2](https://github.com/nyuta01/folio/blob/main/docs/design-docs/overview.md#62-1-sheet--1-model)).
+
+## What's tolerated
+
+- Extra fields on records that aren't in the contract — preserved
+  verbatim across writes.
+- Properties on the contract that don't appear on records — surface as
+  `null`.
+- Whitespace and YAML comments — Folio re-emits canonical YAML if you
+  use `Sheet.update_contract` (not yet shipped).
+
+## ODCS alignment
+
+Folio's contract is a subset of [ODCS v3.0.0](https://github.com/bitol-io/open-data-contract-standard).
+Specifically:
+
+| ODCS feature | Folio |
+|---|---|
+| `apiVersion`, `kind`, `id`, `name`, `version` | ✓ |
+| `schema[].properties[].logicalType` | ✓ (subset) |
+| `schema[].properties[].primaryKey`, `required` | ✓ |
+| Quality checks (`quality:`) | not yet |
+| Servers / connections | n/a (sheet is the resource) |
+| Stakeholders, terms, support | not yet |
+| `description` localization | ✓ |
+
+A future Folio release may extend the supported subset; the goal is to
+stay readable by `datacontract-cli`.
+
+## ADRs
+
+The contract design is anchored by:
+
+- [ADR-0003](/reference/adrs/) — ODCS subset for contract.yaml.
+- [ADR-0004](/reference/adrs/) — JSONL records.
+- [ADR-0007](/reference/adrs/) — fnmatch for `x-editable-by`.

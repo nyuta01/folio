@@ -1,0 +1,129 @@
+---
+title: records.jsonl
+description: One JSON object per line. The format that makes a Folio sheet work with `cat`, `grep`, and DuckDB.
+---
+
+`records.jsonl` is the data. Line-delimited JSON
+([JSON Lines](https://jsonlines.org/)), UTF-8, one object per line, no
+trailing comma, no enclosing array.
+
+```jsonl
+{"id": "cust_001", "company_name": "Acme Manufacturing", "country": "Japan"}
+{"id": "cust_002", "company_name": "DataFlow",          "country": "United States"}
+```
+
+That's it. The format is intentionally trivial so `head`, `grep`,
+`jq -c`, and DuckDB's `read_json_auto` all work without ceremony
+([ADR-0004](/reference/adrs/)).
+
+## Encoding and line semantics
+
+- **Encoding:** UTF-8. No BOM.
+- **Line terminator:** `\n`. CRLF lines are accepted but Folio rewrites to `\n`
+  on the next atomic write.
+- **Empty lines:** ignored.
+- **Trailing newline:** Folio always writes one. Files without a trailing
+  newline are accepted.
+
+## Per-record invariants
+
+For each non-empty line:
+
+1. Must parse as a JSON **object** (not a string, not an array).
+2. Must include the contract's primary key as a non-null value.
+3. Required fields (per the contract) must be present and non-null.
+4. May include extra fields not in the contract — Folio preserves them
+   verbatim across writes. (We do not silently drop unknown columns.)
+
+Violations raise `RecordsError` (parse failures) or `OperationError`
+(missing required / missing primary key).
+
+## Writes are atomic
+
+`Sheet.upsert_records` and `Sheet.materialize` write `records.jsonl` through a
+**temp file + rename**:
+
+```
+records.jsonl.tmp.<pid>     ← write the new content
+records.jsonl               ← atomically rename over the old file
+```
+
+A reader holding an open file descriptor on `records.jsonl` sees a complete
+older snapshot. A new reader sees the new file. There is no torn state.
+
+A `.lock` file in the sheet serializes writers (single-writer, [ADR-0006](/reference/adrs/)).
+
+## Querying via DuckDB
+
+Folio exposes records to DuckDB as a view named `records`.
+
+```bash
+folio query ./customers \
+  "SELECT country, COUNT(*) AS n
+     FROM records
+    GROUP BY country
+    ORDER BY n DESC"
+```
+
+```python
+sheet.query("SELECT * FROM records WHERE country = ?", ["Japan"])
+```
+
+Only `SELECT` is allowed. INSERT / UPDATE / DELETE / DDL are rejected at the
+Folio layer ([ADR-0005](/reference/adrs/)). Use `upsert_records` and
+`delete_records` to mutate.
+
+## Pagination
+
+`Sheet.list_records` (and `folio list`) accepts `limit` and `cursor`. The
+cursor is an opaque string Folio gives you back; pass it on the next call to
+continue.
+
+```python
+page = sheet.list_records(limit=100)
+while page["next_cursor"]:
+    page = sheet.list_records(limit=100, cursor=page["next_cursor"])
+```
+
+## Order
+
+Folio does **not** guarantee any record order across writes. Materialize and
+upsert may reorder rows (in particular, `upsert_records` keeps the relative
+order of pre-existing rows but appends new ones at the end). If you need a
+stable order, use an `ORDER BY` clause on the query.
+
+## Size guidance
+
+The format streams. There is no in-memory load step at read; Folio reads
+line-by-line. A `records.jsonl` with **tens of thousands of rows** is the
+designed scale. Hundreds of thousands work. Millions are out of scope —
+that's the regime where you'd want a database, not a file.
+
+## Inspecting from the shell
+
+```bash
+# Pretty-print one record
+jq . customers/records.jsonl | head -10
+
+# Count rows
+wc -l customers/records.jsonl
+
+# Filter without DuckDB
+jq -c 'select(.country == "Japan")' customers/records.jsonl
+
+# Diff two checkouts of the same sheet
+diff <(jq -S . a/records.jsonl) <(jq -S . b/records.jsonl)
+```
+
+## Why JSONL and not CSV / Parquet / ndjson?
+
+- **CSV** doesn't carry types and chokes on commas in strings; nullability is
+  ambiguous.
+- **Parquet** isn't human-readable, breaks `cat` / `grep`, and pulls in a
+  binary dependency.
+- **ndjson** is the same thing as JSONL — different name. Folio uses "JSONL"
+  because it's the term used in the wider data-contract ecosystem.
+
+If your toolchain prefers Parquet, run `folio export datapackage` to get a
+Frictionless descriptor that points to `records.jsonl` — many tools can
+convert from there.

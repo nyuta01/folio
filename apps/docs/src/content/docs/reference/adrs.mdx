@@ -1,0 +1,76 @@
+---
+title: ADRs
+description: Architectural Decision Records pinning the load-bearing choices in Folio.
+---
+
+Folio keeps a thin set of ADRs in
+[`docs/design-docs/adrs/`](https://github.com/nyuta01/folio/tree/main/docs/design-docs/adrs).
+Each one names a decision that's hard to revisit later — something the
+verify gate enforces, or that propagates through the spec.
+
+## Catalogue
+
+| # | Title | Status |
+|---|---|---|
+| [0001](https://github.com/nyuta01/folio/blob/main/docs/design-docs/adrs/0001-record-design-docs-and-adrs-under-docs.md) | Record design docs and ADRs under `docs/` | Accepted |
+| [0002](https://github.com/nyuta01/folio/blob/main/docs/design-docs/adrs/0002-use-python-as-the-reference-implementation.md) | Use Python as the reference implementation | Accepted |
+| [0003](https://github.com/nyuta01/folio/blob/main/docs/design-docs/adrs/0003-use-odcs-subset-for-contract-yaml.md) | Use ODCS subset for `contract.yaml` | Accepted |
+| [0004](https://github.com/nyuta01/folio/blob/main/docs/design-docs/adrs/0004-store-records-as-line-delimited-json.md) | Store records as line-delimited JSON | Accepted |
+| [0005](https://github.com/nyuta01/folio/blob/main/docs/design-docs/adrs/0005-use-duckdb-select-only-for-queries.md) | Use DuckDB SELECT-only for queries | Accepted |
+| [0006](https://github.com/nyuta01/folio/blob/main/docs/design-docs/adrs/0006-use-single-writer-dot-lock-for-sheet-writes.md) | Use single-writer `.lock` for sheet writes | Accepted |
+| [0007](https://github.com/nyuta01/folio/blob/main/docs/design-docs/adrs/0007-match-x-editable-by-with-fnmatch-patterns.md) | Match `x-editable-by` with fnmatch patterns | Accepted |
+| [0008](https://github.com/nyuta01/folio/blob/main/docs/design-docs/adrs/0008-place-caches-and-runtime-outside-the-sheet.md) | Place caches and runtime outside the sheet | Accepted |
+| [0009](https://github.com/nyuta01/folio/blob/main/docs/design-docs/adrs/0009-ai-client-protocol-and-stub.md) | AI client Protocol and deterministic stub | Accepted |
+
+## What ADRs in Folio do
+
+Each ADR has a fixed shape:
+
+- **Status** — Accepted / Superseded / Deprecated.
+- **Context** — what was true when the decision was made.
+- **Decision** — the choice.
+- **Consequences** — what follows.
+- **Confirmation** — the test, gate, or invariant that keeps the decision
+  in force.
+
+The Confirmation section is the load-bearing one. It names a `make verify`
+check that fails if the decision is silently undone:
+
+| ADR | Confirmation |
+|---|---|
+| 0005 (DuckDB) | `drift-check` requires `duckdb` to be imported under `src/folio/`. |
+| 0006 (filelock) | `drift-check` requires `filelock` to be imported under `src/folio/`. |
+| 0008 (cache outside) | `drift-check` rejects fixtures with `.cache/`, `.venv/`, etc. |
+| 0009 (AI Protocol) | `drift-check` requires `anthropic` to be imported only in `src/folio/_ai_kind.py`. |
+
+Plus the Phase 5 viewer-only invariant: `fastapi`/`uvicorn` may only be
+imported from `src/folio_viewer/`.
+
+## Adding an ADR
+
+When a new decision is sufficiently load-bearing — it changes the spec,
+shapes new code, or adds a new gate — propose a new ADR by copying
+[`template.md`](https://github.com/nyuta01/folio/blob/main/docs/design-docs/adrs/template.md)
+and renaming with the next sequential number.
+
+`make verify` enforces:
+
+- ADR files are sequentially numbered with no gaps.
+- Every ADR is indexed in `adrs/README.md`.
+- Every Accepted ADR includes a Confirmation section.
+
+`docs/methodology/permanent-fix-protocol.md` lays out the workflow:
+when an agent failure becomes a recurring pattern, an ADR is the way to
+encode the fix so future agents (and future you) won't re-introduce it.
+
+## Reading order
+
+If you're getting started:
+
+1. **0008** (cache outside) — explains the most-asked question.
+2. **0006** (single-writer lock) — explains the concurrency model.
+3. **0005** (DuckDB SELECT) — explains the read surface.
+4. **0007** (fnmatch) — explains the permission model.
+5. **0009** (AI Protocol) — explains the testing model.
+
+The rest are useful context but not load-bearing for day-to-day use.

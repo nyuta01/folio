@@ -1,0 +1,172 @@
+---
+title: "cross_sheet derivation"
+description: Pull a value from a sibling Folio sheet. The 1:1 sidecar pattern, with cache invalidation when the foreign sheet changes.
+---
+
+import KindBadge from "../../../../components/KindBadge.astro";
+
+<KindBadge kind="cross_sheet" /> joins a sheet to a sibling sheet on
+the **calling sheet's primary key**. Use it when two sheets share an
+identifier 1:1 — the canonical pattern is a financial sidecar:
+
+```text
+customers/                         customer-revenue/
+├── contract.yaml      ──→         ├── contract.yaml
+├── records.jsonl                  ├── records.jsonl
+                                       (id, revenue_usd, ...)
+└── derivations/
+    └── revenue.yaml ◀── reads from ../customer-revenue
+```
+
+## Minimal example
+
+```yaml
+# customers/derivations/revenue.yaml
+targets: [current_revenue_usd]
+inputs: []                          # join is by PK, no other inputs
+kind: cross_sheet
+source_sheet: ../customer-revenue   # path relative to this sheet
+key_field: id                       # name of the field in the foreign sheet
+value_field: revenue_usd            # name of the field whose value we copy
+```
+
+For each `customers` record (e.g. `cust_001`), Folio:
+
+1. Loads `../customer-revenue/records.jsonl`.
+2. Looks for a row where `<key_field> == cust_001`.
+3. Copies `value_field` to `current_revenue_usd`.
+
+## Fields
+
+| Field | Required | Notes |
+|---|---|---|
+| `targets` | yes | Field(s) this derivation writes. |
+| `inputs` | yes | Often `[]`; the join is by PK. |
+| `kind` | yes | Always `cross_sheet`. |
+| `source_sheet` | yes | Path to the foreign sheet, relative to this sheet's root. |
+| `key_field` | yes | Field on the foreign sheet whose value should equal the calling sheet's primary key. |
+| `value_field` | one of | Used when writing one target. |
+| `value_fields` | one of | `{target: foreign_field}` map for multiple targets. |
+
+`value_field` and `value_fields` are mutually exclusive.
+
+## What happens when no match is found
+
+Folio writes nothing for that record and reports nothing on the envelope —
+"no match" is an expected case for cross_sheet. The field stays `null`.
+
+If you want a failure instead, add a `python` derivation that asserts the
+field is non-null after `cross_sheet` runs.
+
+## Multi-target
+
+```yaml
+targets: [current_revenue_usd, contract_value_usd, finance_as_of]
+inputs: []
+kind: cross_sheet
+source_sheet: ../customer-revenue
+key_field: id
+value_fields:
+  current_revenue_usd: revenue_usd
+  contract_value_usd: contract_value_usd
+  finance_as_of: as_of
+```
+
+All three fields stay consistent: they share one `input_hash`, so they
+either all update or all stay cached.
+
+## The semantics rule
+
+`cross_sheet` matches the foreign sheet's `<key_field>` against the **calling
+sheet's primary key**. It does not match against an arbitrary input.
+
+If you need to look up by a non-PK field — e.g. `customers.industry_name →
+industry-master.id` — Folio's built-in `cross_sheet` does **not** fit. Use
+`import` instead, or write a `python` / `sql` derivation that does the
+lookup explicitly.
+
+## Cache invariants
+
+`input_hash` for `cross_sheet` includes:
+
+- the canonical JSON of every input value (often empty),
+- the calling sheet's primary key value,
+- the SHA-256 of the **foreign sheet's `records.jsonl`**,
+- the SHA-256 of the **derivation file**.
+
+That last one matters: edit `customer-revenue/records.jsonl` and *every*
+record's hash on the calling side changes, so next materialize re-runs the
+join for everything. This is the right behaviour when you don't know which
+foreign rows changed.
+
+If your foreign sheet is large and changes constantly, prefer `import` from
+a snapshot — `import` hashes only the source file's bytes (still per-record,
+but at least you control when you re-export).
+
+## Why not allow lookup by an input field?
+
+Two reasons. First, the cache becomes much more expensive: each record
+needs its own (`input_hash`, foreign records hash) pair instead of a single
+join. Second, the natural use case — "join by matching field" — is what
+`import` does, and a `cross_sheet` that does this would duplicate `import`
+without the file-as-source-of-truth property.
+
+The current design is the simplest thing that's useful. Future versions may
+add an "indirect key" form; this isn't on the near-term roadmap.
+
+## Worked example
+
+`customers/contract.yaml` (excerpt):
+
+```yaml
+- name: id
+  logicalType: string
+  primaryKey: true
+  required: true
+- name: current_revenue_usd
+  logicalType: number
+  x-derived: true
+  x-inputs: []
+```
+
+`customer-revenue/records.jsonl`:
+
+```jsonl
+{"id": "cust_001", "revenue_usd": 12500000, "as_of": "2026-04-30"}
+{"id": "cust_002", "revenue_usd": 88000000, "as_of": "2026-04-30"}
+```
+
+`customers/derivations/revenue.yaml`:
+
+```yaml
+targets: [current_revenue_usd]
+inputs: []
+kind: cross_sheet
+source_sheet: ../customer-revenue
+key_field: id
+value_field: revenue_usd
+```
+
+Materialize `customers`:
+
+```bash
+$ folio materialize ./customers --actor agent:demo
+{"materialized": 2, "skipped": 0, "failures": [], "total_cost": 0.0}
+
+$ folio query ./customers \
+    "SELECT id, current_revenue_usd FROM records ORDER BY id"
+[{"id":"cust_001","current_revenue_usd":12500000.0},
+ {"id":"cust_002","current_revenue_usd":88000000.0}]
+```
+
+Update `customer-revenue/records.jsonl` and re-materialize: every customer
+re-joins because the foreign-records hash flipped.
+
+## When to choose `cross_sheet`
+
+- Two Folio sheets, same primary key, 1:1 relationship.
+- You want the foreign sheet's contract enforced on the source side.
+- The foreign sheet has its own provenance, version, and lifecycle.
+
+For one-shot CSV imports or non-Folio sources, [`import`](/sheet/derivations/import/)
+is the right kind.

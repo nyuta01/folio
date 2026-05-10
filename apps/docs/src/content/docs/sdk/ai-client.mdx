@@ -1,0 +1,171 @@
+---
+title: AI client
+description: AIClient Protocol, AnthropicClientAdapter, StubAIClient, and how to write your own.
+---
+
+Folio's `ai` derivation kind never imports an LLM SDK directly. It calls
+through the **`AIClient` Protocol**, which decouples the spec from the
+provider ([ADR-0009](/reference/adrs/)). Two implementations ship in
+`folio._ai_kind`:
+
+- `AnthropicClientAdapter` — production. Uses the `anthropic` SDK.
+- `StubAIClient` — deterministic. Used by tests and the offline smoke.
+
+You can also implement the Protocol against any other model.
+
+## The Protocol
+
+```python
+from typing import Protocol
+
+class AIClient(Protocol):
+    def complete(
+        self,
+        *,
+        model: str,
+        prompt: str,
+        output: Literal["text", "json"] = "text",
+        output_schema: dict[str, str] | None = None,
+        max_tokens: int | None = None,
+    ) -> AIResult: ...
+```
+
+`AIResult` is a small dataclass:
+
+```python
+@dataclass
+class AIResult:
+    text: str | None             # for output="text"
+    parsed: dict | None          # for output="json"
+    cost_usd: float | None       # None when the model isn't priced
+    model: str                   # echo of input — useful when adapters retry with fallbacks
+```
+
+Implementations must:
+
+- Honour `output="json"` by either passing structured-output hints to the
+  model, or by parsing the model's text output as JSON before returning.
+- Set `cost_usd` to `None` for unknown models rather than guessing a
+  price ([ADR-0009](/reference/adrs/)).
+
+## `AnthropicClientAdapter`
+
+The production adapter. Reads `ANTHROPIC_API_KEY` from the environment.
+
+```python
+from folio._ai_kind import AnthropicClientAdapter
+
+adapter = AnthropicClientAdapter()
+result = adapter.complete(
+    model="claude-sonnet-4-6",
+    prompt="Industry of Acme in one word.",
+    output="text",
+)
+print(result.text)        # → "Manufacturing"
+print(result.cost_usd)    # → 0.00003 (or None for unknown models)
+```
+
+The adapter is the **only module** in `src/folio/` that imports
+`anthropic` ([ADR-0009](/reference/adrs/)). Drift-check enforces this
+invariant on every `make verify`.
+
+### Pricing
+
+`AnthropicClientAdapter` keeps a small per-model `PRICE_TABLE_USD`. Models
+absent from the table report `cost_usd: None` rather than fabricating a
+price. To add a model, edit `_ai_kind.py:PRICE_TABLE_USD`.
+
+## `StubAIClient`
+
+The stub used by tests and the offline materialize smoke.
+
+```python
+from folio import open_sheet
+from folio._ai_kind import StubAIClient
+
+stub = StubAIClient()
+stub.prepare("Industry of Acme", "Manufacturing")
+stub.prepare("Industry of DataFlow", "Software")
+
+sheet = open_sheet("./customers", actor="agent:demo")
+sheet.materialize(ai_client=stub)
+```
+
+`prepare(substring, value)` matches by **substring** against the resolved
+prompt. The first canned response whose substring is contained in the
+prompt wins. Useful when prompts have boilerplate around the variable
+part.
+
+For more flexible matching, pass a default responder:
+
+```python
+def fallback(prompt: str) -> str | dict:
+    if "Industry of" in prompt:
+        return "Unknown"
+    raise ValueError("no canned response for: " + prompt)
+
+stub = StubAIClient(default_responder=fallback)
+```
+
+The responder may return:
+
+- a `str` — used as-is for `output="text"`;
+- a `dict` — used as-is for `output="json"`;
+- a non-string scalar (`int`, `bool`) — coerced to string.
+
+`StubAIClient.cost_usd` is `0.0` by default. Override per response with
+`prepare(substring, value, cost_usd=...)`.
+
+## Writing your own AIClient
+
+Any class with the right shape works. Example: a thin wrapper around
+OpenAI's API.
+
+```python
+import openai
+from folio._ai_kind import AIResult
+
+class OpenAIAdapter:
+    def __init__(self, *, client: openai.OpenAI):
+        self._client = client
+
+    def complete(self, *, model, prompt, output="text", output_schema=None, max_tokens=None):
+        response = self._client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            response_format={"type": "json_object"} if output == "json" else None,
+        )
+        text = response.choices[0].message.content
+        if output == "json":
+            import json
+            return AIResult(text=None, parsed=json.loads(text or "{}"),
+                            cost_usd=None, model=model)
+        return AIResult(text=text, parsed=None, cost_usd=None, model=model)
+```
+
+Pass the adapter to materialize:
+
+```python
+adapter = OpenAIAdapter(client=openai.OpenAI(api_key=...))
+sheet.materialize(ai_client=adapter)
+```
+
+The MCP server's `materialize` tool and the Viewer's `/api/materialize`
+endpoint accept the same injection at construction time:
+
+```python
+from folio_mcp import build_server
+server = build_server(root="./sheets", default_actor="agent:hosted", ai_client=adapter)
+```
+
+## Testing tips
+
+- Always inject `StubAIClient` in tests. Real network calls are slow,
+  flaky, and cost money.
+- Stub `folio._cache.default_cache_root` to a `tmp_path` in tests so
+  one test's cache doesn't leak into another's.
+- Check `sheet.provenance(record_id, field)` to assert that the right
+  model, cost, and prompt fingerprint landed.
+
+See [`tests/test_ai_kind.py`](https://github.com/nyuta01/folio/blob/main/tests/test_ai_kind.py)
+for the canonical test patterns.

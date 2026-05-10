@@ -1,0 +1,64 @@
+---
+title: folio provenance
+description: Latest entry, or full append-only history, for one cell.
+---
+
+```text
+folio provenance <SHEET> <RECORD_ID> <FIELD> [--history]
+```
+
+Reads `provenance.jsonl` and returns the latest entry for the given cell.
+With `--history`, returns the full append-only chain (oldest first → most
+recent last).
+
+## Latest
+
+```bash
+$ folio provenance ./customers cust_001 country_code
+{
+  "record_id": "cust_001",
+  "field": "country_code",
+  "source": "python",
+  "actor": "agent:demo",
+  "at": "2026-05-10T10:16:35Z",
+  "input_hash": "sha256:ce82..."
+}
+```
+
+If there's no entry, the command prints `null`:
+
+```bash
+$ folio provenance ./customers cust_001 nonexistent_field
+null
+```
+
+## Full history
+
+```bash
+$ folio provenance ./customers cust_001 country_code --history
+[
+  {"source":"python","actor":"agent:demo","at":"2026-05-08T...","input_hash":"sha256:..."},
+  {"source":"human","actor":"agent:human:akiko","at":"2026-05-09T...",},
+  {"source":"python","actor":"agent:demo","at":"2026-05-10T...","input_hash":"sha256:..."}
+]
+```
+
+Read top-to-bottom for chronological order. The Viewer's history tab
+renders this as a vertical timeline with a colored ring per source.
+
+## Use cases
+
+- "Why is this field this value?" — `--history` shows the chain.
+- "Which model wrote it?" — the latest `model` field for `ai` entries.
+- "How much did this materialize cost?" — sum `cost_usd` across all `ai`
+  entries.
+
+## Comparison with `folio status`
+
+| `folio provenance` | `folio status` |
+|---|---|
+| One cell. | One field across all records. |
+| Full history possible. | Latest only, aggregated. |
+| Verbose. | Compact counts. |
+
+For dashboards use `status`; for forensic drilldowns use `provenance`.

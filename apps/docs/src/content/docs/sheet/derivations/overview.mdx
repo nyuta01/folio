@@ -1,0 +1,145 @@
+---
+title: Derivations overview
+description: Six built-in kinds, one cache-and-provenance loop. Pick the right kind for the job.
+---
+
+import KindBadge from "../../../../components/KindBadge.astro";
+
+A **derivation** is a YAML file under `derivations/` that fills one or more
+fields. Folio ships six kinds, all sharing the same materialize loop.
+
+## Anatomy of a derivation file
+
+```yaml
+# derivations/<anything>.yaml
+targets: [country_code]      # required: fields this derivation writes
+inputs: [country]            # required for cache invalidation
+kind: python                 # one of: ai | import | python | sql | http | cross_sheet
+script: country_to_code      # kind-specific
+# ...kind-specific fields...
+```
+
+The file's basename can be anything. Folio walks `derivations/` alphabetically
+for a stable execution order.
+
+## Common rules
+
+Every kind respects the same rules:
+
+- **`targets`** lists the field names the derivation writes. They must all be
+  declared `x-derived: true` on the contract.
+- **`inputs`** lists the fields whose changes invalidate the cache. They must
+  exist on the contract.
+- **Multi-target derivations** must declare `output_schema` (a `{name: type}`
+  map) so Folio knows which output goes to which target. Single-target
+  derivations omit it.
+- **`output`** is `text` (default; the kind returns one scalar) or `json`
+  (the kind returns a JSON object that maps target → value).
+
+## The six built-in kinds
+
+<div class="not-content">
+
+| Kind | One-liner | Offline? | Doc |
+|---|---|---|---|
+| <KindBadge kind="ai" /> | Calls an LLM via `AIClient` (Anthropic SDK by default). | Stub-only | [ai](/sheet/derivations/ai/) |
+| <KindBadge kind="import" /> | Reads from a local CSV / JSONL / JSON file in the sheet. | Yes | [import](/sheet/derivations/import/) |
+| <KindBadge kind="python" /> | Runs `scripts/<name>.py` as a subprocess. | Yes | [python](/sheet/derivations/python/) |
+| <KindBadge kind="sql" /> | Evaluates a DuckDB SELECT-only expression against `records`. | Yes | [sql](/sheet/derivations/sql/) |
+| <KindBadge kind="http" /> | Calls a templated HTTP endpoint via `HTTPTransport`. | Stub-only | [http](/sheet/derivations/http/) |
+| <KindBadge kind="cross_sheet" /> | Joins to a sibling sheet 1:1 by primary key. | Yes | [cross_sheet](/sheet/derivations/cross-sheet/) |
+
+</div>
+
+## How to choose a kind
+
+```text
+Need an LLM?                            ai
+Pulling from a CSV / JSONL sidecar?     import
+Deterministic transform of fields?      python (or sql)
+Joining to another sheet?               cross_sheet
+External API?                           http
+Heavy aggregation across rows?          sql
+```
+
+When in doubt: **prefer determinism**. `python` / `sql` are cheaper to cache,
+faster to test, and keep `provenance.jsonl` from filling with hashes that
+depend on remote state.
+
+## Dependency resolution between derivations
+
+Derivations can target fields that other derivations input. Folio
+topologically sorts them at materialize time (Kahn's algorithm) and runs them
+in dependency order. A cycle aborts the run with `DerivationError`.
+
+```yaml
+# derivations/area.yaml
+targets: [area_sqkm]
+inputs: [country]
+kind: python
+script: country_to_area
+
+# derivations/density.yaml
+targets: [density]
+inputs: [population, area_sqkm]   # depends on area_sqkm
+kind: python
+script: divide
+```
+
+Folio runs `area.yaml` first, then `density.yaml`.
+
+## Multi-target derivations
+
+A single derivation can fill several fields when they naturally come together
+(e.g. one `ai` call returning structured output):
+
+```yaml
+targets: [industry, employee_count]
+inputs: [company_name, country]
+kind: ai
+model: claude-sonnet-4-6
+prompt_ref: prompts/enrich.md
+output: json
+output_schema:
+  industry: string
+  employee_count: integer
+```
+
+The cache stores the *whole envelope* keyed by one `input_hash`, so the two
+targets always evolve together.
+
+## Cache hashing recap
+
+`input_hash` covers more than `inputs`. It includes:
+
+- the canonical JSON of every value listed in `inputs`,
+- the SHA-256 of the derivation file itself,
+- kind-specific extras: the resolved `prompt_body` for `ai`, the source file
+  hash for `import`, the foreign sheet's `records.jsonl` hash for
+  `cross_sheet`.
+
+If anything in that bag changes, the cache misses, the kind re-runs, and a
+fresh provenance line is appended.
+
+## Defining a custom kind
+
+The six built-ins live under `src/folio/kinds/`. To add a new kind you would:
+
+1. Define a Pydantic model that extends `Derivation` and registers under a
+   discriminator value.
+2. Implement an `execute_<kind>(derivation, inputs, *, sheet_path, ...)`
+   function that returns `dict[str, Any]` (target → value).
+3. Branch on `isinstance(derivation, NewKindDerivation)` inside
+   `Sheet.materialize`.
+4. Add `output_schema` validation, `input_hash` extras, and tests.
+
+Folio doesn't ship a plugin system on disk yet. Custom kinds live in your
+fork or the calling project's code.
+
+## Where to next
+
+- The six kind pages: [ai](/sheet/derivations/ai/), [import](/sheet/derivations/import/),
+  [python](/sheet/derivations/python/), [sql](/sheet/derivations/sql/),
+  [http](/sheet/derivations/http/), [cross_sheet](/sheet/derivations/cross-sheet/).
+- [Materialize lifecycle](/get-started/materialize-lifecycle/) — the loop that
+  glues them all together.

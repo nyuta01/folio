@@ -1,0 +1,142 @@
+---
+title: Onboarding worklist
+description: HR-style worklist with a JSON checklist column and derived progress. Use Case 2.4.
+---
+
+import KindBadge from "../../../components/KindBadge.astro";
+
+Use Case 2.4 from the design overview ([§2.4](https://github.com/nyuta01/folio/blob/main/docs/design-docs/overview.md)).
+A repetitive but not-fully-automatable process — new-hire onboarding —
+tracked as a sheet where humans tick checklist items and Folio derives
+the progress summary.
+
+The shipped sheet is
+[`examples/onboarding/`](https://github.com/nyuta01/folio/tree/main/examples/onboarding).
+
+## The shape
+
+```text
+contract.yaml columns:
+  id          string   PK
+  hire_name   string   human-editable
+  role        string   human-editable
+  start_date  date     human-editable
+  owner       string   human-editable (HR partner email)
+  status      string   human-editable ("pending" / "in_progress" / "complete")
+  checklist   array    human-editable — JSON [{label, done}, ...]
+  progress    string   derived (python — "done/total" from checklist)
+```
+
+The `checklist` is **structured JSON** stored in one column. That's
+unusual but useful: each onboarding has its own list of items, and the
+contract doesn't need to enumerate every possible step.
+
+## Why structured JSON in a single column?
+
+Two alternatives are clunkier:
+
+- **One row per (onboarding, step).** Forces every report to filter by
+  `id` first. Multiplies row count by ~5x. Loses the "this onboarding"
+  identity.
+- **A separate `onboarding-steps/` sheet** referenced by `onboarding.id`.
+  Right answer for a deeper workflow, but overkill for a 5-step
+  checklist.
+
+A `logicalType: array` column hits the sweet spot: schema-typed (Folio
+checks it's a JSON array on write), but not over-normalized.
+
+## The derivation
+
+```yaml
+# derivations/progress.yaml
+targets: [progress]
+inputs: [checklist]
+kind: python
+script: progress
+```
+
+```python
+# scripts/progress.py
+import json, sys
+
+inputs = json.loads(sys.argv[2])
+items = inputs.get("checklist") or []
+total = len(items)
+done = sum(1 for item in items if isinstance(item, dict) and item.get("done"))
+print(f"{done}/{total}")
+```
+
+Cache hit on every run unless the checklist changes.
+
+## Walking through the sheet
+
+```bash
+folio validate examples/onboarding
+folio materialize examples/onboarding --actor agent:demo
+
+folio query examples/onboarding \
+  "SELECT status, COUNT(*) AS n FROM records GROUP BY status"
+```
+
+```json
+[{"status":"in_progress","n":2},
+ {"status":"pending","n":1},
+ {"status":"complete","n":1}]
+```
+
+Open the Viewer:
+
+```bash
+folio serve examples/onboarding --port 3000 --actor agent:human
+```
+
+The Records tab lets HR partners:
+
+- update `status`, `owner`, `start_date` inline,
+- toggle items in the `checklist` (JSON edit — paste the modified array
+  in the inline editor, then tab out),
+- see the `progress` column update on the next materialize.
+
+## A typical lifecycle
+
+1. **HR creates a row.** When a new hire signs, an HR partner upserts a
+   row with the role-specific checklist template.
+
+    ```bash
+    folio upsert examples/onboarding --actor agent:hr --file - <<EOF
+    {"id":"ob_005",
+     "hire_name":"...",
+     "role":"...",
+     "start_date":"...",
+     "owner":"alice@hr",
+     "status":"pending",
+     "checklist":[
+       {"label":"Laptop issued","done":false},
+       {"label":"Slack invited","done":false},
+       ...
+     ]}
+    EOF
+    ```
+
+2. **Materialize.** `progress` is set to `"0/5"`.
+3. **HR works the list.** Tick items as they happen. Each tick is one
+   upsert. Materialize after each batch (or set up a cron).
+4. **`progress` updates** on every materialize. The Viewer's status
+   column shows it on the records grid.
+
+## Extending
+
+- **Status auto-derived.** A second `python` derivation that reads
+  `checklist` and sets `status` to `complete` when all items are
+  `done`, `pending` when none are, `in_progress` otherwise.
+- **Reminders.** A daily script that lists onboardings where
+  `start_date < today + 7d` and `progress` is below `"3/5"`.
+- **Per-role templates.** A separate `onboarding-templates/` sheet
+  keyed by `role`, with a `cross_sheet` derivation that copies the
+  template into a new row's `checklist`.
+
+## See also
+
+- [examples/onboarding/README.md](https://github.com/nyuta01/folio/blob/main/examples/onboarding/README.md)
+- [`python` derivation](/sheet/derivations/python/) — the kind used here.
+- [`folio query`](/cli/query/) — the SQL surface for dashboards.

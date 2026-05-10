@@ -1,0 +1,154 @@
+---
+title: "ai derivation"
+description: Call an LLM through the AIClient Protocol. Anthropic SDK by default; StubAIClient for offline.
+---
+
+import KindBadge from "../../../../components/KindBadge.astro";
+
+<KindBadge kind="ai" /> uses an LLM to fill derived fields. Folio's
+implementation routes every call through an `AIClient` Protocol — the
+[`AnthropicClientAdapter`](/sdk/ai-client/) is the only module that imports
+the `anthropic` SDK ([ADR-0009](/reference/adrs/)), and a deterministic
+`StubAIClient` ships for offline tests and demos.
+
+## Minimal example
+
+```yaml
+# derivations/industry_tag.yaml
+targets: [industry_tag]
+inputs: [company_name]
+kind: ai
+model: claude-sonnet-4-6
+prompt: |
+  Industry of {{ company_name }} in one word.
+output: text
+```
+
+When `folio materialize` reaches a record, Folio:
+
+1. Resolves the `prompt` template (substituting `{{ field }}` placeholders).
+2. Computes `input_hash` over the inputs **and** the resolved prompt body.
+3. Cache hit → done. Cache miss → calls the AIClient, writes the value,
+   appends a provenance line that includes `model` and `cost_usd`.
+
+## Fields
+
+| Field | Required | Notes |
+|---|---|---|
+| `targets` | yes | Fields this derivation writes. |
+| `inputs` | yes | Fields whose values the prompt may read. |
+| `kind` | yes | Always `ai`. |
+| `model` | yes | Any string the AIClient accepts. The default adapter passes it through to Anthropic. |
+| `prompt` | one of | Inline template with `{{ field }}` placeholders. |
+| `prompt_ref` | one of | Path (relative to the sheet) of a markdown / text file. Mutually exclusive with `prompt`. |
+| `output` | no | `text` (default) or `json`. |
+| `output_schema` | when multi-target | `{name: type}` map describing the expected JSON keys. |
+| `materialization` | no | See below. |
+
+### `prompt_ref`
+
+Use a separate file when the prompt is more than a few lines:
+
+```yaml
+prompt_ref: prompts/enrich-industry.md
+```
+
+The file lives inside the sheet (so it travels in the tarball). The file's
+content goes into the `input_hash`, so editing the prompt invalidates the
+cache.
+
+### `output: json` and `output_schema`
+
+For multi-target derivations, the model must return a JSON object whose keys
+match `output_schema`. The default adapter sends a structured-output hint to
+the model; the StubAIClient honours `output_schema` literally.
+
+```yaml
+targets: [industry, employee_count]
+inputs: [company_name, country]
+kind: ai
+model: claude-sonnet-4-6
+prompt_ref: prompts/enrich.md
+output: json
+output_schema:
+  industry: string
+  employee_count: integer
+```
+
+If the model returns an extra key, Folio writes only the keys in `output_schema`
+and ignores the rest. If the model returns a missing or null key, the field
+stays `null` and the derivation logs a failure.
+
+### `materialization`
+
+Optional sub-block tuning the loop:
+
+```yaml
+materialization:
+  respect_human_override: true   # default
+  retries: 0                      # default
+  retry_delay_seconds: 1.0
+```
+
+Retries apply to AIClient errors only; deterministic content errors (a missing
+`output_schema` key) do not retry.
+
+## Prompt template syntax
+
+A tiny `{{ field }}` substitution. Whitespace inside the braces is allowed:
+`{{ company_name }}` and `{{company_name}}` both work. The substituted value
+is the **JSON-encoded** form of the field — strings get quotes, integers
+stay bare, arrays become bracket lists. This keeps prompts safe against
+fields that contain quotes or newlines.
+
+## Cost reporting
+
+Every successful `ai` call appends `cost_usd` to its provenance line. Folio
+keeps a small `PRICE_TABLE_USD` in `_ai_kind.py` for known models; unknown
+models report `cost_usd: null` rather than fabricating a price
+([ADR-0009](/reference/adrs/)). The `total_cost` on the
+[`materialize` envelope](/cli/materialize/) is the sum of all known costs in
+the run.
+
+## Running offline with the StubAIClient
+
+For tests and the offline materialize smoke, inject a [`StubAIClient`](/sdk/ai-client/):
+
+```python
+from folio import open_sheet
+from folio._ai_kind import StubAIClient
+
+stub = StubAIClient()
+stub.prepare("Industry of Acme", "Manufacturing")  # canned response
+
+sheet = open_sheet("./customers", actor="agent:demo")
+result = sheet.materialize(ai_client=stub)
+```
+
+`StubAIClient.prepare(substring, value)` matches by substring against the
+resolved prompt. A fallback responder lets you return canned shapes for any
+prompt:
+
+```python
+stub = StubAIClient(default_responder=lambda prompt: {"industry": "Unknown"})
+```
+
+## When to use `ai` vs other kinds
+
+- **Use `ai`** when the answer is fundamentally fuzzy — classifying free
+  text, summarizing, extracting from messy inputs.
+- **Use `python` or `sql`** when the answer is deterministic. The cache is
+  cheaper, the result is reproducible, the test story is trivial, and
+  there's no API key to manage.
+- **Use `import`** when the answer already exists in a local file.
+
+A common pattern is a deterministic `python` / `sql` first pass to handle the
+easy cases, with an `ai` fallback for the long tail.
+
+## Where to next
+
+- [AIClient SDK reference](/sdk/ai-client/) — Protocol, adapter, stub.
+- [Custom AI provider](/sdk/ai-client/#writing-your-own-aiclient) —
+  implement the Protocol against any model.
+- [provenance.jsonl](/sheet/provenance/) — what an `ai` provenance line
+  looks like, including `cost_usd` and `model`.

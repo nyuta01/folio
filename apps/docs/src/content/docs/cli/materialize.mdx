@@ -1,0 +1,153 @@
+---
+title: folio materialize
+description: Run derivations. Returns the §10.6 envelope.
+---
+
+```text
+folio materialize <SHEET> --actor <actor>
+  [--target <name>]              # repeatable
+  [--record-ids <id1,id2,...>]
+  [--force]
+```
+
+Walks every derivation under `derivations/` (in topological order) and,
+for every target record, executes the kind unless the cache says
+otherwise. See [Materialize lifecycle](/get-started/materialize-lifecycle/)
+for the full theory.
+
+## Output: the §10.6 envelope
+
+```json
+{
+  "materialized": 12,
+  "skipped": 7,
+  "failures": [
+    {"record_id":"cust_006","field":"industry_tag","error":"...","error_type":"FolioError"}
+  ],
+  "total_cost": 0.0034
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `materialized` | Cell writes performed in this run. |
+| `skipped` | Cell writes avoided (cache hit, `respect_human_override`, etc.). |
+| `failures` | Per-record × field errors. The other records keep going. |
+| `total_cost` | Sum of `cost_usd` from `ai` calls. `0.0` if no `ai` derivations or all unknown models. |
+
+## Targeting
+
+```bash
+# Only one derivation
+folio materialize ./customers --actor agent:demo --target country_code
+
+# Multiple
+folio materialize ./customers --actor agent:demo \
+  --target country_code --target industry_tag
+
+# Only a few records
+folio materialize ./customers --actor agent:demo \
+  --record-ids cust_001,cust_002,cust_003
+
+# Combination
+folio materialize ./customers --actor agent:demo \
+  --target country_code --record-ids cust_001
+```
+
+## Forcing a re-run
+
+```bash
+folio materialize ./customers --actor agent:demo --force
+```
+
+`--force` ignores both:
+
+- The cache (every record re-executes its kind).
+- `respect_human_override` (the derivation overwrites the human edit and
+  appends a new derivation provenance line on top).
+
+The previous human entries stay in `provenance.jsonl` (it's append-only),
+so you can recover them via `folio provenance --history`.
+
+## Failures
+
+Failures are reported, not raised. A 5,000-row materialize that has 3 bad
+rows still completes; you fix them and re-run.
+
+```json
+{
+  "record_id": "cust_006",
+  "field": "industry_tag",
+  "error": "scripts/lookup.py exited with 2: KeyError 'cust_006'",
+  "error_type": "FolioError"
+}
+```
+
+The fields:
+
+- `record_id`, `field` — which cell.
+- `error` — the human-readable message.
+- `error_type` — the exception type name (helps filter in tools).
+
+A non-zero exit code is **not** what you get for partial failures. You get
+exit `0` and a non-empty `failures[]`. To turn that into a CI gate:
+
+```bash
+out=$(folio materialize ./customers --actor agent:demo)
+echo "$out"
+[[ "$(echo "$out" | jq '.failures | length')" == "0" ]] || exit 1
+```
+
+## What is logged
+
+For every materialized cell, one line in `provenance.jsonl`:
+
+```jsonl
+{"record_id":"cust_001","field":"country_code","source":"python",
+ "actor":"agent:demo","at":"2026-05-10T10:16:35Z",
+ "input_hash":"sha256:ce82..."}
+```
+
+`ai` lines also include `model` and `cost_usd`.
+
+## Atomicity
+
+Every record's writes are atomic:
+
+1. Acquire `.lock` (single writer, 30 s timeout).
+2. Read `records.jsonl`.
+3. For each derivation × record (cache miss + executed):
+   - Compute `input_hash`.
+   - Execute the kind. (May fail; fall through to the failures list.)
+   - Update the in-memory record.
+   - Write the cache entry.
+4. Atomically rename the new `records.jsonl` over the old one.
+5. Append all the provenance lines for successful writes.
+6. Release the lock.
+
+If step 4 fails, neither records nor provenance update — but the cache
+entries already written stay. The next materialize cache-hits and re-attempts
+the records/provenance step.
+
+## Common shapes
+
+```bash
+# Routine "run everything"
+folio materialize ./customers --actor agent:enrichment
+
+# Quick development loop on one row
+folio materialize ./customers --actor agent:dev \
+  --record-ids cust_test --force
+
+# Incremental after a derivation file edit
+folio materialize ./customers --actor agent:dev    # cache misses re-run automatically
+```
+
+## See also
+
+- [Materialize lifecycle](/get-started/materialize-lifecycle/) — what
+  invalidates the cache and why.
+- [Editing and provenance](/get-started/editing-and-provenance/) —
+  `respect_human_override` in detail.
+- [`folio status`](/cli/status/) — counts of `ai` / `import` / `human` per
+  derived field.

@@ -1,0 +1,123 @@
+---
+title: Research notes
+description: A long-lived knowledge ledger for AI-assisted research. Use Case 2.3.
+---
+
+import KindBadge from "../../../components/KindBadge.astro";
+
+Use Case 2.3 from the design overview ([§2.3](https://github.com/nyuta01/folio/blob/main/docs/design-docs/overview.md)).
+A team's accumulated research notes — competitive analysis, technical
+experiments, market observations — captured one row per note, with light
+structure that AI agents can extend.
+
+The shipped sheet is
+[`examples/research-notes/`](https://github.com/nyuta01/folio/tree/main/examples/research-notes).
+
+## The shape
+
+```text
+contract.yaml columns:
+  id           string   PK
+  title        string   human-editable
+  body         string   human-editable
+  category     string   human-editable ("competitive" / "technical" / "market" / "internal")
+  tags         array    human-editable
+  word_count   integer  derived (python — counts words in body)
+```
+
+## Why a sheet (and not a wiki)?
+
+Notes in a wiki are unstructured text. Notes in a sheet have:
+
+- A typed `category` field that drives sorting and filtering.
+- A `tags` array for free-form labels.
+- A derived `word_count` for "long" vs "short" sorting.
+- A clean upgrade path: an `ai` derivation that fills `tags` /
+  `summary` / `category` from `body` once you set
+  `ANTHROPIC_API_KEY`.
+
+The cost of structure: the contract has to be designed up front. The
+benefit: every reader and writer (human or agent) sees the same shape.
+
+## Walking through the sheet
+
+```bash
+folio validate examples/research-notes
+folio materialize examples/research-notes --actor agent:demo
+
+folio query examples/research-notes \
+  "SELECT category,
+          COUNT(*) AS n,
+          SUM(CAST(word_count AS INTEGER)) AS total_words
+     FROM records
+    GROUP BY category
+    ORDER BY n DESC"
+```
+
+```json
+[{"category":"technical","n":2,"total_words":46},
+ {"category":"competitive","n":1,"total_words":29},
+ ...]
+```
+
+Open the Viewer:
+
+```bash
+folio serve examples/research-notes --port 3000 --actor agent:human
+```
+
+The Records tab lets a human edit `title` / `body` / `category` / `tags`
+inline. The `word_count` column has a <KindBadge kind="python" /> dot;
+clicking it surfaces the history (when was the body last edited, what
+was the count then).
+
+## A typical lifecycle
+
+1. **A team member writes a note.** Inline-editable in the Viewer, or via
+   `folio upsert` from a script.
+2. **Materialize.** The `python` derivation fills `word_count`.
+3. **An AI agent extends.** *(opt-in extension)* An `ai` derivation
+   reads `body` and fills `summary`, `category` (if blank), and `tags`
+   (if empty). Set `ANTHROPIC_API_KEY` and re-materialize.
+4. **Periodic reviews.** A weekly `folio query` surfaces the longest
+   notes, or notes lacking tags, for cleanup.
+
+## Extending with AI
+
+A starting `ai` derivation:
+
+```yaml
+# derivations/auto_tags.yaml
+targets: [tags]
+inputs: [body]
+kind: ai
+model: claude-sonnet-4-6
+prompt: |
+  Read this note body and return JSON: {"tags": ["..."]}.
+  Choose 1-4 tags from this controlled vocabulary:
+  ["mcp", "duckdb", "frontend", "feedback", "deprecation",
+   "performance", "interviews", "competitor", "tanstack"].
+
+  Body:
+  {{ body }}
+output: json
+output_schema:
+  tags: array
+```
+
+Set `ANTHROPIC_API_KEY` and run:
+
+```bash
+folio materialize examples/research-notes --actor agent:auto-tag
+```
+
+The cache invalidates on edits to `body` or to `auto_tags.yaml`. Existing
+human-edited tags stay (default `respect_human_override`).
+
+## See also
+
+- [examples/research-notes/README.md](https://github.com/nyuta01/folio/blob/main/examples/research-notes/README.md)
+- [`ai` derivation](/sheet/derivations/ai/) — the path to add the AI
+  extension.
+- [`python` derivation](/sheet/derivations/python/) — the kind that
+  handles `word_count`.

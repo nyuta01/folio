@@ -1,0 +1,320 @@
+/* ----------------------------------------------------------------------
+ * Bind Folio tokens to Starlight's theming surface.
+ * Starlight exposes ~50 custom properties; we override only the ones
+ * that change the visual identity. Defaults handle the rest.
+ * ---------------------------------------------------------------------- */
+
+:root {
+  /* typography */
+  --sl-font: var(--folio-sans);
+  --sl-font-system-mono: var(--folio-mono);
+
+  /* page layout */
+  --sl-content-width: 52rem;
+
+  /* light theme tokens that Starlight reads */
+  --sl-color-bg: var(--folio-bg);
+  --sl-color-bg-nav: var(--folio-surface);
+  --sl-color-bg-sidebar: var(--folio-surface);
+  --sl-color-bg-inline-code: var(--folio-surface-muted);
+  --sl-color-text: var(--folio-ink);
+  --sl-color-text-accent: var(--folio-accent);
+  --sl-color-text-invert: #faf9f5;
+  --sl-color-hairline: var(--folio-border);
+  --sl-color-hairline-light: var(--folio-border);
+  --sl-color-hairline-shade: var(--folio-border-strong);
+  --sl-color-accent: var(--folio-accent);
+  --sl-color-accent-low: var(--folio-accent-soft);
+  --sl-color-accent-high: var(--folio-accent-ink);
+  --sl-color-white: var(--folio-ink-strong);
+  --sl-color-gray-1: var(--folio-ink);
+  --sl-color-gray-2: var(--folio-ink-muted);
+  --sl-color-gray-3: var(--folio-ink-subtle);
+  --sl-color-gray-4: var(--folio-ink-faint);
+  --sl-color-gray-5: var(--folio-border-strong);
+  --sl-color-gray-6: var(--folio-border);
+  --sl-color-gray-7: var(--folio-surface-muted);
+  --sl-color-black: var(--folio-bg);
+}
+
+:root[data-theme="dark"] {
+  --sl-color-bg: var(--folio-bg);
+  --sl-color-bg-nav: var(--folio-surface);
+  --sl-color-bg-sidebar: var(--folio-surface);
+  --sl-color-bg-inline-code: var(--folio-surface-muted);
+  --sl-color-text: var(--folio-ink);
+  --sl-color-text-accent: var(--folio-accent);
+  --sl-color-text-invert: #14130f;
+  --sl-color-hairline: var(--folio-border);
+  --sl-color-hairline-light: var(--folio-border);
+  --sl-color-hairline-shade: var(--folio-border-strong);
+  --sl-color-accent: var(--folio-accent);
+  --sl-color-accent-low: var(--folio-accent-soft);
+  --sl-color-accent-high: var(--folio-accent-ink);
+  --sl-color-white: var(--folio-ink-strong);
+  --sl-color-gray-1: var(--folio-ink);
+  --sl-color-gray-2: var(--folio-ink-muted);
+  --sl-color-gray-3: var(--folio-ink-subtle);
+  --sl-color-gray-4: var(--folio-ink-faint);
+  --sl-color-gray-5: var(--folio-border-strong);
+  --sl-color-gray-6: var(--folio-border);
+  --sl-color-gray-7: var(--folio-surface-muted);
+  --sl-color-black: var(--folio-bg);
+}
+
+/* ---------- typography polish ---------- */
+
+body {
+  font-feature-settings: "ss01", "cv11";
+  font-variant-ligatures: contextual;
+  -webkit-font-smoothing: antialiased;
+}
+
+.sl-markdown-content :is(h1, h2, h3, h4) {
+  letter-spacing: -0.012em;
+  color: var(--folio-ink-strong);
+}
+
+.sl-markdown-content h1 {
+  font-weight: 700;
+}
+
+.sl-markdown-content h2 {
+  font-weight: 600;
+  border-top: 1px solid var(--folio-border);
+  padding-top: 1.25rem;
+  margin-top: 2.25rem !important;
+}
+
+.sl-markdown-content h2:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+  margin-top: 1.5rem !important;
+}
+
+.sl-markdown-content code:not(pre code) {
+  font-family: var(--folio-mono);
+  font-size: 0.86em;
+  border: 1px solid var(--folio-border);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+/* Cleaner inline link */
+.sl-markdown-content a:not(.button, [class^="sl-"]) {
+  text-decoration-color: var(--folio-accent-soft);
+  text-underline-offset: 3px;
+  transition: text-decoration-color 0.15s;
+}
+.sl-markdown-content a:not(.button, [class^="sl-"]):hover {
+  text-decoration-color: var(--folio-accent);
+}
+
+/* ---------- callouts / asides ---------- */
+
+.sl-markdown-content :is(aside, .starlight-aside) {
+  border-radius: 8px;
+  background: var(--folio-surface);
+  border: 1px solid var(--folio-border);
+  border-left: 3px solid var(--folio-accent);
+}
+
+.starlight-aside--note { border-left-color: var(--folio-ink-muted); }
+.starlight-aside--tip  { border-left-color: var(--kind-sql); }
+.starlight-aside--caution { border-left-color: var(--kind-ai); }
+.starlight-aside--danger  { border-left-color: #b3261e; }
+
+/* ---------- tables ---------- */
+
+.sl-markdown-content table {
+  border: 1px solid var(--folio-border);
+  border-radius: 8px;
+  border-spacing: 0;
+  overflow: hidden;
+}
+
+.sl-markdown-content thead th {
+  background: var(--folio-surface-muted);
+  font-weight: 500;
+  letter-spacing: -0.005em;
+}
+
+.sl-markdown-content tbody tr:hover {
+  background: var(--folio-surface-muted);
+}
+
+/* ---------- code blocks ---------- */
+
+.expressive-code .frame {
+  border-radius: 8px;
+  border: 1px solid var(--folio-border);
+}
+
+/* ---------- sidebar polish ---------- */
+
+starlight-sidebar-state-persist nav {
+  font-size: 13px;
+}
+
+.sidebar-content a[aria-current="page"] {
+  background: var(--folio-accent-soft);
+  color: var(--folio-accent-ink);
+  border-radius: 4px;
+}
+
+/* ---------- top nav ---------- */
+
+header.header {
+  border-bottom: 1px solid var(--folio-border);
+  background: var(--folio-surface);
+}
+
+/* ---------- KindBadge component ---------- */
+
+.kind-badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--folio-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--folio-border);
+  background: var(--folio-surface-muted);
+  margin-right: 4px;
+}
+
+.kind-badge::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  margin-right: 6px;
+}
+
+.kind-badge[data-kind="ai"] { color: var(--kind-ai); }
+.kind-badge[data-kind="import"] { color: var(--kind-import); }
+.kind-badge[data-kind="python"] { color: var(--kind-python); }
+.kind-badge[data-kind="sql"] { color: var(--kind-sql); }
+.kind-badge[data-kind="http"] { color: var(--kind-http); }
+.kind-badge[data-kind="cross_sheet"] { color: var(--kind-cross_sheet); }
+.kind-badge[data-kind="human"] { color: var(--kind-human); }
+
+/* ---------- Hero / FeatureGrid ---------- */
+
+.folio-hero {
+  margin: 1rem 0 2.5rem;
+  padding: 2rem 1.75rem;
+  background:
+    radial-gradient(ellipse at top right, rgba(196, 92, 44, 0.08), transparent 60%),
+    var(--folio-surface);
+  border: 1px solid var(--folio-border);
+  border-radius: 12px;
+}
+
+.folio-hero h1 {
+  margin: 0 0 0.5rem !important;
+  font-size: 2.25rem !important;
+  line-height: 1.1 !important;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+.folio-hero p.tagline {
+  font-size: 1.05rem;
+  color: var(--folio-ink-muted);
+  max-width: 38rem;
+  margin: 0 0 1.5rem;
+}
+
+.folio-hero .actions {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.folio-hero .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 6px;
+  padding: 0.5rem 0.95rem;
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: 1px solid var(--folio-border-strong);
+  background: var(--folio-surface);
+  color: var(--folio-ink);
+  text-decoration: none;
+  transition: background 0.12s, border-color 0.12s;
+}
+
+.folio-hero .btn:hover {
+  background: var(--folio-surface-muted);
+  border-color: var(--folio-ink-muted);
+}
+
+.folio-hero .btn-primary {
+  background: var(--folio-accent);
+  border-color: var(--folio-accent);
+  color: #faf9f5;
+}
+
+.folio-hero .btn-primary:hover {
+  background: var(--folio-accent-hover);
+  border-color: var(--folio-accent-hover);
+  color: #faf9f5;
+}
+
+.folio-hero .btn .mono {
+  font-family: var(--folio-mono);
+  font-size: 0.82em;
+  opacity: 0.9;
+}
+
+/* feature grid */
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin: 1.25rem 0 2rem;
+}
+
+.feature-card {
+  background: var(--folio-surface);
+  border: 1px solid var(--folio-border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  transition: border-color 0.12s, transform 0.12s;
+  text-decoration: none !important;
+  color: inherit !important;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.feature-card:hover {
+  border-color: var(--folio-ink-muted);
+  transform: translateY(-1px);
+}
+
+.feature-card .h {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--folio-ink-strong);
+}
+
+.feature-card .b {
+  font-size: 12.5px;
+  color: var(--folio-ink-muted);
+  line-height: 1.5;
+}
+
+.feature-card .tag {
+  font-family: var(--folio-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--folio-ink-subtle);
+}

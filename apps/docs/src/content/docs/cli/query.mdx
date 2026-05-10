@@ -1,0 +1,75 @@
+---
+title: folio query
+description: Run a DuckDB SELECT against the sheet's records view. Read-only.
+---
+
+```text
+folio query <SHEET> <SQL> [--params <json-array>]
+```
+
+Executes `SQL` against a DuckDB view named `records` whose rows are
+`records.jsonl` ([ADR-0005](/reference/adrs/)). The result is printed as
+a JSON array of objects.
+
+## Examples
+
+```bash
+# Top countries
+folio query ./customers \
+  "SELECT country, COUNT(*) AS n FROM records GROUP BY 1 ORDER BY n DESC"
+# [{"country":"United States","n":12}, ...]
+
+# Parameterized
+folio query ./customers \
+  "SELECT id FROM records WHERE country = ?" \
+  --params '["Japan"]'
+
+# Aggregation
+folio query ./customers \
+  "SELECT AVG(revenue_usd) AS avg_revenue FROM records WHERE country_code = 'US'"
+```
+
+## Constraints
+
+- **SELECT only.** INSERT / UPDATE / DELETE / DDL / `ATTACH` / `INSTALL` /
+  `LOAD` / `PRAGMA` are rejected before DuckDB sees them.
+- **One result set.** Multi-statement queries are rejected.
+- **No I/O.** Folio doesn't expose `read_csv_auto` *unless* you call it
+  yourself in the query — and the sheet's own files (CSV / JSONL under
+  `imports/`) are addressable by relative path, useful in `sql`
+  derivations and ad-hoc queries.
+
+## Output format
+
+A JSON array printed to stdout, one object per row. Column order follows
+the SELECT clause.
+
+```json
+[
+  {"id":"cust_001","country":"Japan","country_code":"JP"},
+  {"id":"cust_002","country":"United States","country_code":"US"}
+]
+```
+
+For very large result sets, prefer `folio list` (which paginates) or pipe
+through `jq`:
+
+```bash
+folio query ./customers "SELECT id FROM records" | jq -r '.[].id'
+```
+
+## Errors
+
+| Error | What it means |
+|---|---|
+| `QueryError: only SELECT statements are allowed` | The SQL contained a non-SELECT keyword. |
+| `QueryError: ...` | DuckDB rejected the query. The DuckDB message is appended. |
+| `RecordsError: invalid JSON on line N` | A row in `records.jsonl` won't parse. Run `folio validate` to find the line. |
+
+## Comparison to `folio list`
+
+| `folio query` | `folio list` |
+|---|---|
+| Arbitrary SELECT (joins, aggregations, windows). | Default `SELECT *` with a `WHERE` filter. |
+| One JSON array, no pagination. | Paginated envelope (`records`, `next_cursor`). |
+| For ad-hoc analysis. | For agent / tool consumption (works with TOON). |

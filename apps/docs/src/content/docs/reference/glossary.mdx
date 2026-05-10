@@ -1,0 +1,157 @@
+---
+title: Glossary
+description: Folio's working vocabulary in one place.
+---
+
+A short list of the terms used everywhere in this documentation.
+
+## actor
+
+A string identifying who performed a write. Convention:
+`agent:<role>` for non-humans, `agent:human` (or `agent:human:<id>`)
+for humans. The actor is matched against `x-editable-by` patterns and
+recorded in `provenance.jsonl`.
+
+## append-only
+
+Said of a file Folio only ever extends. `provenance.jsonl` is the
+canonical example. Folio never rewrites or compacts append-only files;
+rotation is by hand.
+
+## cache
+
+The directory at `<user-cache>/folio/<sheet-id>/cache/`. Holds the
+output of every materialized derivation, keyed by `input_hash`. Lives
+**outside** the sheet so the sheet stays portable ([ADR-0008](/reference/adrs/)).
+
+## canonical JSON
+
+[RFC 8785](https://datatracker.ietf.org/doc/html/rfc8785) JSON
+Canonicalization Scheme. Used to compute `input_hash` so the same
+inputs always produce the same hash regardless of key order or
+formatting.
+
+## contract
+
+The schema. `contract.yaml`, an ODCS-subset declaration of the sheet's
+identity, version, and per-property types.
+
+## CSRF
+
+Cross-Site Request Forgery. The Viewer issues a token on the first GET
+(set as `folio_csrf` cookie + returned by `/api/csrf`) and requires it
+back via `X-CSRF-Token` on every mutating verb.
+
+## derivation
+
+A YAML file under `derivations/` that fills one or more `x-derived`
+fields. Six built-in kinds: `ai`, `import`, `python`, `sql`, `http`,
+`cross_sheet`.
+
+## EventBus
+
+The Viewer's in-process publish/subscribe component. Materialize
+publishes `materialize.start` / `materialize.end` / `materialize.error`
+frames; `/events` streams them as SSE.
+
+## fnmatch
+
+[POSIX-style glob matching](https://docs.python.org/3/library/fnmatch.html)
+(`*`, `?`, `[abc]`). Folio uses it for `x-editable-by` patterns
+([ADR-0007](/reference/adrs/)).
+
+## input_hash
+
+A SHA-256 over the canonical JSON of a derivation's inputs (plus extras
+specific to the kind). The cache key. See
+[Materialize lifecycle](/get-started/materialize-lifecycle/).
+
+## kind
+
+The discriminator on a derivation file. One of `ai`, `import`, `python`,
+`sql`, `http`, `cross_sheet`. Custom kinds are possible by extending the
+SDK.
+
+## logical type
+
+A property's declared type on the contract. One of `string`, `integer`,
+`number`, `boolean`, `date`, `timestamp`, `array`, `object`. Maps to
+JSON shape on records and Frictionless type on export.
+
+## materialize
+
+The verb (and SDK method) that runs derivations. Returns the
+[§10.6 envelope](/cli/materialize/) — `{materialized, skipped, failures, total_cost}`.
+
+## MCP
+
+The Model Context Protocol. `folio-mcp` exposes the SDK as nine MCP
+tools so any MCP-compatible runtime (Claude Desktop, IDE plugins,
+custom agent loops) can read and write Folio sheets.
+
+## ODCS
+
+The [Open Data Contract Standard](https://github.com/bitol-io/open-data-contract-standard).
+Folio's `contract.yaml` is an ODCS subset ([ADR-0003](/reference/adrs/))
+so external tools can read it.
+
+## primary key
+
+The single property on the contract with `primaryKey: true`. Folio
+enforces a single PK; composite keys are not supported (a deliberate
+simplification — [§6.2](https://github.com/nyuta01/folio/blob/main/docs/design-docs/overview.md#62-1-sheet--1-model)).
+
+## provenance
+
+The append-only log at `provenance.jsonl`. One line per write, recording
+who, when, and from what input.
+
+## record
+
+One row of a sheet. One JSON object per line in `records.jsonl`.
+
+## respect_human_override
+
+Default `true`. Materialize reads the latest provenance for each cell;
+if `source: "human"`, the cell is skipped. `--force` ignores this.
+
+## runtime
+
+The directory at `<user-cache>/folio/<sheet-id>/runtime/`. Holds a
+per-sheet venv when `scripts/requirements.txt` exists. Lives outside
+the sheet ([ADR-0008](/reference/adrs/)).
+
+## sheet
+
+One directory containing `contract.yaml`, `records.jsonl`, and optional
+extras. The unit of portability.
+
+## sheet-id
+
+The `id` field on the contract. Scopes the cache and runtime
+directories. Must be repo-unique.
+
+## SSE
+
+[Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events).
+The Viewer's `/events` route streams materialize lifecycle frames as
+SSE.
+
+## stub
+
+A deterministic, in-process implementation of a Protocol. `StubAIClient`
+and `StubHTTPTransport` are shipped with the SDK so tests and offline
+smokes don't need network or API keys ([ADR-0009](/reference/adrs/)).
+
+## TOON
+
+A token-efficient tabular text format Folio ships as an alternative to
+JSON for `Sheet.list_records(format="toon")`. ~3-5x smaller than JSON
+for tabular data, useful in agent contexts.
+
+## x-derived / x-inputs / x-editable-by
+
+ODCS extension attributes Folio adds. `x-derived: true` says a property
+is filled by a derivation; `x-inputs` lists the fields that
+invalidate the cache; `x-editable-by` carries fnmatch patterns for
+write permission.

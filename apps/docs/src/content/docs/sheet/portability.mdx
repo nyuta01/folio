@@ -1,0 +1,112 @@
+---
+title: Portability
+description: A sheet is a directory you can tar. What's inside, what's outside, and the principle that keeps it that way.
+---
+
+Folio's central invariant: **a sheet is a tarball**. Everything inside the
+sheet directory is part of the sheet; everything outside is recoverable
+from the sheet plus a fresh environment.
+
+## The contents test
+
+Before adding a new file or behaviour, ask: *can the recipient of the
+tarball reproduce it?* If yes, it doesn't belong inside.
+
+| Item | Inside | Outside | Why |
+|---|:-:|:-:|---|
+| `contract.yaml` | ✓ |  | the schema; lossy without it |
+| `records.jsonl` | ✓ |  | the data |
+| `derivations/*.yaml` | ✓ |  | rules that fill derived fields |
+| `scripts/*.py` | ✓ |  | reproducible code, ships with the sheet |
+| `provenance.jsonl` | ✓ |  | tamper-evident audit log; must travel |
+| `README.md` | ✓ |  | documentation about the sheet itself |
+| `.lock` | ✓ |  | tied to the writer; cleared between processes |
+| Cache (`<input_hash>.json`) |  | ✓ | recoverable by re-running materialize |
+| Per-sheet venv |  | ✓ | recreated by `pip install -r scripts/requirements.txt` |
+| Logs |  | ✓ | application-level, not part of the sheet |
+| `.env`, secrets |  | ✓ | live in the user's environment |
+
+## What `tar` looks like in practice
+
+```bash
+$ tar czf customers.tgz customers/
+
+$ tar tzf customers.tgz
+customers/contract.yaml
+customers/records.jsonl
+customers/provenance.jsonl
+customers/README.md
+customers/derivations/country_code.yaml
+customers/derivations/current_revenue.yaml
+customers/scripts/country_to_code.py
+```
+
+No cache. No venv. No process state.
+
+The recipient untars, runs `folio validate ./customers`, gets the same
+contract back and the same row counts. They run `folio materialize` and
+the cache rebuilds in their `<user-cache>/folio/<sheet-id>/cache/`. If a
+script imports a third-party library, they install it via `pip install -r
+scripts/requirements.txt` (Folio creates a per-sheet venv on first use).
+
+## How Folio enforces this
+
+Two checks sit on the verify gate:
+
+1. **`drift-check`** rejects the sample fixtures under `tests/fixtures/`
+   if they contain `.cache/`, `.venv/`, `.folio-cache/`, or
+   `.folio-runtime/`. ([ADR-0008](/reference/adrs/))
+2. **`harness-check`** requires `scripts/harness_check.py` to keep the
+   list of expected on-disk files in sync with the source tree.
+
+Both run on every `make verify` and in CI.
+
+## The cache lives at `<user-cache>/folio/<sheet-id>/`
+
+Folio uses [platformdirs](https://platformdirs.readthedocs.io/) to resolve
+the user cache. On macOS that's `~/Library/Caches/folio/`; on Linux it's
+`~/.cache/folio/`. The full path:
+
+```
+<user-cache>/folio/<sheet-id>/
+├── cache/                 # cached derivation outputs, sharded by hash[0:2]
+│   ├── ce/
+│   │   └── ce82a5...json
+│   └── ...
+└── runtime/               # per-sheet venv (when scripts/requirements.txt exists)
+    └── venv/
+```
+
+The `<sheet-id>` is the contract's `id`. **Pick a stable, repo-unique slug.**
+Two sheets with the same id will share a cache and stomp each other.
+
+## What goes wrong if you put cache inside
+
+- Tarballs balloon by orders of magnitude.
+- Two recipients of the same tarball can disagree on derived values.
+- Derived values that depend on the local environment (clock, locale, AI
+  responses) get baked into the file someone else inherits.
+- The recipient's `folio materialize` can't even verify the cached
+  result.
+
+The rule is: if you can't redo it, it's in the sheet. If you can recompute
+it, it's not.
+
+## What a clean sheet looks like
+
+A "shippable" sheet contains exactly:
+
+```
+my-sheet/
+├── contract.yaml          ← required
+├── records.jsonl          ← required
+├── provenance.jsonl       ← grows as you materialize / write
+├── README.md              ← optional
+├── derivations/           ← optional
+│   └── *.yaml
+└── scripts/               ← optional
+    ├── *.py / *.sh
+    └── requirements.txt   ← triggers a per-sheet venv at runtime
+```
+
+Anything else is a smell.

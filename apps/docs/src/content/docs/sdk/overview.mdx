@@ -1,0 +1,138 @@
+---
+title: Python SDK
+description: The folio package — Sheet objects, Protocols, and the surface every other Folio tool wraps.
+---
+
+The Python SDK is the canonical implementation. The CLI, MCP server, and
+Viewer are all thin wrappers over the same `folio` package.
+
+```python
+from folio import open_sheet
+
+sheet = open_sheet("./customers", actor="agent:demo")
+
+print(sheet.contract.id)                    # "example-customers"
+print(sheet.list_records(limit=5)["records"])
+
+sheet.upsert_records([
+    {"id": "cust_999", "company_name": "Beta", "country": "FR"}
+])
+
+result = sheet.materialize()
+# {'materialized': 1, 'skipped': 0, 'failures': [], 'total_cost': 0.0}
+```
+
+## Module map
+
+| Import | What you get |
+|---|---|
+| `folio.open_sheet` | The constructor; returns a `Sheet`. |
+| `folio.Sheet` | Class with the six core operations + materialize / status / provenance. |
+| `folio.load_contract` | Standalone contract validator. |
+| `folio.load_derivation`, `folio.load_derivations` | Read derivation files. |
+| `folio._ai_kind.AIClient` | Protocol — implement to plug in your own LLM. |
+| `folio._ai_kind.AnthropicClientAdapter` | Default adapter (uses `anthropic`). |
+| `folio._ai_kind.StubAIClient` | Deterministic stub for tests. |
+| `folio.kinds._http.HTTPTransport` | Protocol for the `http` derivation. |
+| `folio.kinds._http.HTTPXTransport` | Default adapter (uses `httpx`). |
+| `folio.kinds._http.StubHTTPTransport` | Deterministic stub for tests. |
+| `folio.exceptions.*` | The exception hierarchy. |
+
+The leading-underscore modules (`_ai_kind`, `_cache`, `_provenance`, etc.)
+are private but stable for the Protocols and stubs documented here. The
+public API is what's re-exported from `folio.__init__`.
+
+## What `open_sheet` does
+
+```python
+def open_sheet(path: str | Path, *, actor: str | None = None) -> Sheet
+```
+
+- Loads `contract.yaml` (raises `ContractError` on validation failure).
+- Stores the actor for write operations (writes without an actor still
+  raise — the actor must be passed somewhere in the chain).
+- Does not read `records.jsonl` until you call a method that needs it.
+- Does not acquire the lock until a write happens.
+
+A `Sheet` is cheap to construct (~5 ms) and reusable across many
+operations.
+
+## The Six core operations
+
+| SDK | CLI | What it does |
+|---|---|---|
+| `sheet.get_contract()` | `folio validate` (sort of) | Returns the typed contract. |
+| `sheet.query(sql, params)` | `folio query` | DuckDB SELECT. |
+| `sheet.list_records(...)` | `folio list` | Paginated list with optional projection / filter. |
+| `sheet.get_record(id)` | (sub-case of list) | One record by primary key. |
+| `sheet.upsert_records([...])` | `folio upsert` | Insert / update by primary key. |
+| `sheet.delete_records([...])` | `folio delete` | Remove by primary key. |
+
+Plus the materialize trio:
+
+| SDK | CLI |
+|---|---|
+| `sheet.materialize(...)` | `folio materialize` |
+| `sheet.materialization_status(targets=...)` | `folio status` |
+| `sheet.provenance(record_id, field, history=False)` | `folio provenance` |
+
+And the script bridge:
+
+| SDK | CLI |
+|---|---|
+| `sheet.run_script(name, *, argument)` | `folio script run` |
+| `folio.scripts.discover_scripts(sheet_path)` | `folio script list` |
+
+## Type hints everywhere
+
+Every public function is fully typed. `Sheet`, `Contract`, `Property`,
+`AIDerivation`, etc. are Pydantic v2 models with strict validation. mypy /
+pyright pick them up out of the box.
+
+## Errors
+
+The exception hierarchy:
+
+```text
+FolioError
+├── ContractError          # contract.yaml invalid
+├── SheetError             # sheet directory invalid / not found
+├── RecordsError           # records.jsonl unreadable
+├── QueryError             # SELECT-only violation, DuckDB rejection
+├── OperationError         # write-time validation failure
+│   └── PermissionDeniedError   # x-editable-by mismatch
+├── DerivationError        # derivation file invalid / cycle
+└── LockTimeoutError       # could not acquire .lock within 30 s
+```
+
+See [Errors](/sdk/errors/) for which method raises which exception.
+
+## Threading and processes
+
+A single `Sheet` instance is **not** thread-safe (don't call mutating
+methods from two threads). Across processes, the `.lock` file serializes
+writers ([ADR-0006](/reference/adrs/)). Reads do not take the lock and
+may interleave with writes — readers always see a consistent atomic
+snapshot thanks to the temp-file-and-rename pattern.
+
+## Testing
+
+Folio's own test suite is the canonical example:
+
+- Inject `StubAIClient` to keep `ai` derivations offline.
+- Inject `StubHTTPTransport` to keep `http` derivations offline.
+- Patch `folio._cache.default_cache_root` to a `tmp_path` so tests don't
+  share state with the user cache.
+- Patch `folio.scripts.runtime_root_for_sheet` similarly when testing
+  the `python` kind with a venv.
+
+See [`tests/test_materialize.py`](https://github.com/nyuta01/folio/blob/main/tests/test_materialize.py)
+for end-to-end patterns.
+
+## See also
+
+- [`open_sheet`](/sdk/open-sheet/) — constructor details and edge cases.
+- [Sheet API](/sdk/sheet-api/) — every method with signatures and examples.
+- [AI client](/sdk/ai-client/) — Protocol, adapter, stub.
+- [HTTP transport](/sdk/http-transport/) — Protocol, adapter, stub.
+- [Errors](/sdk/errors/) — full exception reference.

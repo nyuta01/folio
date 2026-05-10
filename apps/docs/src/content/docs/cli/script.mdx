@@ -1,0 +1,93 @@
+---
+title: folio script
+description: Discover and run reusable scripts under sheet/scripts/.
+---
+
+```text
+folio script list <SHEET>
+folio script run <SHEET> <NAME> [--argument <json>] [--actor <actor>]
+```
+
+`scripts/` is a sheet-scoped namespace for executable code. The `python`
+derivation kind invokes scripts from there; humans can invoke the same
+scripts via the CLI.
+
+## list
+
+```bash
+$ folio script list ./customers
+[
+  {"name":"country_to_code","language":"python","path":"scripts/country_to_code.py"}
+]
+```
+
+Returns each script's basename (without extension), inferred language
+(`python` or `shell`), and path relative to the sheet.
+
+A script is **anything** matching `[A-Za-z0-9_-]+\.(py|sh)` directly under
+`scripts/`. Sub-directories are not searched.
+
+## run
+
+```bash
+$ folio script run ./customers country_to_code \
+    --argument '{"country": "Japan"}' \
+    --actor agent:human
+{
+  "name":"country_to_code",
+  "stdout":"JP\n",
+  "stderr":"",
+  "exit_code":0,
+  "duration_seconds":0.034
+}
+```
+
+Folio invokes the script the same way the [`python` derivation kind](/sheet/derivations/python/)
+does:
+
+```text
+python scripts/<NAME>.py <sheet_absolute_path> '<--argument JSON>'
+```
+
+(For `.sh` scripts the interpreter is `/bin/bash` instead of `python`.)
+
+The `--argument` value is passed as `argv[2]` literally; if your script
+expects JSON, pass JSON.
+
+## Why expose this on the CLI?
+
+Three reasons:
+
+1. **Reproducibility.** A human can run the exact same script the
+   `python` derivation runs, with the same per-sheet venv (when
+   `scripts/requirements.txt` exists).
+2. **Debugging.** Reproduce a failed materialize without re-running the
+   whole loop.
+3. **One-shot tasks.** Some scripts are useful outside the materialize
+   loop (data exports, ad-hoc notifications, manual cleanups).
+
+`folio script run` is **not** materialize: it does not write to
+`records.jsonl`, does not update provenance, does not respect cache. It
+just runs the script.
+
+## When to use a derivation vs a script
+
+- **Derivation** — when the result should land in the sheet, be cached,
+  and produce provenance. The same code is invoked, but the loop is in
+  charge.
+- **Script (no derivation)** — when the result is a side-effect (sending
+  an email, writing a file outside the sheet) or a temporary computation.
+
+## Per-sheet venv
+
+If `scripts/requirements.txt` exists, the venv at
+`<user-cache>/folio/<sheet-id>/runtime/venv/` is created on first use and
+reused. Both `folio script run` and the `python` derivation share it.
+
+## Errors
+
+| Error | What it means |
+|---|---|
+| `OperationError: no script named 'foo'` | No `scripts/foo.py` or `scripts/foo.sh`. |
+| `OperationError: invalid script name 'a/b'` | Names are restricted to `[A-Za-z0-9_-]+`. |
+| Non-zero `exit_code` in the result | The script itself failed. The `stderr` is in the response. |

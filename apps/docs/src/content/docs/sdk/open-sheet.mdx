@@ -1,0 +1,102 @@
+---
+title: open_sheet
+description: Construct a Sheet. Loads contract.yaml; lazy on records and lock.
+---
+
+```python
+folio.open_sheet(path: str | Path, *, actor: str | None = None) -> Sheet
+```
+
+The single entry point to the SDK. Returns a `Sheet` ready for any of the
+operations documented in [Sheet API](/sdk/sheet-api/).
+
+## Behaviour
+
+- **Reads `contract.yaml` immediately.** The contract is validated against
+  the [Folio spec](/sheet/contract/); failures raise `ContractError`.
+- **Does not read `records.jsonl`.** Lazy until a query / list / read.
+- **Does not acquire the lock.** Lazy until a write.
+- **Stores the actor.** Used by write operations unless they're given an
+  explicit `actor` argument.
+
+## Examples
+
+```python
+from folio import open_sheet
+
+# Read-only — no actor needed
+sheet = open_sheet("./customers")
+sheet.list_records(limit=10)
+
+# Reads + writes — actor required
+sheet = open_sheet("./customers", actor="agent:demo")
+sheet.upsert_records([{"id": "x", "company_name": "Y", "country": "US"}])
+sheet.materialize()
+```
+
+## Per-call actor override
+
+`open_sheet` only sets the **default** actor. Each write method accepts
+an `actor=` argument that overrides:
+
+```python
+sheet = open_sheet("./customers", actor="agent:human")
+sheet.upsert_records([...], actor="agent:enrichment")  # overrides
+sheet.materialize(actor="agent:nightly")               # overrides
+```
+
+The MCP server uses this pattern: it stores `default_actor` from the
+`--actor` CLI flag and lets every tool call override per-request.
+
+## Construction errors
+
+| Error | Cause |
+|---|---|
+| `SheetError: sheet path is not a directory: <path>` | The directory doesn't exist or isn't a directory. |
+| `ContractError: ...` | `contract.yaml` is missing, malformed, or fails [validation](/sheet/contract/). |
+| `RecordsError: invalid JSON on line N` | `records.jsonl` won't parse. |
+
+`ContractError` includes the field name and what's wrong. `RecordsError`
+gives the line number.
+
+## Working with `Path` vs `str`
+
+```python
+from pathlib import Path
+sheet = open_sheet(Path("./customers"))
+```
+
+Both work. Internally Folio always converts to `Path` and resolves to an
+absolute path. If you pass a relative path, it's resolved against
+`os.getcwd()` at the time of the call.
+
+## Sub-sheet directories (`cross_sheet`)
+
+A `cross_sheet` derivation reads `<source_sheet>/records.jsonl` directly
+without going through `open_sheet`. The foreign sheet's contract is
+**not** loaded by Folio at materialize time — only its records. If the
+foreign contract is invalid, that's the foreign sheet's problem, not
+yours.
+
+If you want strict cross-sheet validation, open the foreign sheet
+yourself before materialize:
+
+```python
+foreign = open_sheet("./customer-revenue")  # raises if invalid
+sheet = open_sheet("./customers", actor="agent:demo")
+sheet.materialize()
+```
+
+## Re-opening on contract changes
+
+`Sheet` caches the contract at construction. If you edit `contract.yaml`,
+construct a new `Sheet`:
+
+```python
+sheet = open_sheet(path)         # reads contract.yaml
+edit_contract(path)
+sheet = open_sheet(path)         # reads it again
+```
+
+The CLI re-opens for every invocation, so it always sees the current
+contract.

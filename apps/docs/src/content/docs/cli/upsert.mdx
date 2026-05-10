@@ -1,0 +1,99 @@
+---
+title: folio upsert
+description: Insert or update records by primary key. Honours x-editable-by.
+---
+
+```text
+folio upsert <SHEET> --actor <actor> --file <path|->
+```
+
+Inserts new records and updates existing ones, keyed by the contract's
+primary key. The body comes from `--file`; pass `-` to read JSONL or a
+JSON array from stdin.
+
+## Input formats
+
+| File contents | How it's read |
+|---|---|
+| One JSON object per line | JSONL |
+| A JSON array of objects | JSON |
+| stdin (`--file -`) | Auto-detected (peek the first non-whitespace char) |
+
+```bash
+# Single record, stdin
+echo '{"id":"cust_999","company_name":"Beta","country":"FR"}' \
+  | folio upsert ./customers --actor agent:human --file -
+
+# Many records, JSONL file
+folio upsert ./customers --actor agent:human --file new-rows.jsonl
+
+# JSON array
+folio upsert ./customers --actor agent:human --file new-rows.json
+```
+
+## Output
+
+```json
+{"inserted": 3, "updated": 1, "total": 11}
+```
+
+- `inserted` — new primary keys.
+- `updated` — existing primary keys whose row was modified.
+- `total` — row count after the write.
+
+## What gets validated
+
+For each record:
+
+- The primary key field is present and non-null.
+- Every required field is present.
+- For each field with `x-editable-by`, the actor matches at least one
+  pattern. Otherwise → `PermissionDeniedError` and **nothing is written**
+  (the whole batch fails atomically).
+- The `logicalType` of every supplied field matches.
+
+Fields not declared on the contract are preserved verbatim — Folio doesn't
+silently drop unknown columns.
+
+## Atomicity
+
+The write goes through `temp file + rename` and is single-writer
+([ADR-0006](/reference/adrs/)). Either every record in the batch lands or
+none do. Provenance lines are appended only after `records.jsonl` is
+committed.
+
+## Idempotency
+
+Re-upserting the same row with the same values is a no-op:
+
+- `inserted: 0, updated: 0`
+- no provenance line is added (Folio compares values; equal ⇒ skip).
+
+This makes `folio upsert` safe to put in scripts that may run twice.
+
+## Provenance
+
+Each *changed* field on each row appends one provenance line:
+
+```jsonl
+{"record_id":"cust_999","field":"company_name","source":"human",
+ "actor":"agent:human","at":"2026-05-10T12:00:00Z"}
+```
+
+The `source` is always `human` for direct writes (regardless of the actor
+string).
+
+## Common errors
+
+| Error | What it means |
+|---|---|
+| `OperationError: record missing primaryKey field 'id'` | A record in the batch has no primary key. |
+| `OperationError: field 'country' is required` | A new record is missing a required field. |
+| `PermissionDeniedError: agent:enrichment may not write company_name` | The actor doesn't match `x-editable-by` for that field. |
+| `LockTimeoutError: failed to acquire .lock within 30s` | Another writer is in progress. |
+
+## See also
+
+- [`folio delete`](/cli/delete/) — remove rows by primary key.
+- [`folio materialize`](/cli/materialize/) — fill `x-derived` fields.
+- [Edit permissions](/sheet/editable-by/) — patterns and edge cases.

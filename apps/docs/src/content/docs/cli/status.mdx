@@ -1,0 +1,62 @@
+---
+title: folio status
+description: Per-target counts of who wrote what across all derived fields.
+---
+
+```text
+folio status <SHEET> [--target <name>...]
+```
+
+Returns an object keyed by derived field, with per-source counts and the
+most recent provenance timestamp.
+
+## Output
+
+```json
+{
+  "country_code": {
+    "total_records": 7,
+    "with_provenance": 7,
+    "ai_count": 0,
+    "import_count": 0,
+    "human_override_count": 0,
+    "last_at": "2026-05-10T10:16:35Z",
+    "last_actor": "agent:demo"
+  },
+  "industry_tag": {
+    "total_records": 7,
+    "with_provenance": 5,
+    "ai_count": 5,
+    "human_override_count": 1,
+    "last_at": "2026-05-10T11:02:00Z",
+    "last_actor": "agent:enrichment"
+  }
+}
+```
+
+| Field | Meaning |
+|---|---|
+| `total_records` | Count of records in the sheet. |
+| `with_provenance` | Records that have at least one provenance entry for this field. |
+| `<source>_count` | Records whose **latest** provenance for this field has that source. |
+| `last_at` / `last_actor` | The most recent provenance entry across the whole field. |
+
+## Filtering
+
+```bash
+folio status ./customers --target country_code
+folio status ./customers --target country_code --target industry_tag
+```
+
+Without `--target`, every `x-derived` field is included.
+
+## What it powers
+
+The Viewer's dashboard reads this endpoint to render per-target cards
+([Viewer overview](/viewer/overview/)). MCP exposes the same as the
+`materialization_status` tool.
+
+## See also
+
+- [`folio provenance`](/cli/provenance/) — drill into one cell's history.
+- [provenance.jsonl](/sheet/provenance/) — the file `status` reads.

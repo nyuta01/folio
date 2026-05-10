@@ -1,0 +1,117 @@
+---
+title: folio export
+description: Export a sheet for use by external tools. Currently — Frictionless datapackage.json.
+---
+
+```text
+folio export datapackage <SHEET> [--out <path>] [--stdout]
+```
+
+Generates a Frictionless v1 [Data Package descriptor](https://specs.frictionlessdata.io/data-package/)
+(`datapackage.json`) that describes the sheet's contract and points at
+`records.jsonl`. External readers — `frictionless validate`,
+`datacontract-cli`, dbt-style data-contract tooling — can pick the file up
+without bespoke glue.
+
+## Default
+
+```bash
+$ folio export datapackage ./customers
+wrote datapackage.json (4 fields)
+
+$ ls customers/
+contract.yaml  datapackage.json  derivations/  provenance.jsonl  records.jsonl  scripts/
+```
+
+By default the descriptor is written to `<SHEET>/datapackage.json`.
+
+## Pipe to stdout
+
+```bash
+folio export datapackage ./customers --stdout > /tmp/customers.dp.json
+```
+
+Useful when you want to commit the descriptor outside the sheet, or pipe
+to `frictionless validate` directly.
+
+## What's in the descriptor
+
+```json
+{
+  "name": "example-customers",
+  "title": "customers",
+  "version": "1.0.0",
+  "description": "...",
+  "resources": [
+    {
+      "name": "items",
+      "path": "records.jsonl",
+      "format": "jsonl",
+      "profile": "tabular-data-resource",
+      "schema": {
+        "primaryKey": "id",
+        "fields": [
+          {"name": "id", "type": "string", "constraints": {"required": true}},
+          {"name": "country_code", "type": "string", "folioDerived": true},
+          ...
+        ]
+      }
+    }
+  ]
+}
+```
+
+| Folio field | Frictionless field |
+|---|---|
+| `id` | top-level `name` |
+| `name` | top-level `title` |
+| `version` | top-level `version` |
+| `description` | top-level `description` (if set) |
+| `schema[0].name` | `resources[0].name` |
+| `properties[].logicalType` | `fields[].type` (mapped) |
+| `properties[].required: true` | `fields[].constraints.required: true` |
+| `properties[].x-derived: true` | `fields[].folioDerived: true` (custom extension key) |
+
+`logicalType` mapping ([§14.2 of the design overview](https://github.com/nyuta01/folio/blob/main/docs/design-docs/overview.md)):
+
+| Folio | Frictionless |
+|---|---|
+| `string` | `string` |
+| `integer` | `integer` |
+| `number` | `number` |
+| `boolean` | `boolean` |
+| `date` | `date` |
+| `timestamp` | `datetime` |
+| `array` | `array` |
+| `object` | `object` |
+
+## What's *not* in the descriptor
+
+- The contract's `derivations/` are not surfaced (Frictionless has no
+  matching concept).
+- `x-editable-by` patterns are not surfaced (also Folio-specific).
+- Provenance is not surfaced (it's not part of the data — it's about the
+  data).
+
+The descriptor is therefore a **lossy projection**. It's enough to make a
+Frictionless-aware tool read the rows; it isn't enough to reconstruct the
+sheet from scratch.
+
+## Validate the export
+
+```bash
+pip install frictionless
+folio export datapackage ./customers
+frictionless validate ./customers/datapackage.json
+```
+
+`frictionless` is not a Folio dependency — install it explicitly when you
+need it.
+
+## Future formats
+
+`folio export` is namespaced by format (`folio export datapackage`,
+`folio export <whatever>`). Today only `datapackage` is shipped. The
+[design doc §14.2](https://github.com/nyuta01/folio/blob/main/docs/design-docs/overview.md)
+mentions OpenAPI surfaces and dbt models as future candidates; neither is
+implemented.

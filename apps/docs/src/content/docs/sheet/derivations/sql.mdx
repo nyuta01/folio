@@ -1,0 +1,132 @@
+---
+title: "sql derivation"
+description: Evaluate a DuckDB SELECT-only expression. Aggregate, window, and parameterize without leaving the sheet.
+---
+
+import KindBadge from "../../../../components/KindBadge.astro";
+
+<KindBadge kind="sql" /> runs a DuckDB `SELECT` against the sheet's
+`records` view, once per target record. Use it when the answer is
+expressible in SQL — counts, ranks, percentiles, joins to in-memory
+tables created from `import` derivations.
+
+The sheet's `records.jsonl` is exposed as a DuckDB view named `records`.
+Only `SELECT` is allowed ([ADR-0005](/reference/adrs/)). INSERT, UPDATE,
+DELETE, ATTACH, INSTALL, and PRAGMA are rejected at parse time.
+
+## Minimal example
+
+```yaml
+# derivations/relative_revenue.yaml
+targets: [revenue_percentile]
+inputs: [revenue_usd]
+kind: sql
+expression: |
+  SELECT percent_rank() OVER (ORDER BY revenue_usd) AS pct
+    FROM records
+   WHERE id = ?
+```
+
+The `?` placeholder is automatically bound to the calling record's primary
+key. The query must return exactly one row with one column.
+
+## Fields
+
+| Field | Required | Notes |
+|---|---|---|
+| `targets` | yes | Field(s) the SELECT writes. |
+| `inputs` | yes | Field names whose changes invalidate the cache. |
+| `kind` | yes | Always `sql`. |
+| `expression` | yes | DuckDB SELECT statement. Must return one row. |
+| `parameters` | no | Extra DuckDB-style positional parameters appended after the auto-bound primary key. |
+| `output` | no | `text` (default; one column ⇒ scalar) or `json`. |
+| `output_schema` | when multi-target | `{name: type}` map matching the SELECT's columns. |
+
+## Multi-column SELECTs
+
+```yaml
+targets: [country_total, country_rank]
+inputs: [country, revenue_usd]
+kind: sql
+expression: |
+  WITH ranked AS (
+    SELECT id,
+           SUM(revenue_usd) OVER (PARTITION BY country) AS total,
+           RANK() OVER (PARTITION BY country ORDER BY revenue_usd DESC) AS rk
+      FROM records
+  )
+  SELECT total, rk FROM ranked WHERE id = ?
+output: json
+output_schema:
+  country_total: number
+  country_rank: integer
+```
+
+Folio reads the row and assigns columns to targets by name (when `output: json`)
+or by position (when `output: text` and there's only one target).
+
+## Cache invariants
+
+`input_hash` for `sql` includes:
+
+- the canonical JSON of every input value,
+- the SHA-256 of the **derivation file**.
+
+The expression itself is part of the file's hash, so editing the SQL
+invalidates every record.
+
+`sql` does **not** fold the records snapshot into the hash. If you need
+sensitivity to the whole table changing (e.g. for window functions), add a
+synthetic input or use `--force`. Most uses don't need this — Folio runs the
+derivation per-record so the per-record `input_hash` already covers the
+inputs.
+
+## Joining to imported sidecars
+
+`sql` can read from any DuckDB-readable file under the sheet via DuckDB's
+file-reader functions:
+
+```yaml
+expression: |
+  WITH industry AS (
+    SELECT * FROM read_csv_auto('imports/industry-master.csv', header=true)
+  )
+  SELECT industry.sector
+    FROM records, industry
+   WHERE records.id = ?
+     AND records.industry_name = industry.name
+```
+
+The `imports/` path is resolved relative to the sheet root.
+
+## Why SELECT-only?
+
+The `records` view is a projection of `records.jsonl`. Mutating it through
+SQL would bypass `Sheet.upsert_records` (which holds the lock, validates
+required fields, and writes provenance). To keep semantics simple, we made
+the view read-only.
+
+If you need to write back, the right tool is `Sheet.upsert_records` from
+the SDK, called from a `python` derivation that consumes the SQL result.
+
+## Failure modes
+
+- The expression returns zero rows ⇒ the field stays `null`, no failure
+  logged (treated as "no answer").
+- The expression returns more than one row ⇒ failure on the materialize
+  envelope.
+- The expression contains anything other than `SELECT` ⇒
+  `QueryError("DuckDB expression must be SELECT-only")` at materialize
+  parse time.
+- The expression returns more columns than `output_schema` declares ⇒
+  failure on the materialize envelope.
+
+## When to choose `sql`
+
+- Aggregations across the whole table (`COUNT`, `SUM`, percentiles, window
+  functions).
+- Joining `records` against an imported CSV / JSONL.
+- When you'd rather declare a transformation than write Python.
+
+For row-local transforms (parsing a URL, formatting a date), `python` is
+usually clearer.

@@ -1,0 +1,130 @@
+---
+title: Folio
+description: Portable, AI-native data sheets that humans and AI agents share.
+template: splash
+hero:
+  tagline: ""
+tableOfContents: false
+---
+
+import Hero from "../../components/Hero.astro";
+import FeatureGrid from "../../components/FeatureGrid.astro";
+
+<Hero
+  title="Folio"
+  tagline="Portable, AI-native data sheets. A sheet is a directory you can tar — a contract, JSONL records, optional derivations, and append-only provenance — that humans and AI agents both read and write."
+  primaryHref="/get-started/installation/"
+  primaryLabel="Get started"
+  secondaryHref="/introduction/concepts/"
+  secondaryLabel="Read the concepts"
+/>
+
+## Why Folio
+
+A Folio sheet is **two files** at minimum: a contract (`contract.yaml`) and rows
+(`records.jsonl`). Add a `derivations/` directory and Folio can fill in derived
+fields — through Python scripts, SQL, HTTP calls, sibling-sheet lookups, or AI —
+while keeping a tamper-evident record of who wrote what and when.
+
+The whole sheet is **portable**: caches and runtimes live outside the directory,
+so `tar czf sheet.tgz my-sheet/` is a complete, faithful copy. No environment.
+No databases. No vendor lock-in.
+
+<FeatureGrid items={[
+  {
+    tag: "Spec",
+    title: "Two files, one model",
+    body: "ODCS-aligned contract + line-delimited records. 1 sheet = 1 model.",
+    href: "/sheet/contract/",
+  },
+  {
+    tag: "Derivations",
+    title: "Six built-in kinds",
+    body: "ai · import · python · sql · http · cross_sheet — all share the cache + provenance loop.",
+    href: "/sheet/derivations/overview/",
+  },
+  {
+    tag: "Provenance",
+    title: "Append-only history",
+    body: "Every cell knows who wrote it, when, and from what input hash.",
+    href: "/sheet/provenance/",
+  },
+  {
+    tag: "Surfaces",
+    title: "CLI · SDK · MCP · Viewer",
+    body: "Same sheet through four interfaces. Pick the one that fits the task.",
+    href: "/cli/overview/",
+  },
+]} />
+
+## Three commands to a working sheet
+
+```bash
+# 1. Install (uv-managed Python toolchain)
+uv tool install folio
+
+# 2. Validate the spec
+folio validate ./my-sheet
+
+# 3. Run derivations and inspect provenance
+folio materialize ./my-sheet --actor agent:demo
+folio provenance ./my-sheet rec_001 industry_tag
+```
+
+A complete walkthrough lives in [Your first sheet](/get-started/your-first-sheet/).
+
+## Architecture at a glance
+
+```
+my-sheet/                ← portable directory (tar this)
+├── contract.yaml        Required. ODCS subset.
+├── records.jsonl        Required. One JSON object per line.
+├── derivations/         Optional. One YAML file per derivation.
+│   └── industry.yaml
+├── scripts/             Optional. Reusable Python/bash helpers.
+├── provenance.jsonl     Append-only audit trail.
+└── README.md            Optional, with typed frontmatter.
+
+# Lives outside the sheet (per ADR-0008):
+~/Library/Caches/folio/<sheet-id>/cache/    Cached derivation outputs.
+~/Library/Caches/folio/<sheet-id>/runtime/  Per-sheet venvs for scripts.
+```
+
+A sheet stays **portable** because the cache and runtime are addressed by
+sheet-id and live in the user cache, never inside the sheet itself.
+
+## Use it through the surface that fits
+
+<FeatureGrid items={[
+  {
+    tag: "CLI",
+    title: "folio",
+    body: "Validate, query, list, upsert, materialize, status, provenance, serve, export.",
+    href: "/cli/overview/",
+  },
+  {
+    tag: "SDK",
+    title: "folio (Python)",
+    body: "Sheet objects with the six core operations. AIClient and HTTPTransport are protocols you can stub.",
+    href: "/sdk/overview/",
+  },
+  {
+    tag: "MCP",
+    title: "folio-mcp",
+    body: "FastMCP server exposing the SDK as nine tools. Stdio or HTTP transport.",
+    href: "/mcp/overview/",
+  },
+  {
+    tag: "UI",
+    title: "folio-viewer",
+    body: "Local-only FastAPI + React app. Records grid, dashboard, history timeline, SSE.",
+    href: "/viewer/overview/",
+  },
+]} />
+
+## Where to next
+
+- New to Folio? Read [Concepts](/introduction/concepts/) (10 min) then walk through [Your first sheet](/get-started/your-first-sheet/).
+- Building an integration? Jump to the [Python SDK](/sdk/overview/) or [MCP tools](/mcp/tools/).
+- Looking for the spec? Start at [contract.yaml](/sheet/contract/) and the [derivations overview](/sheet/derivations/overview/).
+- Want to see real sheets? The [Guides](/guides/customer-master/) section walks the four use cases shipped under [`examples/`](https://github.com/nyuta01/folio/tree/main/examples).

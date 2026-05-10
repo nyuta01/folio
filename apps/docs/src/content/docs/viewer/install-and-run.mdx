@@ -1,0 +1,124 @@
+---
+title: Install and run
+description: Backend bootstrap, frontend build, port and static-dir options.
+---
+
+The Viewer ships in two halves: a Python backend (`folio-viewer`) and a
+TypeScript frontend (`viewer/`). The backend is what the `folio` package
+installs; the frontend is built separately.
+
+## Backend only (API works on its own)
+
+If `viewer/dist/` doesn't exist, the Viewer still serves the API. Useful
+for agent integrations and curl-based scripting.
+
+```bash
+folio-viewer serve ./customers --port 3000 --actor agent:human
+# or, equivalently:
+folio serve ./customers --port 3000 --actor agent:human
+
+curl -s http://127.0.0.1:3000/api/contract | jq
+```
+
+## Build the frontend
+
+For the actual UI, build the React app once:
+
+```bash
+cd viewer
+npm install
+npm run build
+```
+
+`npm run build` writes `viewer/dist/`. Re-run `folio serve` from the
+repository root and the static assets are served at `/`.
+
+## Dev mode (hot reload)
+
+While iterating on the UI, run the Vite dev server alongside the backend:
+
+```bash
+# Terminal 1 — backend on :3000
+folio serve ./customers --port 3000 --actor agent:human
+
+# Terminal 2 — Vite dev server on :5173 (proxies /api → :3000)
+cd viewer
+npm run dev
+```
+
+Open [http://127.0.0.1:5173/](http://127.0.0.1:5173/). Edits in `viewer/src/` hot-reload.
+
+## CLI flags
+
+| Flag | Default | Notes |
+|---|---|---|
+| `--host` | `127.0.0.1` | Local-only by design. Don't change without a reason. |
+| `--port` | `3000` | |
+| `--actor` | `null` | Default actor for write routes. The inline editor needs this. |
+| `--static-dir` | auto | Serves the given directory as `/`. Defaults to `<cwd>/viewer/dist` if it exists. |
+
+## `--static-dir`
+
+Serve a pre-built frontend from a different location:
+
+```bash
+folio serve ./customers --static-dir /opt/folio-viewer-dist
+```
+
+Useful when:
+
+- You ship a packaged Viewer alongside a deployment-specific `--root`.
+- You want to test a different frontend version without rebuilding.
+
+## Where the Viewer lives in the repo
+
+```
+src/folio_viewer/
+├── __init__.py        # exports build_app, EventBus
+├── _events.py         # bounded in-process pub/sub
+├── cli.py             # `folio-viewer serve`
+└── server.py          # FastAPI app, CSRF, REST routes, /events
+
+viewer/                # frontend
+├── package.json
+├── vite.config.ts
+├── tsconfig.json
+├── src/
+│   ├── App.tsx
+│   ├── Dashboard.tsx
+│   ├── History.tsx
+│   ├── api.ts
+│   ├── useEventStream.ts
+│   ├── index.css      # the "Modern Ledger" design tokens
+│   └── main.tsx
+└── tests/             # opt-in Playwright smoke
+```
+
+## Reproducible builds
+
+`viewer/package-lock.json` is committed so the same Node toolchain
+produces the same bundle. Use Node 20+ or Node 26 (current LTS).
+
+The Node toolchain is **not** wired into `make verify`. The backend tests
++ the Viewer smoke (`scripts/smoke-viewer.sh`) cover the API surface
+deterministically. The Playwright frontend smoke is opt-in
+(`viewer/tests/grid.spec.ts`) — see the [Frontend build](/viewer/frontend/)
+page.
+
+## Multiple Viewers
+
+Run several at once on different ports against different sheets:
+
+```bash
+folio serve ./customers --port 3000 --actor agent:human &
+folio serve ./onboarding --port 3001 --actor agent:human &
+```
+
+Each process holds its own EventBus; the SSE streams are independent.
+
+## Stopping
+
+`Ctrl-C` is enough. The lock on the sheet (if held) clears with the
+process. There's no shutdown grace period — the Viewer is read-mostly
+and the rare materialize call holds the lock only for the duration of
+that call.

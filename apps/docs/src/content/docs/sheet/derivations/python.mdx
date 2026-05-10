@@ -1,0 +1,175 @@
+---
+title: "python derivation"
+description: Run a script under scripts/ as a subprocess. The deterministic, offline-friendly default.
+---
+
+import KindBadge from "../../../../components/KindBadge.astro";
+
+<KindBadge kind="python" /> runs a Python (or bash) script that lives
+under `scripts/` in the sheet. Folio invokes it once per target record,
+passes the inputs as a JSON-encoded `argv[2]`, and reads stdout as the value.
+
+This is the kind to reach for first. It is offline, deterministic, easy to
+test, and free.
+
+## Minimal example
+
+```yaml
+# derivations/country_code.yaml
+targets: [country_code]
+inputs: [country]
+kind: python
+script: country_to_code        # → scripts/country_to_code.py
+```
+
+```python
+# scripts/country_to_code.py
+import json, sys
+
+ISO = {"Japan": "JP", "United States": "US", "Sweden": "SE"}
+inputs = json.loads(sys.argv[2])
+print(ISO.get(inputs.get("country", ""), "??"))
+```
+
+```bash
+$ folio materialize . --actor agent:demo
+{"materialized": 3, "skipped": 0, "failures": [], "total_cost": 0.0}
+```
+
+## How the script is invoked
+
+```text
+python scripts/<name>.py <sheet_path> '{"<input>": <value>, ...}'
+```
+
+The script reads inputs from `argv[2]` (a JSON object), does its work, and
+prints the result to stdout. Folio:
+
+- captures `stdout`, strips the trailing newline,
+- captures `stderr` for the failure envelope on non-zero exit,
+- uses `output: text` (default) to keep the raw stdout, or `output: json` to
+  parse stdout as a JSON object that maps target → value.
+
+`argv[1]` is the sheet's absolute path so the script can read sibling files
+if it really needs to.
+
+## Fields
+
+| Field | Required | Notes |
+|---|---|---|
+| `targets` | yes | Field(s) the script writes. |
+| `inputs` | yes | Field names included in the JSON passed as `argv[2]`. |
+| `kind` | yes | Always `python`. |
+| `script` | yes | Basename (no extension) of the file under `scripts/`. Restricted to `[A-Za-z0-9_-]+`. |
+| `output` | no | `text` (default) or `json`. |
+| `output_schema` | when multi-target | `{name: type}` map. |
+
+## Multi-target python derivations
+
+```yaml
+targets: [domain, tld]
+inputs: [url]
+kind: python
+script: parse_url
+output: json
+output_schema:
+  domain: string
+  tld: string
+```
+
+```python
+# scripts/parse_url.py
+import json, sys
+from urllib.parse import urlparse
+
+inputs = json.loads(sys.argv[2])
+host = urlparse(inputs.get("url", "") or "").hostname or ""
+if host.startswith("www."):
+    host = host[4:]
+parts = host.split(".")
+print(json.dumps({"domain": host, "tld": parts[-1] if parts else ""}))
+```
+
+The script must print exactly one line of valid JSON whose keys match
+`output_schema`.
+
+## Bash scripts
+
+The same kind runs `.sh` files:
+
+```yaml
+kind: python
+script: enrich        # scripts/enrich.sh
+```
+
+```bash
+# scripts/enrich.sh
+inputs="$2"
+echo "${inputs}" | jq -r '.country | ascii_upcase'
+```
+
+Folio picks the file extension based on what's on disk: it looks for
+`scripts/<name>.py` first, then `scripts/<name>.sh`.
+
+## Per-sheet venv
+
+When `scripts/requirements.txt` exists, Folio:
+
+1. creates a venv at `<user-cache>/folio/<sheet-id>/runtime/venv/` on first
+   use,
+2. installs the requirements (pip install -r),
+3. runs every Python script through `<venv>/bin/python`.
+
+The venv stays outside the sheet for portability ([ADR-0008](/reference/adrs/)).
+Bash scripts are not affected.
+
+## Cache invariants
+
+`input_hash` includes:
+
+- the canonical JSON of every value in `inputs`,
+- the **derivation file's** SHA-256,
+- the **script file's** SHA-256.
+
+Edit the script → next materialize re-runs it.
+
+## Errors
+
+Non-zero exit code, malformed `output: json` payload, or missing
+`output_schema` keys all show up on the [materialize envelope](/cli/materialize/)
+as per-record failures, not exceptions:
+
+```json
+{
+  "record_id": "cust_006",
+  "field": "country_code",
+  "error": "scripts/country_to_code.py exited with 2: ...",
+  "error_type": "FolioError"
+}
+```
+
+Fix the script, re-run materialize, the failed records re-execute (cache
+miss because the script's hash changed).
+
+## Reusable scripts (for humans, too)
+
+Scripts under `scripts/` are also runnable through the CLI:
+
+```bash
+folio script list ./customers
+folio script run ./customers country_to_code --argument '{"country": "Japan"}'
+```
+
+This lets humans poke the same scripts the materialize loop runs, without
+hand-crafting a Python invocation. See the [`script` CLI verb](/cli/script/).
+
+## When to choose `python`
+
+- Deterministic transforms (string normalization, parsing, lookups).
+- Aggregations that need code, not SQL.
+- Glue that calls a small library (e.g. `urllib`, `dateutil`).
+
+Reach for [`sql`](/sheet/derivations/sql/) when the transform is
+expressible as a SELECT against `records`. Reach for [`http`](/sheet/derivations/http/)
+when the source is over the network. Reach for [`ai`](/sheet/derivations/ai/)
+when the answer is fundamentally fuzzy.

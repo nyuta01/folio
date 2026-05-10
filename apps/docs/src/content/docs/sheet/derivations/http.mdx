@@ -1,0 +1,165 @@
+---
+title: "http derivation"
+description: Call a templated HTTP endpoint. Stub-able for offline tests; keep responses cacheable.
+---
+
+import KindBadge from "../../../../components/KindBadge.astro";
+
+<KindBadge kind="http" /> calls a templated HTTP endpoint and writes the
+response into one or more fields. Folio routes every call through an
+`HTTPTransport` Protocol — `HTTPXTransport` is the production adapter
+(uses `httpx`); `StubHTTPTransport` is the offline stub used in tests.
+
+This is the kind that brings external state into the sheet. Use it sparingly
+and prefer endpoints with stable, hashable responses.
+
+## Minimal example
+
+```yaml
+# derivations/exchange_rate.yaml
+targets: [exchange_rate_usd]
+inputs: [currency]
+kind: http
+method: GET
+url: https://api.example.com/rates/{{ currency }}
+response_path: rates.usd
+```
+
+When materialize hits a record:
+
+1. Folio substitutes `{{ currency }}` into the URL.
+2. Computes `input_hash` over the inputs **and** the resolved URL/body.
+3. Cache hit → done. Cache miss → calls the transport, parses the response,
+   walks `response_path`, writes the value, appends a provenance line.
+
+## Fields
+
+| Field | Required | Notes |
+|---|---|---|
+| `targets` | yes | Field(s) this derivation writes. |
+| `inputs` | yes | Fields whose changes invalidate the cache. |
+| `kind` | yes | Always `http`. |
+| `method` | no | `GET` (default), `POST`, `PUT`, `PATCH`, `DELETE`. |
+| `url` | yes | Templated URL. `{{ field }}` placeholders allowed. |
+| `headers` | no | Map of `name: value`. Values may use `{{ field }}` placeholders. |
+| `body_template` | no | JSON-serializable structure for non-GET requests. Strings inside it accept `{{ field }}`. |
+| `response_path` | one of | Dot-path into the response (e.g. `rates.usd`). |
+| `response_schema` | one of | `{target: dot.path}` map for multi-target writes. |
+| `output` | no | Always `text` for `http` (see below). |
+
+`response_path` and `response_schema` are mutually exclusive.
+
+## Templating
+
+`{{ field }}` placeholders are substituted with the **JSON-encoded** form of
+the input value. Strings get quotes when they appear inside a JSON body, and
+become URL-safe strings when they appear in a URL path. The header rule is
+the same.
+
+For headers and URLs, the substituted value is **percent-encoded** so a
+country with a space in its name doesn't break the request.
+
+## Multi-target via `response_schema`
+
+```yaml
+targets: [exchange_rate_usd, fetched_at]
+inputs: [currency]
+kind: http
+url: https://api.example.com/rates/{{ currency }}
+response_schema:
+  exchange_rate_usd: rates.usd
+  fetched_at: meta.timestamp
+```
+
+Folio walks each dot-path against the parsed response and writes the
+corresponding target.
+
+## Cache invariants
+
+`input_hash` for `http` includes:
+
+- the canonical JSON of every input value,
+- the SHA-256 of the **derivation file**,
+- the **resolved URL and body** after templating.
+
+This means that if the templated URL collapses to the same string for two
+records, they share a cache entry — a useful (and intentional) property
+when the URL doesn't depend on the record.
+
+`http` does **not** fold the response into the hash; the hash is an input
+hash, not a response hash. If the API changes its answer for the same URL,
+you need `--force` or a derivation-file edit to recompute.
+
+## Errors
+
+The default transport sets a 30-second timeout. Folio reports failures
+per-record on the materialize envelope:
+
+```json
+{
+  "record_id": "cust_002",
+  "field": "exchange_rate_usd",
+  "error": "GET https://api.example.com/rates/EUR -> 503",
+  "error_type": "FolioError"
+}
+```
+
+5xx responses, timeouts, malformed JSON, and missing `response_path` keys
+all surface here. The other records keep running.
+
+## Offline testing with `StubHTTPTransport`
+
+```python
+from folio import open_sheet
+from folio.kinds._http import StubHTTPTransport
+
+transport = StubHTTPTransport()
+transport.prepare(
+    "GET https://api.example.com/rates/EUR",
+    {"rates": {"usd": 1.08}, "meta": {"timestamp": "2026-05-10"}},
+)
+
+sheet = open_sheet("./customers", actor="agent:demo")
+sheet.materialize(http_transport=transport)
+```
+
+`StubHTTPTransport.prepare(key, payload)` matches by exact `<METHOD> <URL>`
+and returns the payload as parsed JSON. A fallback responder mirrors the
+[`StubAIClient`](/sdk/ai-client/) pattern.
+
+## Production setup
+
+```python
+from folio.kinds._http import HTTPXTransport
+import httpx
+
+transport = HTTPXTransport(
+    client=httpx.Client(
+        timeout=30.0,
+        headers={"User-Agent": "folio-customers/1.0"},
+        auth=("user", os.environ["API_TOKEN"]),
+    )
+)
+```
+
+Pass the transport to `Sheet.materialize` (or wire it through the MCP
+server / Viewer's construction site).
+
+## When `http` is the wrong choice
+
+- The endpoint is slow or rate-limited and you'll want to recompute often.
+  Use `import` against an export instead.
+- The response changes per call (e.g. a current-time field). The cache will
+  hit the wrong answer. Either pin the request, or accept the staleness, or
+  route the call through your own code that normalizes the response before
+  Folio hashes it.
+- The data is sensitive. The provenance line records the URL — review what
+  ends up in `provenance.jsonl` before pointing this kind at private
+  endpoints.
+
+## Where to next
+
+- [HTTP transport SDK reference](/sdk/http-transport/) — Protocol, adapters,
+  test patterns.
+- [Materialize lifecycle](/get-started/materialize-lifecycle/) — how the
+  cache and `input_hash` interact.

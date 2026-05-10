@@ -1,0 +1,81 @@
+---
+title: Frictionless export
+description: folio export datapackage maps the contract to a Frictionless v1 descriptor.
+---
+
+A reference for the export format. For tutorial coverage, see
+[`folio export`](/cli/export/).
+
+## Mapping table
+
+The mapping from Folio's contract attributes to Frictionless v1 fields:
+
+| Folio | Frictionless |
+|---|---|
+| `id` | top-level `name` |
+| `name` | top-level `title` |
+| `version` | top-level `version` |
+| `description` | top-level `description` |
+| `schema[0].name` | `resources[0].name` |
+| `schema[0].physicalType` | `resources[0].format` |
+| (records.jsonl) | `resources[0].path` |
+| `schema[0].properties[].name` | `resources[0].schema.fields[].name` |
+| `schema[0].properties[].logicalType` | `resources[0].schema.fields[].type` (mapped) |
+| `schema[0].properties[].description` | `resources[0].schema.fields[].description` |
+| `schema[0].properties[].required: true` | `resources[0].schema.fields[].constraints.required: true` |
+| `schema[0].properties[].primaryKey: true` | `resources[0].schema.primaryKey: <name>` |
+| `schema[0].properties[].x-derived: true` | `resources[0].schema.fields[].folioDerived: true` |
+
+## logicalType → Frictionless type
+
+| Folio | Frictionless |
+|---|---|
+| `string` | `string` |
+| `integer` | `integer` |
+| `number` | `number` |
+| `boolean` | `boolean` |
+| `date` | `date` |
+| `timestamp` | `datetime` |
+| `array` | `array` |
+| `object` | `object` |
+
+Frictionless's `time`, `geopoint`, `geojson`, `duration`, `year`,
+`yearmonth` types have no Folio equivalent and are not produced.
+
+## What's not exported
+
+- `derivations/` files — Frictionless has no matching concept.
+- `provenance.jsonl` — Frictionless has no matching concept.
+- `x-editable-by` — Folio-specific; not exported.
+
+The descriptor is a **lossy projection**. It's enough for a
+Frictionless-aware tool to read the rows, but not enough to reconstruct
+the sheet from scratch.
+
+## Custom extension keys
+
+Folio adds these custom keys (Frictionless tolerates unknown keys):
+
+- `folioDerived: true` — on a field's object, marks it as a Folio
+  derived field. External tools can choose to ignore the field on
+  write.
+
+## Round-trip with `frictionless`
+
+```bash
+pip install frictionless
+folio export datapackage ./customers
+frictionless validate ./customers/datapackage.json
+# ┌─────────────────────────────┬───────────┐
+# │ ./customers/datapackage.json │ valid    │
+# └─────────────────────────────┴───────────┘
+```
+
+`frictionless` is not a Folio dependency — install it on demand.
+
+## Future formats
+
+`folio export` is namespaced by format. Today, only `datapackage`. The
+[design overview §14.2](https://github.com/nyuta01/folio/blob/main/docs/design-docs/overview.md)
+mentions OpenAPI surfaces and dbt model exports as future candidates;
+neither is implemented.

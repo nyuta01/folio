@@ -1,0 +1,55 @@
+---
+title: folio delete
+description: Delete records by primary key id.
+---
+
+```text
+folio delete <SHEET> --actor <actor> --ids <id1,id2,...>
+```
+
+Deletes the listed records. The whole row is removed; provenance lines
+referring to the deleted primary key remain in `provenance.jsonl` (the log
+is append-only — deletes don't get to rewrite history).
+
+## Example
+
+```bash
+$ folio delete ./customers --actor agent:human --ids cust_998,cust_999
+{"deleted": 2, "remaining": 5}
+```
+
+## Behaviour
+
+- IDs that aren't in `records.jsonl` are silently skipped (no error).
+- The write is atomic and single-writer (same as `upsert`).
+- No `x-editable-by` check (the attribute is per-field; delete is per-row).
+
+If you need a soft-delete, add a `deleted: boolean` field on the contract
+and use `upsert` to flip it. Real deletes are useful for cleaning up
+test fixtures and removing rows that should never have existed.
+
+## Auditability after delete
+
+The append-only `provenance.jsonl` keeps every line ever written for the
+deleted primary keys. So you can answer "what did `cust_998` look like
+before we deleted it?" by reading the audit log:
+
+```bash
+grep '"record_id":"cust_998"' provenance.jsonl
+```
+
+The data values themselves are gone, but the provenance — who wrote what
+and when — remains.
+
+## Errors
+
+| Error | What it means |
+|---|---|
+| `OperationError: --ids is required` | You forgot `--ids`. |
+| `LockTimeoutError: failed to acquire .lock within 30s` | Another writer is in progress. |
+
+## See also
+
+- [`folio upsert`](/cli/upsert/) — write the inverse operation.
+- [`folio provenance`](/cli/provenance/) — inspect the trail of a deleted
+  record.

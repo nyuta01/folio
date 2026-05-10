@@ -1,0 +1,136 @@
+---
+title: Customer master enrichment
+description: Sales agent fills names; AI fills metadata; humans review weekly. Use Case 2.1.
+---
+
+import KindBadge from "../../../components/KindBadge.astro";
+
+This guide walks through Use Case 2.1 from the design overview
+([§2.1](https://github.com/nyuta01/folio/blob/main/docs/design-docs/overview.md)).
+The shipped sheets are
+[`examples/customers/`](https://github.com/nyuta01/folio/tree/main/examples/customers)
+and [`examples/customer-revenue/`](https://github.com/nyuta01/folio/tree/main/examples/customer-revenue).
+
+## The shape
+
+A `customers` sheet where humans (or a sales agent) populate the basic
+columns, and Folio fills derived fields automatically.
+
+```text
+contract.yaml columns:
+  id                    string  PK
+  company_name          string  human-editable
+  country               string  human-editable
+  industry_name         string  human-editable
+  country_code          string  derived (python)
+  current_revenue_usd   number  derived (cross_sheet ← customer-revenue)
+```
+
+The data flow:
+
+```
+   ┌──────────────┐    upsert      ┌──────────────────────────┐
+   │ sales agent  │──────────────▶ │ customers/records.jsonl  │
+   └──────────────┘                └──────────────────────────┘
+                                            │
+                                            │ folio materialize
+                                            ▼
+       ┌─────────────────────┐    ┌─────────────────────────┐
+       │ python country code │    │ cross_sheet to revenue  │
+       │  scripts/...        │    │  ../customer-revenue    │
+       └─────────────────────┘    └─────────────────────────┘
+                                            │
+                                            ▼
+                                ┌──────────────────────────────┐
+                                │ humans review weekly via     │
+                                │ folio serve (Viewer)         │
+                                └──────────────────────────────┘
+```
+
+## Walking through the sheet
+
+```bash
+git clone --depth 1 https://github.com/nyuta01/folio.git
+cd folio
+
+folio validate examples/customers
+folio validate examples/customer-revenue
+```
+
+Both contracts validate. Now materialize:
+
+```bash
+folio materialize examples/customers --actor agent:demo
+# {"materialized": 12, "skipped": 0, "failures": [], "total_cost": 0.0}
+```
+
+Twelve cells: 7 records × 2 derived columns = 14, but `cust_006` and
+`cust_007` aren't in `customer-revenue` so their `current_revenue_usd`
+stays `null` (cross_sheet's "no match" behaviour — not an error).
+
+Open the Viewer:
+
+```bash
+folio serve examples/customers --port 3000 --actor agent:human
+```
+
+Visit [http://127.0.0.1:3000/](http://127.0.0.1:3000/):
+
+- **Records tab** — the 7 customers, with type chips (`string`,
+  `number`), provenance dots (<KindBadge kind="python" /> on
+  `country_code`, <KindBadge kind="cross_sheet" /> on
+  `current_revenue_usd`), and inline `<input>` editors on
+  `company_name` / `country` / `industry_name`.
+- **Dashboard tab** — two cards (one per derived target), each with the
+  per-source count and the last run timestamp.
+- **History tab** — click a non-editable cell on Records to inspect its
+  append-only chain.
+
+## A typical week
+
+1. **Monday — sales agent imports.** New leads arrive as a CSV. The agent
+   `upsert`s them:
+
+    ```bash
+    folio upsert examples/customers --actor agent:sales \
+      --file new-leads.jsonl
+    ```
+
+2. **Monday afternoon — derivations fill.** A nightly cron triggers:
+
+    ```bash
+    folio materialize examples/customers --actor agent:nightly
+    ```
+
+   `country_code` runs for the new rows; `current_revenue_usd` joins
+   against the latest `customer-revenue/records.jsonl`. Existing rows
+   cache-hit.
+
+3. **Tuesday — finance updates revenue.** Finance updates
+   `customer-revenue/records.jsonl`. The next materialize sees the
+   foreign sheet's hash flipped and re-joins **every** customer (per the
+   [`cross_sheet`](/sheet/derivations/cross-sheet/) cache rules).
+
+4. **Friday — human review.** A reviewer opens the Viewer, fixes a few
+   `country_code` values (the deterministic lookup misses some
+   territories), and edits inline. Each fix appends a `human` provenance
+   line. The next materialize **does not** overwrite those edits unless
+   `--force` is passed.
+
+## What's *not* in this guide
+
+- **AI-driven industry classification.** This guide stays offline. To add
+  it, define an `ai` derivation against `industry_tag` with a prompt
+  that classifies `company_name` + `country` into a controlled
+  vocabulary. Set `ANTHROPIC_API_KEY` and re-run `folio materialize`.
+- **Quality-control checks.** A natural extension is a `python`
+  derivation that flags rows where `country` doesn't match a known
+  list, surfacing them for review.
+
+## See also
+
+- [examples/customers/README.md](https://github.com/nyuta01/folio/blob/main/examples/customers/README.md)
+- [`cross_sheet` derivation](/sheet/derivations/cross-sheet/) — semantics
+  and cache rules for the 1:1 sidecar pattern.
+- [Editing and provenance](/get-started/editing-and-provenance/) — the
+  human-review loop in detail.

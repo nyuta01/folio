@@ -1,0 +1,10 @@
+---
+interface Props {
+  kind: "ai" | "import" | "python" | "sql" | "http" | "cross_sheet" | "human";
+  label?: string;
+}
+const { kind, label } = Astro.props;
+const text = label ?? kind.replace("_", " ");
+---
+
+<span class="kind-badge" data-kind={kind}>{text}</span>

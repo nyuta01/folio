@@ -1,0 +1,153 @@
+---
+title: Cache and runtime
+description: Where the cache lives, how it's keyed, and how the per-sheet venv works.
+---
+
+Two things live outside the sheet so the sheet stays portable: the cache
+and the runtime venv. Both are addressed by the contract's `id`.
+
+## The cache
+
+```
+<user-cache>/folio/<sheet-id>/cache/
+└── <hash[0:2]>/<hash>.json
+```
+
+Each cached derivation output is one file, addressed by the full
+SHA-256 `input_hash` and sharded into 256 sub-directories by the first two
+hex characters. Sharding keeps individual directories small (~1k files at
+most for a 256k-entry cache).
+
+Each file is a small JSON envelope:
+
+```json
+{
+  "values": {"country_code": "JP"},
+  "cost_usd": null
+}
+```
+
+Folio reads the envelope on cache hit and writes it on cache miss. The
+file format is internal — don't depend on it from outside Folio.
+
+## How `input_hash` is composed
+
+The hash is over a canonical-JSON encoding ([RFC 8785](https://datatracker.ietf.org/doc/html/rfc8785))
+of a deterministic structure built per kind:
+
+- **All kinds:** the canonical JSON of every value listed in `inputs`.
+- **All kinds:** the SHA-256 of the derivation file itself.
+- **All kinds:** when `inputs` is empty, the calling record's primary key
+  value (so derivations with no inputs still produce per-record hashes).
+
+Plus, kind-specific extras:
+
+| Kind | Extra hashed input |
+|---|---|
+| `ai` | the resolved `prompt_body` (after `{{ field }}` substitution) |
+| `import` | the SHA-256 of the source file's bytes |
+| `python` | the SHA-256 of the script file's bytes |
+| `sql` | (none beyond the derivation file) |
+| `http` | the resolved URL and body (after substitution) |
+| `cross_sheet` | the SHA-256 of the foreign sheet's `records.jsonl` |
+
+The complete recipe is in
+[`src/folio/_cache.py:compute_input_hash`](https://github.com/nyuta01/folio/blob/main/src/folio/_cache.py).
+
+## When entries are written
+
+On every successful execution of a kind:
+
+```text
+result = execute_kind(...)
+write_cache(cache_root, input_hash, {"values": result, "cost_usd": cost})
+update_records_jsonl(...)
+append_provenance(...)
+```
+
+Folio writes the cache **before** updating records and **before**
+appending provenance. If the records or provenance write fails, the cache
+is still warm — re-running materialize cache-hits and re-attempts the
+records/provenance step.
+
+## When entries are read
+
+Cache reads happen at the start of each derivation × record iteration:
+
+```python
+existing = read_cache(cache_root, input_hash)
+if existing is not None and not force:
+    skipped += len(targets)
+    continue
+```
+
+A cache hit avoids the kind execution entirely — no script subprocess, no
+HTTP call, no AI request, no foreign-sheet read.
+
+## When entries become stale
+
+They don't, automatically. The cache is **content-addressed**: an entry is
+stale only when the inputs that hashed to its key no longer hash to it.
+Typical triggers:
+
+- Edit the input field's value → hash flips → next materialize misses.
+- Edit the derivation file → hash flips → next materialize misses.
+- Edit the script (for `python`) or source file (for `import`) → hash flips.
+- Edit the foreign sheet's `records.jsonl` (for `cross_sheet`) → hash
+  flips for every calling record.
+
+If you want to discard the cache, delete the directory:
+
+```bash
+rm -rf "$(python -c 'import platformdirs; print(platformdirs.user_cache_dir("folio"))')/<sheet-id>/cache"
+```
+
+`folio materialize --force` ignores cache hits without deleting them, which
+is usually what you want.
+
+## The runtime venv
+
+Folio creates a per-sheet venv when `scripts/requirements.txt` exists.
+
+```
+<user-cache>/folio/<sheet-id>/runtime/
+└── venv/
+    ├── bin/python
+    └── lib/python3.13/site-packages/...
+```
+
+The venv is created on the first script execution and reused on subsequent
+runs. Folio:
+
+1. Resolves `<user-cache>/folio/<sheet-id>/runtime/venv/bin/python`.
+2. If absent, runs `python -m venv <path>` then `<path>/bin/pip install -r
+   scripts/requirements.txt`.
+3. Invokes scripts via that interpreter.
+
+Bash scripts (`.sh`) don't go through the venv — they execute under the
+host shell.
+
+If you change `scripts/requirements.txt`, delete the venv directory to
+force a clean install:
+
+```bash
+rm -rf "<user-cache>/folio/<sheet-id>/runtime/venv"
+```
+
+Folio doesn't ship `requirements.txt`-hashing for venv invalidation yet
+([FOLIO-H-006](/reference/adrs/) is a placeholder). Removing the directory
+is the supported workaround.
+
+## Why outside the sheet
+
+This is [ADR-0008](/reference/adrs/). Two reasons:
+
+- **Portability.** The sheet stays `tar`-portable.
+- **Per-environment correctness.** The cache and venv depend on the host
+  Python, the host filesystem, and (for `ai`) the host's API access. Baking
+  them into the sheet would tie the sheet to one environment.
+
+The trade-off is that two checkouts of the same sheet on the same machine
+share a cache and venv (because they share `<sheet-id>`). This is usually
+what you want; if you really want isolated caches, change the contract's
+`id` (and accept that the cache is now per-fork).

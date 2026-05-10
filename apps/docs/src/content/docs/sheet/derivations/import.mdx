@@ -1,0 +1,165 @@
+---
+title: "import derivation"
+description: Pull values from a local CSV / JSONL / JSON sidecar file. Fully offline.
+---
+
+import KindBadge from "../../../../components/KindBadge.astro";
+
+<KindBadge kind="import" /> reads from a sidecar file inside the sheet
+directory and writes one or more fields per record. Useful when:
+
+- you have a legacy CSV and want to graft its values onto an existing
+  primary key,
+- you want to populate seed data from an internal export,
+- a field is fundamentally a lookup that doesn't need code or AI.
+
+The sidecar **must live inside the sheet** so the tarball stays
+self-contained.
+
+## Minimal example
+
+```yaml
+# derivations/legacy_industry.yaml
+targets: [industry_tag]
+inputs: []                       # no record fields needed
+kind: import
+source: imports/legacy.csv
+key_field: company_id            # column in the CSV that matches our primary key
+value_field: industry            # column in the CSV whose value we copy
+```
+
+Sheet layout:
+
+```
+my-sheet/
+├── contract.yaml
+├── records.jsonl
+├── imports/
+│   └── legacy.csv               ← any path inside the sheet
+└── derivations/
+    └── legacy_industry.yaml
+```
+
+## Fields
+
+| Field | Required | Notes |
+|---|---|---|
+| `targets` | yes | Field(s) this derivation writes. |
+| `inputs` | yes | Usually `[]`; lookup is by primary key, not field values. |
+| `kind` | yes | Always `import`. |
+| `source` | yes | Path inside the sheet (CSV, JSONL, or JSON). |
+| `key_field` | yes | Column on the source whose value matches the **calling sheet's primary key**. |
+| `value_field` | one of | When writing one target. |
+| `value_fields` | one of | When writing multiple targets — a `{target: source_column}` map. |
+
+`value_field` and `value_fields` are mutually exclusive.
+
+## Source formats
+
+| Extension | How it's read |
+|---|---|
+| `.csv` | `csv.DictReader` with default dialect; first row is the header. |
+| `.jsonl` | One JSON object per line. |
+| `.json` | A JSON array of objects. |
+
+Anything else fails fast with `OperationError`.
+
+## Multi-target imports
+
+Map several columns at once:
+
+```yaml
+targets: [industry_tag, employee_count, hq_city]
+inputs: []
+kind: import
+source: imports/seed.csv
+key_field: id
+value_fields:
+  industry_tag: industry
+  employee_count: employees
+  hq_city: city
+```
+
+The cache stores the whole envelope, so the three fields stay consistent
+across edits.
+
+## Cache invariants
+
+`input_hash` for `import` includes:
+
+- the canonical JSON of every input value (usually empty),
+- the SHA-256 of the **source file's bytes**,
+- the **calling sheet's primary key value** (so two records with empty
+  `inputs` still hash differently),
+- the derivation file's hash.
+
+Edit the CSV → every record's hash flips → next materialize re-runs the
+import for every record. Edit `legacy_industry.yaml` → same thing.
+
+## What if the key isn't found?
+
+Folio writes nothing for that record and logs a failure on the materialize
+envelope:
+
+```json
+{
+  "record_id": "cust_999",
+  "field": "industry_tag",
+  "error": "no row in imports/legacy.csv where company_id = cust_999",
+  "error_type": "OperationError"
+}
+```
+
+The other records continue. Fix the source file or upsert the missing rows
+and re-run materialize.
+
+## Comparison with `cross_sheet`
+
+Both kinds look up a value in a sibling source. Pick `import` when:
+
+- the source is a CSV / JSONL exported from elsewhere,
+- the source isn't a Folio sheet (no contract, no provenance),
+- the data is read-only seed material.
+
+Pick [`cross_sheet`](/sheet/derivations/cross-sheet/) when both sides are
+Folio sheets and you want the foreign sheet's contract enforced.
+
+## Worked example
+
+`imports/seed.csv`:
+
+```csv
+id,industry,employees
+cust_001,Manufacturing,2400
+cust_002,Software,180
+cust_003,Foods,560
+```
+
+`derivations/seed.yaml`:
+
+```yaml
+targets: [industry_tag, employee_count]
+inputs: []
+kind: import
+source: imports/seed.csv
+key_field: id
+value_fields:
+  industry_tag: industry
+  employee_count: employees
+```
+
+`folio materialize . --actor agent:seed` populates the two fields for the
+three matching records. After the run, `provenance.jsonl` contains:
+
+```jsonl
+{"record_id":"cust_001","field":"industry_tag","source":"import","actor":"agent:seed",...}
+{"record_id":"cust_001","field":"employee_count","source":"import","actor":"agent:seed",...}
+...
+```
+
+## Where to next
+
+- [`cross_sheet`](/sheet/derivations/cross-sheet/) — for sheet-to-sheet
+  references.
+- [`folio export datapackage`](/cli/export/) — go the other way; export the
+  sheet as a Frictionless package that other tools can import.

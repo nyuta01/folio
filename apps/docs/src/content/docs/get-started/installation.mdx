@@ -1,0 +1,106 @@
+---
+title: Installation
+description: Install the folio CLI, the Python SDK, the MCP server, and the local Viewer.
+---
+
+import { Tabs, TabItem } from "@astrojs/starlight/components";
+
+Folio is distributed as a single Python package that registers three console
+scripts: `folio`, `folio-mcp`, and `folio-viewer`. Python 3.13+ is required.
+
+## Recommended: `uv`
+
+[uv](https://docs.astral.sh/uv/) installs each tool into an isolated venv and
+puts the entry point on your `PATH`.
+
+```bash
+uv tool install folio
+```
+
+Verify:
+
+```bash
+folio --help
+folio-mcp --help
+folio-viewer --help
+```
+
+## From source
+
+```bash
+git clone https://github.com/nyuta01/folio.git
+cd folio
+uv sync                 # creates .venv with all dev dependencies
+uv run folio --help     # use the dev install via uv run
+```
+
+`make verify` runs the full gate (harness checks, drift checks, doc validation,
+pytest, six smoke tests). Use it as your local CI before any commit.
+
+## With pip / pipx
+
+If you prefer not to use uv:
+
+<Tabs>
+<TabItem label="pipx">
+
+```bash
+pipx install folio
+```
+
+</TabItem>
+<TabItem label="pip (venv)">
+
+```bash
+python3.13 -m venv .venv
+source .venv/bin/activate
+pip install folio
+```
+
+</TabItem>
+</Tabs>
+
+## What gets installed
+
+| Console script | Module | What it is |
+|---|---|---|
+| `folio` | `folio.cli:main` | The primary CLI: validate / query / list / upsert / delete / materialize / status / provenance / serve / script / export |
+| `folio-mcp` | `folio_mcp.cli:main` | FastMCP server; `--transport stdio` (default) or `http` |
+| `folio-viewer` | `folio_viewer.cli:main` | FastAPI + React Viewer; binds to `127.0.0.1` |
+
+`folio serve` is an alias for `folio-viewer serve`, kept on the primary CLI for
+discoverability.
+
+## Optional dependencies
+
+Folio ships with no required external services. A few features need extras
+the user supplies:
+
+- **AI derivations.** The default `AIClient` is the Anthropic SDK, which
+  reads `ANTHROPIC_API_KEY` from the environment. The
+  [`StubAIClient`](/sdk/ai-client/) lets you run AI derivations offline for
+  tests and demos.
+- **Frictionless validation.** `folio export datapackage` writes a valid
+  Frictionless v1 descriptor; running `frictionless validate` against it
+  requires the `frictionless` package separately.
+- **MCP HTTP transport.** `folio-mcp serve --transport http` does not
+  require anything beyond the `fastmcp` dependency that ships in the wheel.
+
+## Confirm the install with a real sheet
+
+The repository ships [`examples/`](https://github.com/nyuta01/folio/tree/main/examples)
+with five sheets covering the four canonical use cases. Once installed:
+
+```bash
+git clone --depth 1 https://github.com/nyuta01/folio.git
+cd folio
+
+folio validate examples/customers
+folio materialize examples/customers --actor agent:demo
+folio serve examples/customers --port 3000 --actor agent:human
+# → http://127.0.0.1:3000/
+```
+
+The Viewer auto-detects `viewer/dist/` next to the working directory if you
+have run `npm run build` inside `viewer/`. Otherwise the API still works on
+its own.

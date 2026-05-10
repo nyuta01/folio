@@ -1,0 +1,174 @@
+---
+title: Your first sheet
+description: Build a real two-file sheet, add a derivation, run materialize, inspect provenance.
+---
+
+import KindBadge from "../../../components/KindBadge.astro";
+
+This walkthrough builds a tiny customers sheet from scratch. Nothing here
+needs an API key.
+
+## 1. Create the directory
+
+```bash
+mkdir -p customers/derivations customers/scripts
+cd customers
+```
+
+## 2. Write the contract
+
+`contract.yaml`:
+
+```yaml
+apiVersion: v3.0.0
+kind: DataContract
+id: my-customers
+name: customers
+version: 1.0.0
+schema:
+  - name: items
+    physicalType: jsonl
+    properties:
+      - name: id
+        logicalType: string
+        primaryKey: true
+        required: true
+      - name: company_name
+        logicalType: string
+        required: true
+        x-editable-by: ["agent:human"]
+      - name: country
+        logicalType: string
+        required: true
+        x-editable-by: ["agent:human"]
+      - name: country_code
+        logicalType: string
+        x-derived: true
+        x-inputs: [country]
+```
+
+A single primary key (`id`), two human-editable fields (`company_name`,
+`country`), and one derived field (`country_code`).
+
+## 3. Add some records
+
+`records.jsonl` — one JSON object per line, no trailing comma:
+
+```jsonl
+{"id": "cust_001", "company_name": "Acme Manufacturing", "country": "Japan"}
+{"id": "cust_002", "company_name": "DataFlow", "country": "United States"}
+{"id": "cust_003", "company_name": "NordicSoft", "country": "Sweden"}
+```
+
+## 4. Validate the spec
+
+```bash
+$ folio validate .
+contract.yaml is valid: my-customers v1.0.0 (4 fields)
+records.jsonl is readable (3 records)
+```
+
+If there's a typo (a missing required field, a duplicate primary key, a logical
+type that doesn't exist), `folio validate` exits non-zero with a clear
+message. Run it any time you edit `contract.yaml`.
+
+## 5. Add a derivation <KindBadge kind="python" />
+
+Tell Folio how to derive `country_code`. We'll use the [`python` kind](/sheet/derivations/python/)
+because it's offline and trivial.
+
+`derivations/country_code.yaml`:
+
+```yaml
+targets: [country_code]
+inputs: [country]
+kind: python
+script: country_to_code
+```
+
+`scripts/country_to_code.py`:
+
+```python
+"""Map a country name to ISO-3166-1 alpha-2 (offline)."""
+import json, sys
+
+ISO_BY_NAME = {
+    "Japan": "JP",
+    "United States": "US",
+    "Sweden": "SE",
+}
+
+inputs = json.loads(sys.argv[2])
+print(ISO_BY_NAME.get(inputs.get("country", ""), "??"))
+```
+
+## 6. Materialize
+
+```bash
+$ folio materialize . --actor agent:demo
+{"materialized": 3, "skipped": 0, "failures": [], "total_cost": 0.0}
+```
+
+`folio` ran the script three times (once per record), wrote the results back
+to `records.jsonl`, and appended three lines to `provenance.jsonl`.
+
+```bash
+$ folio query . "SELECT id, country, country_code FROM records ORDER BY id"
+[{"id":"cust_001","country":"Japan","country_code":"JP"},
+ {"id":"cust_002","country":"United States","country_code":"US"},
+ {"id":"cust_003","country":"Sweden","country_code":"SE"}]
+```
+
+## 7. Run materialize again — cache hits
+
+```bash
+$ folio materialize . --actor agent:demo
+{"materialized": 0, "skipped": 3, "failures": [], "total_cost": 0.0}
+```
+
+Three skipped: every record's input hash is unchanged, so Folio reads the
+cached output instead of rerunning the script. The cache lives outside the
+sheet (`<user-cache>/folio/my-customers/cache/`) so the sheet stays portable.
+
+## 8. Inspect provenance
+
+```bash
+$ folio provenance . cust_001 country_code
+{"record_id":"cust_001","field":"country_code","source":"python",
+ "actor":"agent:demo","at":"2026-05-10T10:16:35Z",
+ "input_hash":"sha256:ce82..."}
+```
+
+`--history` returns the full append-only chain.
+
+## 9. Edit through the Viewer
+
+```bash
+folio serve . --port 3000 --actor agent:human
+# → http://127.0.0.1:3000/
+```
+
+In the Viewer:
+
+- The Records tab shows all three rows. The `country_code` column has a
+  <KindBadge kind="python" /> dot — that's its provenance.
+- `company_name` and `country` are inline-editable for `agent:human`.
+- Edit `cust_002.country` to `Germany` and tab out. The Viewer writes a
+  `human` provenance entry. Then click **Materialize all** on the dashboard
+  — Folio sees the input changed, invalidates the cache for `cust_002`,
+  re-runs the script, and writes `country_code: "??"` (Germany isn't in our
+  tiny lookup; add it to the script and re-materialize to fix it).
+
+## What you have
+
+A complete, portable Folio sheet. `tar czf customers.tgz customers/` and ship
+it; the recipient runs `folio validate customers/` and gets the same answers.
+
+## Where to go next
+
+- [Materialize lifecycle](/get-started/materialize-lifecycle/) — what the
+  cache really keys on, when it invalidates, and how to force a rerun.
+- [Editing and provenance](/get-started/editing-and-provenance/) — what
+  happens when humans and agents touch the same field.
+- [Derivations overview](/sheet/derivations/overview/) — the other five
+  kinds (ai / import / sql / http / cross_sheet).

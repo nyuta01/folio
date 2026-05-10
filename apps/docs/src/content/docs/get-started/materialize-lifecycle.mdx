@@ -1,0 +1,134 @@
+---
+title: Materialize lifecycle
+description: How Folio decides what to recompute, what to skip, and what counts as stale.
+---
+
+`folio materialize` is the central feature. Read this once and the cache will
+stop surprising you.
+
+## What materialize does, in one sentence
+
+For every derivation × every record:
+
+1. compute `input_hash` from the canonical JSON of inputs,
+2. if the cache has that hash, **skip** (cache hit),
+3. otherwise execute the kind, write the value to `records.jsonl`,
+   append a line to `provenance.jsonl`, and store the output in the cache.
+
+That's it. The rest of this page is what's actually inside steps 1 and 3.
+
+## How `input_hash` is computed
+
+Folio normalizes the inputs to canonical JSON ([RFC 8785](https://datatracker.ietf.org/doc/html/rfc8785))
+and SHA-256 hashes the result. The hash includes:
+
+- **The inputs.** Whatever fields the derivation declares in `inputs`, plus
+  whatever extra components a kind adds (the `prompt_body` for `ai`, the
+  source file hash for `import`, the foreign sheet's records hash for
+  `cross_sheet`).
+- **The derivation file's own hash.** Edit `derivations/foo.yaml` and every
+  output recomputes — even if no input changed.
+- **The primary key.** For derivations with no `inputs` (e.g. an `import`
+  with no in-record dependencies), Folio still folds the primary key in so
+  every record gets a unique cache entry.
+
+## When the cache is hit
+
+Cache hit ⇔ identical `input_hash` ⇔ Folio is sure recomputing would produce
+the same answer. Skip is silent and free.
+
+```bash
+$ folio materialize ./customers --actor agent:demo
+{"materialized": 0, "skipped": 3, "failures": [], "total_cost": 0.0}
+```
+
+## When the cache invalidates
+
+Any change in any of these flips the hash:
+
+- An input field's value changed (`country: Japan` → `country: Germany`).
+- The derivation file changed (you edited `kind`, `model`, `prompt`, `inputs`).
+- For `ai`: the resolved `prompt_body` changed.
+- For `import`: the source file's bytes changed.
+- For `cross_sheet`: the foreign sheet's `records.jsonl` changed.
+
+Re-run `folio materialize` and the affected records (and only those) recompute.
+
+## When materialize *also* skips
+
+Two more reasons, in addition to cache hit:
+
+- **`respect_human_override` is on (default).** If the latest provenance for
+  a cell is `source: human`, Folio will not overwrite it. Pass `--force` to
+  override.
+- **The contract changed in a way that drops the field.** Folio doesn't
+  silently delete columns; it just doesn't write to fields the contract
+  doesn't declare.
+
+## Targeting a subset
+
+```bash
+# Only one derivation
+folio materialize . --actor agent:demo --target country_code
+
+# Only specific records
+folio materialize . --actor agent:demo --record-ids cust_002,cust_003
+
+# Force a re-run regardless of cache or human_override
+folio materialize . --actor agent:demo --force
+```
+
+## What gets written
+
+Atomic writes only:
+
+- `records.jsonl` — written via `temp file + rename` so a crash mid-write
+  doesn't corrupt the file. Readers always see a complete file.
+- `provenance.jsonl` — append-only; one line per materialized cell. Provenance
+  is written **after** the records write succeeds, so a half-written record
+  never leaks into the audit log.
+
+## The §10.6 envelope
+
+`folio materialize` returns this shape:
+
+```json
+{
+  "materialized": 12,
+  "skipped": 7,
+  "failures": [
+    {"record_id": "cust_006", "field": "industry_tag", "error": "...", "error_type": "ContractError"}
+  ],
+  "total_cost": 0.0034
+}
+```
+
+Failures are **per record × field**, not exceptions. A 5,000-row materialize
+that has two bad rows still completes; you fix the bad rows, re-run, and the
+4,998 good rows skip via cache.
+
+`total_cost` is the sum of `cost_usd` across successful `ai` calls. Other
+kinds always report `0.0`. Cost is null for unknown models — see
+[ADR-0009](/reference/adrs/) for why Folio refuses to invent prices.
+
+## Where the cache lives
+
+`<user-cache>/folio/<sheet-id>/cache/` (resolved by [platformdirs](https://platformdirs.readthedocs.io/)).
+On macOS that's `~/Library/Caches/folio/<sheet-id>/cache/`. The cache is
+sharded by the first two characters of the hash so directories stay small.
+
+If you want to wipe a single sheet's cache:
+
+```bash
+rm -rf "$(folio query . 'SELECT 1')..."  # don't do this — find the path manually
+```
+
+There is no built-in `folio cache clear` command yet; deleting the directory
+on disk is fine and `--force` is enough for one-off recomputes.
+
+## Atomic vs. concurrent
+
+A sheet is single-writer (`.lock`, 30 s timeout — see [ADR-0006](/reference/adrs/)).
+A second `folio materialize` invocation against the same sheet will block until
+the first releases. Reads do not take the lock; they always see a consistent
+snapshot thanks to the temp-file-and-rename pattern.

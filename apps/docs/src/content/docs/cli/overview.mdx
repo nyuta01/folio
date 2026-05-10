@@ -1,0 +1,100 @@
+---
+title: CLI overview
+description: The folio command — a Typer wrapper over the Python SDK with twelve verbs.
+---
+
+`folio` is the primary command-line interface. It is a thin wrapper over
+the Python SDK, so every verb has a one-to-one SDK equivalent. JSON to
+stdout, errors to stderr with a non-zero exit code.
+
+## Synopsis
+
+```text
+folio <verb> [SHEET] [OPTIONS]
+```
+
+`SHEET` is a path to a sheet directory. Most verbs take it as the first
+positional argument.
+
+## All twelve verbs
+
+| Verb | What it does |
+|---|---|
+| [`folio validate`](/cli/validate/) | Validate `contract.yaml`, `records.jsonl`, and (optionally) `README.md` frontmatter. |
+| [`folio query`](/cli/query/) | Run a DuckDB SELECT against the sheet's `records` view. |
+| [`folio list`](/cli/list/) | List records as a paginated JSON envelope (or TOON). |
+| [`folio upsert`](/cli/upsert/) | Insert or update records by primary key. |
+| [`folio delete`](/cli/delete/) | Delete records by primary key id. |
+| [`folio materialize`](/cli/materialize/) | Run derivations. Returns the §10.6 envelope. |
+| [`folio status`](/cli/status/) | Per-target counts for derived fields. |
+| [`folio provenance`](/cli/provenance/) | Latest entry or full append-only history for one cell. |
+| [`folio serve`](/cli/serve/) | Start the Viewer (alias for `folio-viewer serve`). |
+| [`folio script`](/cli/script/) | Discover and run reusable scripts under `sheet/scripts/`. |
+| [`folio export`](/cli/export/) | Export the sheet (currently: Frictionless `datapackage.json`). |
+
+## Global behaviour
+
+### Output format
+
+Most verbs print machine-readable JSON to stdout. Pipe to `jq`:
+
+```bash
+folio query ./customers "SELECT id, country FROM records LIMIT 5" | jq
+```
+
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Success. |
+| `1` | A `FolioError` (validation, lock timeout, permission denied, …). The error message is on stderr. |
+| `2` | Usage error (Typer rejected the arguments). |
+
+### Actor
+
+Write verbs (`upsert`, `delete`, `materialize`, `script run` for write
+contexts) require `--actor`. Folio doesn't default to `agent:cli` because
+audit trails should name a real principal.
+
+### `--help` everywhere
+
+Every verb prints a help text with options:
+
+```bash
+folio --help
+folio materialize --help
+```
+
+## Examples
+
+```bash
+# Validate, list, query
+folio validate ./customers
+folio list ./customers --limit 10
+folio query ./customers "SELECT country, COUNT(*) AS n FROM records GROUP BY 1"
+
+# Mutate
+echo '{"id":"cust_999","company_name":"X","country":"FR"}' \
+  | folio upsert ./customers --file - --actor agent:human
+
+folio delete ./customers --ids cust_999 --actor agent:human
+
+# Derive and inspect
+folio materialize ./customers --actor agent:demo
+folio status ./customers
+folio provenance ./customers cust_001 country_code --history
+
+# Run a reusable script
+folio script list ./customers
+folio script run ./customers country_to_code --argument '{"country":"Japan"}'
+
+# Export, serve
+folio export datapackage ./customers --stdout > customers.datapackage.json
+folio serve ./customers --port 3000 --actor agent:human
+```
+
+## Where to next
+
+- Per-verb pages from the sidebar (`validate`, `query`, …).
+- [Python SDK overview](/sdk/overview/) — every verb's underlying API.
+- [MCP overview](/mcp/overview/) — the same SDK exposed as MCP tools.

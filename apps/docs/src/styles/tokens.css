@@ -1,0 +1,67 @@
+/* ----------------------------------------------------------------------
+ * Folio docs — Modern Ledger design tokens
+ *
+ * Mirror the viewer's palette (warm off-white, single clay accent,
+ * Inter + JetBrains Mono) so docs and the product feel like one
+ * artifact. Tokens drive Starlight's CSS custom properties below.
+ * ---------------------------------------------------------------------- */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
+:root {
+  /* Folio brand */
+  --folio-bg: #faf9f5;
+  --folio-surface: #ffffff;
+  --folio-surface-muted: #f5f4ef;
+  --folio-surface-sunken: #efede5;
+  --folio-ink: #1a1a17;
+  --folio-ink-strong: #0a0a08;
+  --folio-ink-muted: #6b6960;
+  --folio-ink-subtle: #94928a;
+  --folio-ink-faint: #c2bfb5;
+  --folio-border: #e8e6df;
+  --folio-border-strong: #d6d3ca;
+  --folio-accent: #c45c2c;
+  --folio-accent-hover: #ad4f23;
+  --folio-accent-soft: #fbeee5;
+  --folio-accent-ink: #6b2914;
+
+  /* Derivation kind palette (mirrors the viewer) */
+  --kind-human: #8b8a82;
+  --kind-ai: #b8862b;
+  --kind-import: #2563eb;
+  --kind-python: #7c3aed;
+  --kind-sql: #0d9488;
+  --kind-http: #0369a1;
+  --kind-cross_sheet: #c026d3;
+
+  --folio-sans: "Inter", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --folio-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* Dark theme tweaks — warm graphite with the same clay accent */
+:root[data-theme="dark"] {
+  --folio-bg: #14130f;
+  --folio-surface: #1c1b16;
+  --folio-surface-muted: #221f19;
+  --folio-surface-sunken: #2a2620;
+  --folio-ink: #ece8de;
+  --folio-ink-strong: #faf6ec;
+  --folio-ink-muted: #b6b09f;
+  --folio-ink-subtle: #8a8474;
+  --folio-ink-faint: #5a5547;
+  --folio-border: #2c2920;
+  --folio-border-strong: #3a3528;
+  --folio-accent: #e08a5d;
+  --folio-accent-hover: #f4a17c;
+  --folio-accent-soft: #3a2417;
+  --folio-accent-ink: #fbeee5;
+
+  --kind-human: #a3a195;
+  --kind-ai: #d8a849;
+  --kind-import: #5d8aff;
+  --kind-python: #a275ff;
+  --kind-sql: #2db8a4;
+  --kind-http: #4a9ed8;
+  --kind-cross_sheet: #db5dee;
+}

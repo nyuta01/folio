@@ -1,0 +1,74 @@
+---
+title: What is Folio?
+description: Folio is a sheet — a directory of files — that humans and AI agents read and write together.
+---
+
+A **Folio sheet** is a directory holding a typed contract, JSONL records, and
+optional derivations. Folio is not a SaaS, not a database, and not a notebook.
+It is a small specification, a Python reference implementation, and four
+surfaces (CLI, SDK, MCP server, local Viewer) that all read and write the
+*same* directory.
+
+## What problem does it solve?
+
+When AI agents and humans need to collaborate on data — accumulating findings,
+enriching records, running quality checks — most tools force you to pick one
+of:
+
+- **A SaaS database** that locks data behind credentials and APIs.
+- **A spreadsheet** that has no schema, no provenance, and no extension surface.
+- **A bespoke pipeline** with private code paths between humans and agents.
+
+Folio takes a third path: a **directory you can tar**, with a typed contract
+and an append-only audit log, that any of the four surfaces can read and
+write. AI agents and humans interact with the same files; permission is
+declared per-field via patterns; every change carries provenance.
+
+## Three priorities, in order
+
+The specification follows three priorities, with conflicts resolved
+in this order:
+
+1. **Simplicity.** The minimum sheet is two files. Few rules to remember.
+2. **Portability.** A sheet is fully transportable as a tarball. No
+   environment-dependent state lives inside.
+3. **Generality.** Extension points are explicit; the spec is not tied to a
+   language or use case.
+
+When two priorities conflict, simplicity wins.
+
+## What "AI-native" means here
+
+Two things, both intentional:
+
+- **AI is a first-class user.** Reading and writing a sheet is something the
+  spec expects an agent to do — by design, not as an afterthought. The MCP
+  server exposes the SDK as tools so agents can interact through MCP-compatible
+  runtimes without bespoke glue.
+- **Derivations include AI.** The `ai` derivation kind invokes a model
+  through a Protocol you can swap (`AIClient`); the [`StubAIClient`](/sdk/ai-client/)
+  ships with the SDK so tests and offline pipelines work without a key.
+
+## What Folio is not
+
+- Not a 100-million-row analytics warehouse. Folio targets **tens to hundreds
+  of thousands of records per sheet**.
+- Not a real-time collaborative editor. A single-writer `.lock` keeps
+  semantics simple.
+- Not a hosted service. The Viewer binds to `127.0.0.1` only; multi-user
+  hosting is out of scope.
+
+## What's in this documentation
+
+- [**Concepts**](/introduction/concepts/) — sheet, contract, records,
+  derivations, provenance, actors. The vocabulary you need to read the rest.
+- [**Architecture**](/introduction/architecture/) — what's in the directory,
+  what's outside, how the four surfaces fit together.
+- [**Get started**](/get-started/installation/) — install, build a real
+  sheet, run derivations, edit through the Viewer.
+- [**Sheet specification**](/sheet/contract/) — the spec layer. Stable, slow.
+- [**CLI / SDK / MCP / Viewer**](/cli/overview/) — the four surfaces. All
+  speak the same sheet.
+- [**Guides**](/guides/customer-master/) — four use-case walkthroughs that
+  match the sheets shipped under [`examples/`](https://github.com/nyuta01/folio/tree/main/examples).
+- [**Reference**](/reference/contract-spec/) — the dry, exhaustive corner.

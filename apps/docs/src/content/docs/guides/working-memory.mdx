@@ -1,0 +1,130 @@
+---
+title: Working memory for agents
+description: A research agent's intermediate findings, with deterministic enrichment. Use Case 2.2.
+---
+
+import KindBadge from "../../../components/KindBadge.astro";
+
+Use Case 2.2 from the design overview ([§2.2](https://github.com/nyuta01/folio/blob/main/docs/design-docs/overview.md)).
+A long-running research agent stores its intermediate findings as a
+sheet; humans graduate candidates to verified.
+
+The shipped sheet is
+[`examples/research-memory/`](https://github.com/nyuta01/folio/tree/main/examples/research-memory).
+
+## The shape
+
+```text
+contract.yaml columns:
+  id          string  PK
+  query       string  agent + human
+  url         string  agent + human
+  title       string  agent + human
+  snippet     string  agent + human
+  status      string  human-only ("candidate" / "verified" / "rejected")
+  notes       string  human-only
+  domain      string  derived (python — host extraction from url)
+```
+
+The agent writes the first five columns. Humans gate `status` and
+`notes`. The `python` derivation extracts a normalized hostname from
+`url` so the dashboard can group findings by source without an LLM call.
+
+## Why deterministic enrichment matters
+
+A research agent can produce hundreds of findings per session. The
+review interface needs to:
+
+- group by source (so you can spot a single domain dominating the list),
+- filter by status,
+- sort by recency.
+
+All three are SQL-friendly given a `domain` column. So the derivation is
+a tiny <KindBadge kind="python" /> script:
+
+```python
+# scripts/url_to_domain.py
+import json, sys
+from urllib.parse import urlparse
+
+inputs = json.loads(sys.argv[2])
+host = urlparse(inputs.get("url", "") or "").hostname or ""
+if host.startswith("www."):
+    host = host[4:]
+print(host)
+```
+
+```yaml
+# derivations/domain.yaml
+targets: [domain]
+inputs: [url]
+kind: python
+script: url_to_domain
+```
+
+Cache hit on every run unless the URL changes. No tokens, no API calls,
+no flaky tests.
+
+## Walking through the sheet
+
+```bash
+folio validate examples/research-memory
+folio materialize examples/research-memory --actor agent:demo
+
+folio query examples/research-memory \
+  "SELECT domain, COUNT(*) AS n
+     FROM records
+    GROUP BY domain
+    ORDER BY n DESC"
+```
+
+```json
+[{"domain":"world-nuclear.org","n":1},
+ {"domain":"iea.org","n":1},
+ {"domain":"nature.com","n":1},
+ ...]
+```
+
+Open the Viewer:
+
+```bash
+folio serve examples/research-memory --port 3000 --actor agent:human
+```
+
+Use the Records tab to:
+
+- skim findings by `query` (the column the agent grouped them under),
+- update `status` from `candidate` → `verified` / `rejected`,
+- add `notes` for findings that need follow-up.
+
+## A typical session
+
+1. **Agent runs.** The agent writes ~50 findings per query under
+   `status: "candidate"`.
+2. **`folio materialize` fills `domain`.** The `python` derivation runs
+   for new rows; existing rows cache-hit. Free.
+3. **Human reviews.** Skim the Viewer. Promote good findings, reject
+   the obviously wrong ones, leave the genuinely uncertain at
+   `candidate` for a deeper review later.
+4. **Next agent run.** The agent re-runs against new queries. Existing
+   `verified` and `rejected` findings are not touched (the agent's
+   prompt tells it to skip rows it didn't add).
+
+## Extending
+
+Natural additions:
+
+- An <KindBadge kind="ai" /> derivation that scores **plausibility**
+  (`relevance_score: number`) per finding — a cheap pre-filter before
+  human review.
+- A second sheet `research-projects/` keyed by `query`, with one row per
+  active research thread, and a <KindBadge kind="cross_sheet" />
+  derivation that pulls the thread's `priority` into each finding.
+
+## See also
+
+- [examples/research-memory/README.md](https://github.com/nyuta01/folio/blob/main/examples/research-memory/README.md)
+- [`python` derivation](/sheet/derivations/python/) — how the script is
+  invoked and cached.
+- [Editing and provenance](/get-started/editing-and-provenance/) —
+  `respect_human_override` for the `status` column.

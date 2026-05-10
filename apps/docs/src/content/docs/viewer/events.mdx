@@ -1,0 +1,145 @@
+---
+title: Events (SSE)
+description: /events streams materialize.start / materialize.end / materialize.error frames.
+---
+
+`GET /events` is a [Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events)
+stream. The materialize route publishes lifecycle frames on every run; the
+React frontend reads the stream to flash a "running" indicator on the
+dashboard.
+
+## Connect
+
+```bash
+curl -N http://127.0.0.1:3000/events
+```
+
+You'll see comments and event blocks:
+
+```text
+: connected
+
+event: materialize.start
+data: {"kind":"materialize.start","ts":"2026-05-10T12:34:56Z","actor":"agent:demo","targets":null,"record_ids":null,"force":false}
+
+event: materialize.end
+data: {"kind":"materialize.end","ts":"2026-05-10T12:35:01Z","actor":"agent:demo","materialized":12,"skipped":0,"failures":0,"total_cost":0.0}
+
+: keepalive
+```
+
+## Frame format
+
+Folio uses the SSE convention:
+
+- `event: <kind>` — the SSE `event:` field for clients that subscribe to
+  named events.
+- `data: <json>` — the payload as one line of JSON.
+- `: <comment>` — comment lines that clients ignore. Used for the initial
+  `: connected` and the 15-second `: keepalive`.
+
+Empty line terminates the frame. Multi-line `data:` blocks are not used.
+
+## Frame kinds
+
+### `materialize.start`
+
+```json
+{
+  "kind": "materialize.start",
+  "ts": "2026-05-10T12:34:56Z",
+  "actor": "agent:demo",
+  "targets": null,
+  "record_ids": null,
+  "force": false
+}
+```
+
+Published immediately after the materialize route begins. `targets` and
+`record_ids` are `null` if the request didn't filter.
+
+### `materialize.end`
+
+```json
+{
+  "kind": "materialize.end",
+  "ts": "2026-05-10T12:35:01Z",
+  "actor": "agent:demo",
+  "materialized": 12,
+  "skipped": 7,
+  "failures": 0,
+  "total_cost": 0.0
+}
+```
+
+Published after the §10.6 envelope is computed. The `failures` count is
+the **length** of `failures[]` on the envelope, not the list itself.
+Clients that need details should poll `/api/status` or
+`/api/provenance` for the failed cells.
+
+### `materialize.error`
+
+```json
+{
+  "kind": "materialize.error",
+  "ts": "2026-05-10T12:35:01Z",
+  "actor": "agent:demo",
+  "error_type": "FolioError",
+  "message": "..."
+}
+```
+
+Published when the materialize route raises (cycle in derivations, lock
+timeout, etc.). No `materialize.end` follows.
+
+## Subscribing from a browser
+
+```js
+const source = new EventSource("/events", { withCredentials: true });
+source.addEventListener("materialize.start", (e) => {
+  const frame = JSON.parse(e.data);
+  console.log("started", frame.actor);
+});
+source.addEventListener("materialize.end", (e) => {
+  const frame = JSON.parse(e.data);
+  console.log("done", frame.materialized);
+});
+```
+
+The Folio Viewer's [`useEventStream` hook](https://github.com/nyuta01/folio/blob/main/viewer/src/useEventStream.ts)
+wraps this pattern — it tracks the latest event and forces components to
+re-render.
+
+## Subscribing from Python
+
+```python
+import urllib.request, json
+
+with urllib.request.urlopen("http://127.0.0.1:3000/events") as r:
+    for raw in r:
+        line = raw.decode("utf-8").rstrip()
+        if line.startswith("data: "):
+            print(json.loads(line[len("data: "):]))
+```
+
+## Implementation notes
+
+- **In-process bus.** The EventBus is a `dict[asyncio.Queue]` keyed by
+  subscriber. Bounded (`maxsize=64`) — a slow reader drops the oldest
+  frame instead of pinning memory.
+- **Single process.** Multiple workers don't share frames. If you scale
+  the Viewer beyond one process (don't), an external bus is needed.
+- **Keepalive.** A `: keepalive` comment goes out every 15 s so reverse
+  proxies don't time out idle connections.
+- **Backpressure.** A wedged subscriber doesn't block the publisher.
+
+## Comparison with WebSockets
+
+The design overview (§19.1) chose SSE over WebSockets because:
+
+- The traffic is one-way (server → client).
+- SSE is HTTP — easy to debug with curl, easier to reverse-proxy.
+- The browser API auto-reconnects on transient disconnects.
+
+WebSockets would add complexity without paying for it. If a future use
+case needs bidirectional messaging, that's a separate channel.

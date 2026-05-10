@@ -1,0 +1,22 @@
+---
+interface Item {
+  title: string;
+  body: string;
+  href: string;
+  tag?: string;
+}
+interface Props {
+  items: Item[];
+}
+const { items } = Astro.props;
+---
+
+<div class="feature-grid not-content">
+  {items.map((item) => (
+    <a class="feature-card" href={item.href}>
+      {item.tag && <span class="tag">{item.tag}</span>}
+      <span class="h">{item.title}</span>
+      <span class="b">{item.body}</span>
+    </a>
+  ))}
+</div>

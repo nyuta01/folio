@@ -1,0 +1,193 @@
+---
+title: REST API
+description: Every Viewer endpoint with curl examples. CSRF on every mutating verb.
+---
+
+The Viewer exposes the SDK as REST. Every route is the natural projection
+of a `Sheet` method onto HTTP. CSRF tokens guard every mutating verb.
+
+Base URL: `http://127.0.0.1:<port>`
+
+## CSRF flow
+
+```bash
+# 1. Get a token (also sets the folio_csrf cookie)
+curl -s -c /tmp/folio.cookies http://127.0.0.1:3000/api/csrf
+# {"csrf_token":"<value>"}
+
+# 2. Use the token on writes
+curl -s -b /tmp/folio.cookies \
+  -H "X-CSRF-Token: <value>" \
+  -H "Content-Type: application/json" \
+  -d '{"records":[{"id":"cust_999","company_name":"X","country":"FR"}]}' \
+  http://127.0.0.1:3000/api/records
+```
+
+Mutating verbs (`POST /api/records`, `DELETE /api/records`,
+`POST /api/materialize`) require:
+
+- `X-CSRF-Token` header equal to the cookie's value.
+
+If either is missing or doesn't match, the response is `403 CSRF token
+missing or invalid`.
+
+Read endpoints don't require CSRF, but they do set the cookie on the way
+out so a frontend page can issue mutations without a separate `/api/csrf`
+fetch.
+
+## Endpoints
+
+### `GET /api/csrf`
+
+Issues / refreshes the CSRF cookie and returns the current token.
+
+```json
+{"csrf_token": "<base64-url>"}
+```
+
+### `GET /api/contract`
+
+Returns the validated contract (same shape as `Sheet.contract.model_dump`).
+
+### `GET /api/records`
+
+Query parameters:
+
+| Param | Notes |
+|---|---|
+| `fields` | Comma-separated list (e.g. `id,country`). |
+| `limit` | Default 50. |
+| `cursor` | Opaque pagination cursor. |
+| `filter` | DuckDB WHERE clause. |
+
+Returns the `list_records` envelope:
+
+```json
+{"records":[{"id":"cust_001",...}], "format":"json", "limit":50, "next_cursor":null}
+```
+
+### `GET /api/records/{id}`
+
+Returns one record or `404`.
+
+### `POST /api/records` (CSRF)
+
+Body:
+
+```json
+{"records": [{"id":"cust_999","company_name":"X","country":"FR"}], "actor":"agent:human"}
+```
+
+Returns:
+
+```json
+{"inserted":1, "updated":0, "total":11}
+```
+
+If `actor` is omitted, the server-default (`--actor`) is used. If both are
+absent, `400 actor is required`.
+
+### `DELETE /api/records?ids=cust_001,cust_002` (CSRF)
+
+Header `X-Folio-Actor` carries the actor (since DELETE typically has no
+body). Falls back to the server-default.
+
+```json
+{"deleted":2, "remaining":9}
+```
+
+### `POST /api/query`
+
+Body:
+
+```json
+{"sql":"SELECT country, COUNT(*) AS n FROM records GROUP BY 1", "params":[]}
+```
+
+Returns:
+
+```json
+{"rows":[{"country":"Japan","n":3}, ...], "count":2}
+```
+
+SELECT-only ([ADR-0005](/reference/adrs/)). Anything else → `400 QueryError`.
+
+### `GET /api/status?targets=country_code,industry_tag`
+
+Returns the `materialization_status` shape (see [`folio status`](/cli/status/)).
+
+### `POST /api/materialize` (CSRF)
+
+Body:
+
+```json
+{
+  "targets": ["country_code"],     // optional
+  "record_ids": ["cust_001"],       // optional
+  "force": false,                   // optional
+  "actor": "agent:demo"             // optional; falls back to --actor
+}
+```
+
+Returns the §10.6 envelope:
+
+```json
+{"materialized":2, "skipped":5, "failures":[], "total_cost":0.0}
+```
+
+Publishes `materialize.start`, `materialize.end` (or
+`materialize.error`) frames on the [SSE event bus](/viewer/events/).
+
+### `GET /api/provenance`
+
+Query parameters:
+
+| Param | Notes |
+|---|---|
+| `record_id` | required |
+| `field` | required |
+| `history` | `true` returns the full chain; default `false` returns the latest entry |
+
+Returns the matching `provenance.jsonl` lines as JSON.
+
+### `GET /events`
+
+Server-Sent Events stream. See [Events](/viewer/events/) for the frame
+format.
+
+## Error envelope
+
+`FolioError`s are mapped to a typed JSON envelope:
+
+```json
+{
+  "error": {
+    "type": "PermissionDeniedError",
+    "message": "agent:enrichment may not write company_name"
+  }
+}
+```
+
+| Error type | HTTP status |
+|---|---|
+| `ContractError` | 500 (sheet is broken) |
+| `SheetError` | 404 (path not found) |
+| `RecordsError` | 500 |
+| `QueryError` | 400 |
+| `OperationError` | 400 |
+| `PermissionDeniedError` | 403 |
+| `LockTimeoutError` | 409 |
+| `ValidationError` (Pydantic) | 400 |
+
+Validation details are echoed under `error.message`.
+
+## CORS
+
+The Viewer does not set CORS headers — same-origin only. The Vite dev
+server proxies `/api/*` to the backend so the dev experience stays
+same-origin.
+
+## Rate limiting / auth
+
+Neither is built-in. The Viewer is local-only by design ([Overview](/viewer/overview/)).
+Front it with a reverse proxy if you need either.

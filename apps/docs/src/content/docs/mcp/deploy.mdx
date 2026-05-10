@@ -1,0 +1,140 @@
+---
+title: Deploy folio-mcp
+description: Stdio for desktop clients, HTTP for remote agents. Security notes.
+---
+
+`folio-mcp` ships two transports: **stdio** (desktop clients) and **HTTP**
+(remote agents). Pick the one that matches your runtime.
+
+## Stdio: Claude Desktop
+
+Add `folio-mcp` to Claude Desktop's MCP servers list:
+
+```json
+{
+  "mcpServers": {
+    "folio": {
+      "command": "uv",
+      "args": [
+        "tool", "run", "folio-mcp",
+        "serve", "--root", "/absolute/path/to/sheets",
+        "--actor", "agent:human:akiko"
+      ]
+    }
+  }
+}
+```
+
+Restart Claude Desktop. The nine tools appear under the `folio` namespace.
+
+If you installed via `pipx`:
+
+```json
+"command": "folio-mcp",
+"args": ["serve", "--root", "/absolute/path/to/sheets", "--actor", "..."]
+```
+
+## Stdio: custom client
+
+Any MCP client that speaks stdio works:
+
+```bash
+folio-mcp serve --root ./sheets --actor agent:custom
+```
+
+The client launches the process and communicates via stdin/stdout. Each
+client gets its own subprocess; there's no shared state across clients.
+
+## HTTP
+
+For remote agents (e.g. an agent runtime that mounts MCP tools into a
+hosted environment):
+
+```bash
+folio-mcp serve --root ./sheets --actor agent:hosted \
+  --transport http --bind 127.0.0.1 --port 3001
+```
+
+The HTTP transport implements the MCP spec's HTTP form. Bind to
+`127.0.0.1` unless you trust the network — there's no built-in
+authentication.
+
+## Security
+
+`folio-mcp` is **not** a hosted, multi-tenant service. Treat it as a
+local privilege:
+
+- Anyone who can reach the stdio process can call any tool with any
+  arguments under `--root`.
+- `--root` is the only sandbox. Pick a directory that contains only the
+  sheets you want exposed; never set `--root /`.
+- Write tools (`upsert_records`, `delete_records`, `materialize`) accept
+  any actor string. Filter at the application layer if you need stricter
+  policy than `x-editable-by`.
+- The HTTP transport inherits FastMCP's defaults — no auth out of the
+  box. Front it with a reverse proxy that adds auth if you must expose
+  it.
+
+## With the Anthropic SDK as the AI client
+
+Pass an `AIClient` at server-start time:
+
+```python
+from folio_mcp import build_server
+from folio._ai_kind import AnthropicClientAdapter
+
+server = build_server(
+    root="./sheets",
+    default_actor="agent:hosted",
+    ai_client=AnthropicClientAdapter(),
+)
+server.run(transport="stdio")
+```
+
+This is the same as the default — `materialize` calls
+`AnthropicClientAdapter()` internally if you don't inject. The override is
+useful when you want to set `client=anthropic.Anthropic(...)` with a
+custom timeout, base URL, or auth scheme.
+
+## With a stub client (tests)
+
+```python
+from folio._ai_kind import StubAIClient
+stub = StubAIClient()
+stub.prepare("Industry of Acme", "Manufacturing")
+
+server = build_server(root="./sheets", default_actor="agent:test", ai_client=stub)
+```
+
+Folio's MCP smoke test (`scripts/smoke-mcp.sh`) does exactly this against
+an in-process FastMCP `Client`. See
+[`scripts/_mcp_smoke.py`](https://github.com/nyuta01/folio/blob/main/scripts/_mcp_smoke.py)
+for the canonical pattern.
+
+## Tooling for testing your MCP integration
+
+FastMCP ships an in-process client harness:
+
+```python
+import asyncio
+from fastmcp import Client
+from folio_mcp import build_server
+
+server = build_server(root="./sheets", default_actor="agent:test")
+
+async def main():
+    async with Client(server) as client:
+        result = await client.call_tool("get_contract", {"sheet_path": "customers"})
+        print(result.data)
+
+asyncio.run(main())
+```
+
+This lets you write tests that exercise the full MCP path without a
+subprocess.
+
+## Logs
+
+`folio-mcp` writes to stderr (info-level). For richer logging, set
+`PYTHONLOG=DEBUG` before starting. The MCP transport itself uses stdout,
+so don't log to stdout — you'll corrupt the protocol.

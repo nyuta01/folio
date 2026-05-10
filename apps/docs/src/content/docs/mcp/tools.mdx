@@ -1,0 +1,152 @@
+---
+title: MCP tools
+description: The nine tools exposed by folio-mcp, with arguments and result shapes.
+---
+
+Every tool is a thin wrapper around a Python SDK method. Argument and
+return shapes follow the SDK; the docstrings below are surfaced to the
+model so it picks the right tool for the right situation.
+
+## `get_contract`
+
+```text
+get_contract(sheet_path: str) -> object
+```
+
+Return the validated contract for `sheet_path`. **Use this first** to
+discover the available fields, primary key, and which fields are derived.
+Combine with `query` or `list_records` for actual data access.
+
+## `query`
+
+```text
+query(sheet_path: str, sql: str, params: list = None) -> list[object]
+```
+
+Run a SELECT-only DuckDB query against `records`. Prefer this over
+`list_records` for `COUNT`, `GROUP BY`, `MIN`/`MAX`, and other
+aggregations so you do not pull every row into the agent's context. Use
+`?` placeholders + `params` for any user-provided value.
+
+## `list_records`
+
+```text
+list_records(
+  sheet_path: str,
+  filter: str = None,
+  fields: list[str] = None,
+  limit: int = 50,
+  cursor: str = None,
+  params: list = None,
+  format: "json" | "toon" = "json",
+) -> object
+```
+
+List records page by page. **Always pass `fields`** to project only the
+columns you need. Use `filter` (a DuckDB WHERE-clause) plus `params` for
+condition values. `format='toon'` returns a token-efficient TOON string
+in `records` instead of a JSON list.
+
+## `get_record`
+
+```text
+get_record(sheet_path: str, id: str, fields: list[str] = None) -> object | null
+```
+
+Fetch one record by primary key. Returns `null` if missing.
+
+## `upsert_records`
+
+```text
+upsert_records(sheet_path: str, records: list[object], actor: str = None) -> object
+```
+
+Insert or update records by primary key. `actor` is required (or set
+`--actor` on the server start). `editable_by` patterns on the contract
+are enforced.
+
+## `delete_records`
+
+```text
+delete_records(sheet_path: str, ids: list[str], actor: str = None) -> object
+```
+
+Delete records by primary key id.
+
+## `materialize`
+
+```text
+materialize(
+  sheet_path: str,
+  targets: list[str] = None,
+  record_ids: list[str] = None,
+  force: boolean = false,
+  actor: str = None,
+) -> object
+```
+
+Materialize derived fields. Returns the §10.6 envelope. Combine with
+`materialization_status` to inspect what is stale before running.
+`force=true` recomputes even when the cache and `human_override` say
+otherwise.
+
+## `materialization_status`
+
+```text
+materialization_status(sheet_path: str, targets: list[str] = None) -> object
+```
+
+Per-target counts (`ai_count` / `import_count` / `human_count` / `none_count`)
+and the last run timestamp.
+
+## `provenance`
+
+```text
+provenance(
+  sheet_path: str,
+  record_id: str,
+  field: str,
+  history: boolean = false,
+) -> object
+```
+
+Return the latest provenance entry, or the full append-only history.
+
+## TOON output for `list_records`
+
+When `format="toon"`, the `records` field becomes a single
+[TOON-encoded](/viewer/overview/#toon) string:
+
+```text
+[3]{id, country}:
+cust_001, Japan
+cust_002, "United States"
+cust_003, Sweden
+```
+
+The header `[N]{cols}:` declares the row count and column names. Rows are
+comma-separated values with JSON-encoded strings when needed. This saves
+3-5x in tokens compared to JSON for tabular data, which matters when the
+agent's context is precious.
+
+## Path safety
+
+Every `sheet_path` is resolved against the server's `--root`. Paths that
+escape are rejected with a `FolioError`:
+
+```python
+get_contract("../escape")
+# → FolioError: sheet_path must live under the MCP root
+```
+
+## Errors
+
+Each tool reports failures the same way:
+
+- A `FolioError` is raised by the SDK and FastMCP wraps it in an `isError`
+  result with the message.
+- `materialize` returns the §10.6 envelope; per-record failures are on
+  `failures[]`, not exceptions.
+
+Agents should always check the `failures[]` field on `materialize`
+results, even when the call itself succeeded.

@@ -2,51 +2,68 @@
 
 Portable, AI-native data sheets.
 
-A **sheet** is a directory of plain files that AI agents can read and write as
-first-class users, that humans can review later, and that can be carried as a
-`tar` archive across machines.
+A **sheet** is a directory of plain files that AI agents read and write as
+first-class users, that humans review later, and that travel as a `tar`
+archive across machines.
 
 ```
 my-sheet/
-  contract.yaml         # required: ODCS-subset structure declaration
-  records.jsonl         # required: data (may be empty)
-  README.md             # optional: AI frontmatter + human docs
-  derivations/          # optional: per-field derivation YAML
-  scripts/              # optional: reusable scripts (any language)
-  attachments/          # optional: binary attachments
-  provenance.jsonl      # optional: auto-generated lineage
-  datapackage.json      # optional: Frictionless Data Package descriptor
+├── contract.yaml         # required — ODCS subset
+├── records.jsonl         # required — one JSON object per line
+├── derivations/          # optional — derivation files
+├── scripts/              # optional — reusable scripts
+├── provenance.jsonl      # append-only audit log
+└── README.md             # optional, with typed frontmatter
 ```
 
-This repository will provide:
+## Surfaces
 
-- `folio` — Python SDK + CLI (reference implementation).
-- `folio-mcp` — MCP server that exposes SDK operations as tools.
-- `folio-viewer` — local-only Viewer (FastAPI + React).
+- **`folio`** — Python SDK + CLI (validate, query, list, upsert, delete,
+  materialize, status, provenance, serve, script, export).
+- **`folio-mcp`** — FastMCP server exposing the SDK as nine tools (stdio
+  or HTTP transport).
+- **`folio-viewer`** — local-only FastAPI + React UI for human review.
 
-## Status
+## Documentation
 
-Pre-implementation. The repository currently holds the design document and
-the AI-first engineering harness. See:
+User-facing documentation lives in [`apps/docs/`](apps/docs/) (Astro +
+Starlight). Run it locally:
 
-- [Design overview](docs/design-docs/overview.md)
-- [Phase 0 product spec](docs/product-specs/phase-0-minimum-sheet.md)
-- [Agent guide](AGENTS.md)
+```bash
+cd apps/docs
+npm install
+npm run dev      # → http://127.0.0.1:4321/
+```
 
-## Repository Harness
+Or read the canonical sources directly:
 
-This repository follows an AI-first operating model. The harness is a small
-set of compact docs, structured task state, and deterministic checks that let
-coding agents do reliable, restartable work.
+- [Design overview](docs/design-docs/overview.md) — the spec
+- [ADRs](docs/design-docs/adrs/README.md) — architectural decisions
+- [Examples](examples/README.md) — four use-case sheets that run offline
+
+## Quickstart
+
+```bash
+uv tool install folio
+
+folio validate examples/customers
+folio materialize examples/customers --actor agent:demo
+folio serve examples/customers --port 3000 --actor agent:human
+# → http://127.0.0.1:3000/
+```
+
+## Repository harness
+
+This repo follows an AI-first operating model: compact router docs,
+structured task state, and a single deterministic verification gate.
 
 ```bash
 make agent-init   # restart context for the next agent
-make verify       # the single verification gate
+make verify       # harness-check + drift-check + validate-docs
+                  # + pytest + 6 smokes (cli, materialize, scripts,
+                  #   mcp, extension-kinds, viewer)
 ```
 
-`make verify` currently runs `harness-check`, `drift-check`, and
-`validate-docs`. Phase-specific checks (Python tests, CLI smoke, MCP smoke,
-Viewer smoke) will be added behind the same target as implementation lands.
-
-See [docs/methodology/harness-engineering.md](docs/methodology/harness-engineering.md)
+See [`AGENTS.md`](AGENTS.md) and
+[`docs/methodology/harness-engineering.md`](docs/methodology/harness-engineering.md)
 for the full operating model.

@@ -1,0 +1,80 @@
+---
+title: folio validate
+description: Validate contract.yaml, records.jsonl, and (optionally) README frontmatter.
+---
+
+```text
+folio validate <SHEET> [--strict]
+```
+
+Loads `contract.yaml`, parses every line of `records.jsonl`, and exits
+non-zero on any failure. Use it as the first command after editing a
+contract or before committing a sheet.
+
+## What it checks
+
+- `contract.yaml` is valid YAML and matches the [Folio contract spec](/sheet/contract/).
+- Exactly one property is `primaryKey: true`.
+- Every property declares a known `logicalType`.
+- `x-derived` properties have a non-empty `x-inputs` whose names exist on
+  the contract.
+- `records.jsonl` parses line-by-line as JSON objects.
+- Every record carries the primary key as a non-null value.
+- Required fields are present on every record.
+
+## Options
+
+| Flag | Purpose |
+|---|---|
+| `--strict` | Also validate `README.md`'s YAML frontmatter against the [`Frontmatter`](/sdk/sheet-api/#metadata) schema. |
+
+## Exit semantics
+
+```bash
+$ folio validate ./customers
+contract.yaml is valid: example-customers v1.0.0 (6 fields)
+records.jsonl is readable (7 records)
+$ echo $?
+0
+```
+
+```bash
+$ folio validate ./broken
+error: contract.yaml: property 'industry_tag' marks x-derived: true but x-inputs references unknown field 'compny_name'
+$ echo $?
+1
+```
+
+A second-line stderr entry tells you which file and field tripped the
+check; pipe with care:
+
+```bash
+folio validate ./customers >/dev/null    # silence the human-readable line
+folio validate ./customers 2>/dev/null   # silence errors (don't do this)
+```
+
+## What it does *not* check
+
+- Constraint values beyond required + types. Arbitrary expressions
+  ("country must be ISO-3166-1 alpha-2") are an application concern, not a
+  contract concern.
+- That derivations would succeed at runtime. Use `folio materialize` for
+  that — `validate` only checks the contract is internally consistent.
+- Provenance integrity. The append-only log is by convention; Folio doesn't
+  re-verify hashes on validate.
+
+## Pair with CI
+
+A typical pre-commit hook:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+for sheet in customers research-memory onboarding; do
+  uv run folio validate "$sheet"
+done
+```
+
+Folio's own `make verify` runs `folio validate` inside the CLI smoke
+(`scripts/smoke-cli.sh`) so the gate doesn't ship a contract that fails
+its own validator.

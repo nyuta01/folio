@@ -1,0 +1,139 @@
+---
+title: Frontend build
+description: Vite + React + TanStack Table. The Modern Ledger design tokens, npm scripts, and the Playwright smoke.
+---
+
+The frontend is a small Vite + React + TypeScript app. It speaks only to
+the backend it ships with (`/api/*` is same-origin) and renders the
+**Modern Ledger** design language — warm off-white surface, single clay
+accent, Inter for prose, JetBrains Mono for identifiers and hashes.
+
+## Layout
+
+```
+viewer/
+├── package.json
+├── package-lock.json
+├── tsconfig.json
+├── vite.config.ts
+├── playwright.config.ts        # opt-in
+├── index.html
+├── src/
+│   ├── main.tsx                # entry — imports App + index.css
+│   ├── App.tsx                 # records grid, tab nav
+│   ├── Dashboard.tsx           # V4 — per-target counts + Materialize all
+│   ├── History.tsx             # V5 — vertical timeline
+│   ├── useEventStream.ts       # V6 — SSE consumer hook
+│   ├── api.ts                  # fetch helpers (CSRF cookie + header)
+│   └── index.css               # all styling — design tokens + components
+├── tests/
+│   └── grid.spec.ts            # Playwright smoke (opt-in)
+└── README.md
+```
+
+`index.css` is the only stylesheet. It defines the design tokens and
+~200 lines of selectors against semantic class names.
+
+## Stack
+
+| Layer | Choice |
+|---|---|
+| Bundler | [Vite 5](https://vitejs.dev/) |
+| Framework | [React 18](https://react.dev/) |
+| Data grid | [TanStack Table v8](https://tanstack.com/table/latest) |
+| Virtualization | [TanStack Virtual v3](https://tanstack.com/virtual/latest) (not yet active in the grid; reserved for V0+ scale) |
+| Type-checking | TypeScript 5 (`noEmit: true`; Vite handles bundling) |
+| Tests | [Playwright](https://playwright.dev/) (opt-in, not in CI) |
+
+## npm scripts
+
+```bash
+npm install
+npm run dev        # Vite dev server on :5173, proxies /api → :3000
+npm run build      # tsc --noEmit then vite build → dist/
+npm run preview    # serve dist/ for a quick local check
+npm run test:e2e   # Playwright (requires `npx playwright install`)
+```
+
+## What `build` produces
+
+```
+viewer/dist/
+├── index.html
+└── assets/
+    ├── index-<hash>.js     # ~62 KB gzipped
+    └── index-<hash>.css    # ~3 KB gzipped
+```
+
+The backend's `--static-dir` defaults to the project's `viewer/dist/` if
+it exists. So `cd viewer && npm run build` once after a frontend change,
+then re-launch `folio serve`.
+
+## TypeScript: `noEmit: true`
+
+`tsconfig.json` sets `"noEmit": true` so `tsc -b` is type-check-only.
+Vite owns bundling. This avoids `.js` files leaking into `viewer/src/`
+when someone runs `tsc` by hand.
+
+## Design tokens
+
+`viewer/src/index.css` defines a small set of CSS custom properties under
+`:root`:
+
+```css
+:root {
+  --bg: #faf9f5;
+  --surface: #ffffff;
+  --ink: #1a1a17;
+  --accent: #c45c2c;        /* clay */
+
+  /* per-derivation-kind palette */
+  --kind-ai: #b8862b;
+  --kind-import: #2563eb;
+  --kind-python: #7c3aed;
+  --kind-sql: #0d9488;
+  --kind-http: #0369a1;
+  --kind-cross_sheet: #c026d3;
+  --kind-human: #8b8a82;
+
+  --sans: "Inter", -apple-system, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+}
+```
+
+The same palette is used in [`apps/docs`](https://github.com/nyuta01/folio/tree/main/apps/docs)
+so the docs and the product feel like one artifact.
+
+## Frontend Playwright smoke (opt-in)
+
+`viewer/tests/grid.spec.ts` boots the Vite dev server, loads the records
+grid, and asserts the type chips render. To run locally:
+
+```bash
+cd viewer
+npm install
+npx playwright install --with-deps chromium
+
+# Backend on :3000
+uv run folio serve <sheet> --port 3000 --actor agent:human &
+
+npm run test:e2e
+```
+
+The test is **not** wired into `make verify` — the verify gate is uv-only.
+The backend smoke (`scripts/smoke-viewer.sh`) covers the API end-to-end
+including SSE.
+
+## Adding a feature
+
+The codebase is small (~600 LoC of TS + CSS). Typical additions:
+
+- **A new column type chip** — extend `App.tsx`'s `TYPE_CHIP_STYLE`
+  rule and the column header render.
+- **A new dashboard card stat** — extend `Dashboard.tsx` to read from a
+  new field on `materialization_status`.
+- **A new SSE event** — publish from `src/folio_viewer/server.py`,
+  add a listener in `useEventStream.ts`.
+
+Pull the production design tokens from `index.css` rather than inventing
+new ones; the consistency is intentional.

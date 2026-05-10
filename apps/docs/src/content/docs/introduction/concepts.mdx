@@ -1,0 +1,148 @@
+---
+title: Concepts
+description: Sheet, contract, records, derivations, provenance, actor — the vocabulary used everywhere else.
+---
+
+import KindBadge from "../../../components/KindBadge.astro";
+
+Read this once. Every other page assumes the terms below.
+
+## Sheet
+
+A **sheet** is one directory. It holds a typed contract, line-delimited
+records, optional derivations, and an append-only audit log.
+
+```text
+my-sheet/
+├── contract.yaml          # required, ODCS subset
+├── records.jsonl          # required, one JSON object per line
+├── derivations/           # optional, derivation files
+├── scripts/               # optional, reusable scripts
+├── provenance.jsonl       # written by Folio
+└── README.md              # optional, with frontmatter
+```
+
+A sheet maps **1 sheet = 1 model**. If you have customers and invoices, that's
+two sheets. The constraint keeps the contract narrow and queries trivial.
+
+## Contract
+
+`contract.yaml` is the schema. Folio uses an [ODCS](https://github.com/bitol-io/open-data-contract-standard)
+subset so external tools (`datacontract-cli`, `frictionless`) can read it.
+
+```yaml
+apiVersion: v3.0.0
+kind: DataContract
+id: customers
+name: customers
+version: 1.0.0
+schema:
+  - name: items
+    physicalType: jsonl
+    properties:
+      - name: id
+        logicalType: string
+        primaryKey: true
+        required: true
+      - name: country_code
+        logicalType: string
+        x-derived: true       # this field is filled by a derivation
+        x-inputs: [country]   # which inputs invalidate the cache
+```
+
+Folio extends ODCS with a few `x-` attributes — the most important are
+`x-derived`, `x-inputs`, and `x-editable-by`. The full reference is in the
+[contract.yaml spec](/reference/contract-spec/).
+
+## Record
+
+A row. One JSON object per line in `records.jsonl`.
+
+```jsonl
+{"id": "cust_001", "country": "Japan"}
+{"id": "cust_002", "country": "Sweden"}
+```
+
+The primary key is whatever the contract marks `primaryKey: true`. Folio
+enforces uniqueness on writes.
+
+## Derivation
+
+A YAML file under `derivations/` that says "fill these fields, given these
+inputs, by running this kind."
+
+```yaml
+# derivations/country_code.yaml
+targets: [country_code]
+inputs: [country]
+kind: python
+script: country_to_code
+```
+
+Folio ships **six built-in kinds**, all sharing the same cache + provenance
+loop:
+
+<div class="not-content">
+
+| Kind | What it does |
+|---|---|
+| <KindBadge kind="ai" /> | Calls an `AIClient` (Anthropic SDK by default; `StubAIClient` for offline). |
+| <KindBadge kind="import" /> | Reads from a local CSV / JSONL / JSON sidecar file in the sheet. |
+| <KindBadge kind="python" /> | Runs `scripts/<name>.py` as a subprocess; stdout becomes the value. |
+| <KindBadge kind="sql" /> | Evaluates a DuckDB SELECT-only expression against `records`. |
+| <KindBadge kind="http" /> | Calls a templated HTTP endpoint via `HTTPTransport`. |
+| <KindBadge kind="cross_sheet" /> | Joins to a sibling sheet 1:1 by primary key. |
+
+</div>
+
+You can plug in custom kinds. Each derivation declares an `input_hash` over
+its inputs, so the cache invalidates exactly when inputs change.
+
+## Provenance
+
+`provenance.jsonl` is append-only. Every materialized cell writes one line:
+
+```jsonl
+{"record_id":"cust_001","field":"country_code","source":"python","actor":"agent:demo","at":"2026-05-10T10:16:35Z","input_hash":"sha256:ce82..."}
+```
+
+The Viewer's history view reads this file directly. The `source` distinguishes
+who wrote the value: an agent kind (`ai`/`python`/...) or a `human` (a write
+through `upsert_records`).
+
+## Actor
+
+Every write needs an `actor` string. Convention: `agent:<role>` for
+non-humans, `human:<id>` for humans. The actor is matched against
+`x-editable-by` patterns at write time using `fnmatch`:
+
+```yaml
+- name: company_name
+  x-editable-by: ["agent:human", "agent:ops:*"]
+```
+
+A write by `agent:ops:akiko` matches `agent:ops:*` and is allowed. A write by
+`agent:enrichment` is rejected with `PermissionDeniedError`.
+
+## Cache and runtime
+
+Folio caches every derivation output by its `input_hash`. The cache lives
+**outside the sheet** (`<user-cache>/folio/<sheet-id>/cache/`). So does any
+per-sheet venv created for `python` / `script` execution. This is why you
+can `tar czf` a sheet and ship it: nothing material lives inside.
+
+See [ADR-0008](/reference/adrs/) for the rationale.
+
+## Surfaces
+
+Same sheet, four interfaces:
+
+- [**CLI**](/cli/overview/) (`folio`) — for shell scripts and humans.
+- [**Python SDK**](/sdk/overview/) (`folio`) — for application code and tests.
+- [**MCP server**](/mcp/overview/) (`folio-mcp`) — exposes the SDK as MCP
+  tools so agents speak it through standard runtimes.
+- [**Viewer**](/viewer/overview/) (`folio-viewer`) — local-only FastAPI +
+  React app for human review.
+
+All four are thin wrappers over the same Python SDK and read/write the same
+files.

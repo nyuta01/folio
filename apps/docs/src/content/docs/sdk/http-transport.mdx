@@ -1,0 +1,131 @@
+---
+title: HTTP transport
+description: HTTPTransport Protocol, HTTPXTransport, StubHTTPTransport.
+---
+
+The `http` derivation kind routes every call through the **`HTTPTransport`
+Protocol**. Two implementations ship:
+
+- `HTTPXTransport` — production. Uses the `httpx` library.
+- `StubHTTPTransport` — deterministic. Used by tests and the offline smoke.
+
+Custom transports are first-class — implement the Protocol and inject it.
+
+## The Protocol
+
+```python
+class HTTPTransport(Protocol):
+    def request(
+        self,
+        *,
+        method: str,
+        url: str,
+        headers: dict[str, str] | None = None,
+        body: Any | None = None,
+        timeout_seconds: float = 30.0,
+    ) -> dict[str, Any]: ...
+```
+
+The transport returns the parsed JSON response body. For non-JSON
+responses, the implementation should raise — Folio expects JSON because
+the kind walks `response_path` / `response_schema` against a parsed
+mapping.
+
+## `HTTPXTransport`
+
+```python
+from folio.kinds._http import HTTPXTransport
+import httpx
+
+transport = HTTPXTransport(
+    client=httpx.Client(
+        timeout=30.0,
+        headers={"User-Agent": "folio-customers/1.0"},
+    )
+)
+
+sheet.materialize(http_transport=transport)
+```
+
+If you don't pass a `client`, the adapter creates one with sane defaults
+(30s timeout). For production, pass your own — that's where you wire up
+auth, retries, base URLs, and timeouts.
+
+## `StubHTTPTransport`
+
+```python
+from folio.kinds._http import StubHTTPTransport
+
+transport = StubHTTPTransport()
+transport.prepare(
+    "GET https://api.example.com/rates/EUR",
+    {"rates": {"usd": 1.08}},
+)
+
+sheet.materialize(http_transport=transport)
+```
+
+`prepare(key, payload)` matches by exact `<METHOD> <URL>` against the
+resolved request. If no match is found, the transport raises
+`StubHTTPTransport.NotPrepared`.
+
+A fallback responder lets you handle the long tail:
+
+```python
+def fallback(method: str, url: str) -> dict:
+    if "rates" in url:
+        return {"rates": {"usd": 1.0}}
+    raise ValueError(f"no stub for {method} {url}")
+
+transport = StubHTTPTransport(default_responder=fallback)
+```
+
+## Writing your own transport
+
+Any object with `request(*, method, url, headers, body, timeout_seconds)`
+that returns a `dict` works. Pre-existing HTTP libraries (requests, aiohttp
+in a sync wrapper, an internal client) all fit.
+
+```python
+import requests
+
+class RequestsTransport:
+    def __init__(self, *, session: requests.Session):
+        self._session = session
+
+    def request(self, *, method, url, headers=None, body=None, timeout_seconds=30.0):
+        resp = self._session.request(
+            method, url, headers=headers, json=body, timeout=timeout_seconds
+        )
+        resp.raise_for_status()
+        return resp.json()
+```
+
+## What ends up in `provenance.jsonl`
+
+The provenance line for an `http` derivation does **not** include the
+response body. It includes:
+
+- `record_id`, `field`, `source: "http"`, `actor`, `at`,
+- `input_hash` — covers the resolved URL and body.
+
+So the audit log knows which URL was called for which input, but not what
+came back. If you need to capture the response, do it in the transport
+adapter (e.g. log to a separate file).
+
+## Errors
+
+The transport may raise anything; Folio converts unhandled exceptions into
+per-record failures on the materialize envelope:
+
+```json
+{
+  "record_id": "cust_002",
+  "field": "exchange_rate_usd",
+  "error": "GET https://api.example.com/rates/EUR -> 503",
+  "error_type": "FolioError"
+}
+```
+
+Use the transport's own retry / backoff features. Folio doesn't add a
+retry loop on top — too many policies depend on the API.

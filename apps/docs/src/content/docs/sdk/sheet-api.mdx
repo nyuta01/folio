@@ -1,0 +1,246 @@
+---
+title: Sheet API
+description: Every method on Sheet with signatures, return shapes, and examples.
+---
+
+The `Sheet` class is the SDK's working surface. Construct one with
+[`open_sheet`](/sdk/open-sheet/) and call any of the methods below.
+
+## `get_contract`
+
+```python
+sheet.get_contract() -> Contract
+```
+
+Returns the parsed contract — a Pydantic v2 model. Useful for introspecting
+property names, types, and `x-` attributes.
+
+```python
+contract = sheet.get_contract()
+for prop in contract.schema[0].properties:
+    print(prop.name, prop.logicalType, prop.x_derived)
+```
+
+## `query`
+
+```python
+sheet.query(sql: str, params: Sequence[Any] | None = None) -> list[dict]
+```
+
+Run a DuckDB `SELECT` against the `records` view. Read-only; non-SELECT
+statements raise `QueryError` ([ADR-0005](/reference/adrs/)).
+
+```python
+rows = sheet.query(
+    "SELECT country, COUNT(*) AS n FROM records GROUP BY 1 ORDER BY n DESC"
+)
+
+rows = sheet.query(
+    "SELECT id FROM records WHERE country = ? AND industry_name = ?",
+    ["Japan", "Manufacturing"],
+)
+```
+
+## `list_records`
+
+```python
+sheet.list_records(
+    *,
+    fields: Sequence[str] | None = None,
+    filter: str | None = None,
+    params: Sequence[Any] | None = None,
+    limit: int = 50,
+    cursor: str | None = None,
+    format: Literal["json", "toon"] = "json",
+) -> dict
+```
+
+Returns a paginated envelope:
+
+```python
+{"records": [...], "format": "json", "limit": 50, "next_cursor": "50" | None}
+```
+
+`fields` projects columns. `filter` is a DuckDB WHERE clause (use `?` and
+`params` for any user-supplied value). `format="toon"` returns `records`
+as a single TOON-encoded string.
+
+## `get_record`
+
+```python
+sheet.get_record(record_id: str, *, fields: Sequence[str] | None = None) -> dict | None
+```
+
+Returns one record by primary key, or `None` if absent. A thin wrapper over
+`list_records` with `limit=1`.
+
+## `upsert_records`
+
+```python
+sheet.upsert_records(
+    records: Iterable[dict],
+    *,
+    actor: str | None = None,
+) -> dict
+```
+
+Insert or update by primary key. Returns:
+
+```python
+{"inserted": 3, "updated": 1, "total": 11}
+```
+
+Honours `x-editable-by` per field. Atomic per batch.
+
+```python
+sheet.upsert_records([
+    {"id": "cust_999", "company_name": "Beta", "country": "FR"},
+])
+```
+
+A no-op upsert (record already at those values) does **not** add a
+provenance line.
+
+## `delete_records`
+
+```python
+sheet.delete_records(
+    ids: Iterable[str],
+    *,
+    actor: str | None = None,
+) -> dict
+```
+
+Remove rows by primary key. Returns:
+
+```python
+{"deleted": 2, "remaining": 9}
+```
+
+IDs that aren't present are silently skipped.
+
+## `materialize`
+
+```python
+sheet.materialize(
+    *,
+    targets: Sequence[str] | None = None,
+    record_ids: Sequence[str] | None = None,
+    force: bool = False,
+    actor: str | None = None,
+    ai_client: AIClient | None = None,
+    http_transport: HTTPTransport | None = None,
+) -> dict
+```
+
+Run derivations. Returns the [§10.6 envelope](/cli/materialize/):
+
+```python
+{"materialized": 12, "skipped": 7, "failures": [...], "total_cost": 0.0}
+```
+
+Inject `ai_client=StubAIClient()` to keep `ai` derivations offline; inject
+`http_transport=StubHTTPTransport()` for `http` derivations. Both default
+to the production adapter when omitted.
+
+## `materialization_status`
+
+```python
+sheet.materialization_status(
+    *,
+    targets: Sequence[str] | None = None,
+) -> dict[str, dict]
+```
+
+Per-target counts. The shape:
+
+```python
+{
+    "country_code": {
+        "total_records": 7,
+        "with_provenance": 7,
+        "ai_count": 0,
+        "import_count": 0,
+        "human_override_count": 0,
+        "last_at": "2026-05-10T10:16:35Z",
+        "last_actor": "agent:demo",
+    },
+    ...
+}
+```
+
+## `provenance`
+
+```python
+sheet.provenance(
+    *,
+    record_id: str,
+    field: str,
+    history: bool = False,
+) -> dict | list[dict] | None
+```
+
+Latest entry, or full history if `history=True`. Returns `None` if there's
+no provenance for the cell.
+
+## `run_script`
+
+```python
+sheet.run_script(
+    name: str,
+    *,
+    argument: Any = None,
+    actor: str | None = None,
+) -> ScriptResult
+```
+
+Invoke a script under `scripts/`. Returns:
+
+```python
+ScriptResult(name=..., stdout=..., stderr=..., exit_code=..., duration_seconds=...)
+```
+
+Same invocation contract as the `python` derivation kind. Does not write
+to `records.jsonl` or `provenance.jsonl`.
+
+## `metadata`
+
+```python
+sheet.metadata -> Frontmatter | None
+```
+
+Lazy-loaded YAML frontmatter from `README.md`. Schema:
+
+```python
+class Frontmatter(BaseModel):
+    purpose: str | None
+    default_actor: str | None
+    tags: list[str] = []
+    links: list[Link] = []
+    agent_skills: list[str] = []
+```
+
+`None` if there's no `README.md` or no frontmatter block.
+
+## Properties
+
+```python
+sheet.path: Path                # absolute path to the sheet
+sheet.contract: Contract         # alias for sheet.get_contract()
+sheet.records_path: Path         # path to records.jsonl
+sheet.actor: str | None          # the default actor passed at open_sheet
+sheet.main_schema: Schema        # contract.schema[0]
+```
+
+## Lifecycle and caching
+
+- The contract is read once at construction.
+- `records.jsonl` is read fresh on every method that needs it (no in-memory
+  cache).
+- `provenance.jsonl` is read fresh on every `provenance` / `materialization_status`
+  call.
+- The `.lock` is acquired only on writes.
+
+If you need to avoid re-reading large `records.jsonl` repeatedly, the
+right tool is a query that returns only what you need (DuckDB streams
+JSONL efficiently).

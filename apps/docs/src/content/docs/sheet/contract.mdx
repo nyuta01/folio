@@ -1,0 +1,172 @@
+---
+title: contract.yaml
+description: The typed schema at the heart of every sheet — ODCS-aligned with a small set of x- extensions.
+---
+
+`contract.yaml` is the only required schema file. It declares the sheet's
+identity, version, and per-field types. Folio uses an [Open Data Contract
+Standard (ODCS)](https://github.com/bitol-io/open-data-contract-standard) subset
+([ADR-0003](/reference/adrs/)) so external tools — `datacontract-cli`,
+`frictionless`, ad-hoc readers — can read it without bespoke logic.
+
+## Minimal contract
+
+```yaml
+apiVersion: v3.0.0
+kind: DataContract
+id: customers
+name: customers
+version: 1.0.0
+schema:
+  - name: items
+    physicalType: jsonl
+    properties:
+      - name: id
+        logicalType: string
+        primaryKey: true
+        required: true
+```
+
+The five top-level fields (`apiVersion`, `kind`, `id`, `name`, `version`)
+are mandatory. `schema[]` must contain exactly one entry — a sheet is
+**1 sheet = 1 model** ([§6.2 of the design overview](https://github.com/nyuta01/folio/blob/main/docs/design-docs/overview.md)).
+
+## Field-level reference
+
+### `id` *(string, required)*
+
+The sheet's identity. **Used to scope the cache and runtime directories**
+(`<user-cache>/folio/<id>/...`). Pick a stable, repo-unique slug.
+
+### `name` *(string, required)*
+
+The display name. Surfaced in the Viewer's header.
+
+### `version` *(string, required, semver)*
+
+Bump the major component when the contract makes a breaking change a reader
+of `records.jsonl` would notice (renamed required field, narrowed type).
+Bump minor when adding optional fields.
+
+### `description` *(string, optional)*
+
+Free-form. Multi-line strings are encouraged. Surfaces in the Viewer.
+
+### `schema[].physicalType`
+
+Always `jsonl` for now. Folio reserves the field for future formats
+(DuckDB-native, Parquet) but only `jsonl` is supported.
+
+### `schema[].properties[]`
+
+The columns. Order is preserved everywhere it matters (the Viewer's column
+order, `frictionless` export, `folio list` default projection).
+
+## Property attributes
+
+```yaml
+- name: industry_tag
+  logicalType: string
+  description: One-word industry classification.
+  primaryKey: false               # default; only one property may be true
+  required: false                  # default false
+  x-derived: true                  # default false; this column is filled by a derivation
+  x-inputs: [company_name]         # required when x-derived: true
+  x-editable-by: ["agent:human"]   # default []; absent means "not human-editable"
+```
+
+### `logicalType`
+
+Folio's ODCS subset accepts the eight types in the table below
+([§6.3](https://github.com/nyuta01/folio/blob/main/docs/design-docs/overview.md#63-supported-logicaltype)).
+
+| logicalType | Notes |
+|---|---|
+| `string` | Anything UTF-8. |
+| `integer` | JSON integer. |
+| `number` | JSON number (int or float). |
+| `boolean` | `true` / `false`. |
+| `date` | ISO-8601 calendar date `YYYY-MM-DD`. |
+| `timestamp` | ISO-8601 datetime with offset. |
+| `array` | JSON array. Item shape is not constrained. |
+| `object` | JSON object. Folio does not recurse into the structure. |
+
+### `primaryKey`
+
+Exactly one property in `properties[]` must have `primaryKey: true`.
+Composite primary keys are not supported (a deliberate simplification —
+[§6.2](https://github.com/nyuta01/folio/blob/main/docs/design-docs/overview.md#62-1-sheet--1-model)).
+
+### `required`
+
+Folio enforces presence on `upsert_records`. A missing required field on a
+new row raises `OperationError`.
+
+### `x-derived` *(extension, ADR-0003)*
+
+`true` ⇒ the field is owned by a derivation and Folio expects to find a
+matching derivation in `derivations/`.
+
+### `x-inputs`
+
+Required when `x-derived: true`. Lists the field names whose changes should
+invalidate the cache. Folio also folds the derivation file's hash into the
+cache key, so editing the derivation file is **always** a stale signal even
+if `x-inputs` doesn't move.
+
+### `x-editable-by` *(extension, ADR-0007)*
+
+Array of `fnmatch` patterns matched against the actor on every write. If
+absent or empty, the field is not directly writable by humans (only
+derivations).
+
+```yaml
+x-editable-by: ["agent:human"]            # exactly that one actor
+x-editable-by: ["agent:ops:*"]            # any agent under agent:ops:
+x-editable-by: ["agent:human:*", "*"]     # the second pattern matches anyone
+```
+
+`*` matches every actor — useful for development sheets, never recommended
+for production.
+
+## What Folio rejects at validate time
+
+`folio validate` and `Sheet(...)` construction reject contracts that:
+
+- have zero or more than one `primaryKey: true` property,
+- declare a `logicalType` outside the eight in the table above,
+- declare `x-derived: true` without `x-inputs` (or with `x-inputs` referencing
+  a property that doesn't exist),
+- declare a property name that is not a string or that contains forbidden
+  characters,
+- omit any of `apiVersion`, `kind`, `id`, `name`, `version`,
+- contain unknown attributes (we want loud failure for typos like
+  `primaryKeys: true` instead of silent ignore).
+
+## Multilingual descriptions
+
+`description` accepts a mapping keyed by locale tag for fields where you
+need translations:
+
+```yaml
+description:
+  en: Industry classification.
+  ja: 業種分類。
+```
+
+Other locale-aware tools can read the mapping; Folio surfaces the locale
+that matches `LANG`, falling back to `en`.
+
+## Lifecycle
+
+`contract.yaml` is read once when the sheet is opened. Edits during a session
+are not picked up — close and reopen the `Sheet`. The CLI reopens for every
+invocation, so it always sees the current state.
+
+## Where to go next
+
+- [records.jsonl](/sheet/records/) — what valid rows look like.
+- [Edit permissions](/sheet/editable-by/) — patterns and edge cases for
+  `x-editable-by`.
+- [Reference: contract.yaml spec](/reference/contract-spec/) — the exhaustive
+  list of every accepted attribute.

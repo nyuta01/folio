@@ -1,0 +1,73 @@
+---
+title: folio serve
+description: Start the Folio Viewer (alias for folio-viewer serve).
+---
+
+```text
+folio serve <SHEET>
+  [--host 127.0.0.1] [--port 3000]
+  [--actor <actor>]
+  [--static-dir <path>]
+```
+
+`folio serve` is a thin alias for `folio-viewer serve`. It opens the
+[Viewer](/viewer/overview/) — a local-only FastAPI + React app — against
+the given sheet.
+
+## Defaults
+
+| Flag | Default | Notes |
+|---|---|---|
+| `--host` | `127.0.0.1` | Local-only by design ([§19.1](/viewer/overview/)). |
+| `--port` | `3000` | |
+| `--actor` | none | Required for the inline editor. |
+| `--static-dir` | auto | Serves `viewer/dist/` if it exists alongside the working directory. |
+
+## Example
+
+```bash
+folio serve ./customers --port 3000 --actor agent:human
+```
+
+Then open [http://127.0.0.1:3000/](http://127.0.0.1:3000/).
+
+## What you'll see
+
+- **Records tab** — the sheet's grid with type chips, provenance badges
+  per cell, and inline editing for fields whose `x-editable-by` matches
+  `--actor`.
+- **Dashboard tab** — per-target counts and a "Materialize all" button.
+- **History tab** — append-only timeline for one cell (click a cell on
+  records).
+
+## Why a separate `folio serve` alias?
+
+The same command lives at `folio-viewer serve`. We register it on the main
+`folio` CLI for discoverability — `folio --help` lists it next to the
+other verbs.
+
+The implementation lazy-imports `folio_viewer.cli` so the SDK doesn't pay
+the FastAPI import cost for unrelated verbs. Drift-check pins
+`fastapi`/`uvicorn` to `src/folio_viewer/` only.
+
+## Frontend not yet built?
+
+If `viewer/dist/` doesn't exist, the API works on its own — handy for
+agent integrations, scripts, and curl. To get the UI, build the React
+frontend once:
+
+```bash
+cd viewer
+npm install
+npm run build
+```
+
+Then re-run `folio serve` and the same URL serves both the API and the
+UI.
+
+## See also
+
+- [Viewer overview](/viewer/overview/) — full architecture.
+- [REST API](/viewer/rest-api/) — every endpoint.
+- [Events (SSE)](/viewer/events/) — `/events` stream of materialize
+  lifecycle frames.

@@ -1,0 +1,104 @@
+---
+title: MCP server
+description: folio-mcp — a FastMCP server that exposes the Python SDK as nine MCP tools.
+---
+
+`folio-mcp` is a Model Context Protocol server. It mounts the Python SDK
+under nine MCP tools so any MCP-compatible runtime — Claude Desktop, IDE
+plugins, custom agent loops — can read and write Folio sheets through a
+standard transport.
+
+## Quickstart
+
+```bash
+folio-mcp serve --root ./sheets --actor agent:hosted
+```
+
+By default this serves over **stdio** — the MCP transport for desktop
+clients. To serve over HTTP (e.g. for a remote agent runtime):
+
+```bash
+folio-mcp serve --root ./sheets --actor agent:hosted \
+  --transport http --bind 127.0.0.1 --port 3001
+```
+
+`--root` is a directory that contains one or more sheet sub-directories.
+Tool calls take a `sheet_path` argument that is resolved against the root;
+paths that escape the root are rejected.
+
+## What gets exposed
+
+Nine tools, all wrappers over the SDK ([Tools reference](/mcp/tools/)):
+
+| Tool | SDK |
+|---|---|
+| `get_contract` | `sheet.get_contract` |
+| `query` | `sheet.query` |
+| `list_records` | `sheet.list_records` (supports `format=toon`) |
+| `get_record` | `sheet.get_record` |
+| `upsert_records` | `sheet.upsert_records` |
+| `delete_records` | `sheet.delete_records` |
+| `materialize` | `sheet.materialize` |
+| `materialization_status` | `sheet.materialization_status` |
+| `provenance` | `sheet.provenance` |
+
+Each tool has a "when-to-use" docstring so the model picks the right one
+without further prompting.
+
+## Path safety
+
+Every tool's `sheet_path` is resolved with `Path.resolve()` against
+`--root`. Any resolved path that doesn't live under the root is rejected
+with `FolioError`. There's no symlink trap because Python's
+`Path.resolve()` follows symlinks before the prefix check.
+
+## Actor
+
+`--actor` sets the **default** actor for write tools when the caller doesn't
+pass one explicitly. For read tools (`get_contract`, `query`,
+`list_records`, …), no actor is needed.
+
+## AI client injection
+
+The `materialize` tool routes through `Sheet.materialize`, which honors
+the `ai_client` argument from the SDK. To inject a stub (or a custom
+adapter) at server-start time:
+
+```python
+from folio_mcp import build_server
+from folio._ai_kind import StubAIClient
+
+stub = StubAIClient()
+stub.prepare("Industry of Acme", "Manufacturing")
+
+server = build_server(
+    root="./sheets",
+    default_actor="agent:hosted",
+    ai_client=stub,
+)
+server.run(transport="stdio")
+```
+
+That's the same code the offline MCP smoke test uses — so the in-process
+test path matches the production path.
+
+## Comparison with the CLI
+
+| Aspect | `folio` CLI | `folio-mcp` |
+|---|---|---|
+| Transport | shell stdin/stdout (one verb at a time) | MCP (stdio or HTTP) |
+| Caller | humans, scripts | MCP-compatible agents |
+| Actor | `--actor` per call | `--actor` server-default + per-call override |
+| Output | JSON | Structured MCP results |
+| Stateful | no | session-scoped (one client per stdio process) |
+
+If you're reaching for the CLI from an agent loop, you almost certainly
+want MCP instead. It avoids subprocess overhead, gives the model
+structured types per tool, and integrates with the rest of the agent's
+toolbox.
+
+## See also
+
+- [Tools](/mcp/tools/) — the nine tools, with arguments and return shapes.
+- [Deploy](/mcp/deploy/) — Claude Desktop config, HTTP transport, security
+  notes.
