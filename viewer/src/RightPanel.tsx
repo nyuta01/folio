@@ -1,7 +1,11 @@
 import { useEffect, useState } from "react";
 import { Icons } from "./Icons";
 import { FieldBadge, TypeChip } from "./RecordsGrid";
-import { getProvenanceHistory } from "./api";
+import {
+  getProvenanceHistory,
+  type AddPropertyInput,
+  type UpdatePropertyInput,
+} from "./api";
 import type {
   ActivityEntry,
   Contract,
@@ -44,6 +48,12 @@ interface RightPanelProps {
   activeTab: TabId;
   setActiveTab: (t: TabId) => void;
   onSimulate: () => void;
+  onAddField: (input: AddPropertyInput) => Promise<void>;
+  onUpdateField: (
+    name: string,
+    changes: UpdatePropertyInput,
+  ) => Promise<string | null>;
+  onDeleteField: (name: string) => Promise<void>;
 }
 
 export function RightPanel({
@@ -59,6 +69,9 @@ export function RightPanel({
   activeTab,
   setActiveTab,
   onSimulate,
+  onAddField,
+  onUpdateField,
+  onDeleteField,
 }: RightPanelProps) {
   const activeDef = TABS.find((t) => t.id === activeTab) ?? TABS[0];
 
@@ -86,6 +99,7 @@ export function RightPanel({
                   setInspectorField(name);
                   setActiveTab("inspector");
                 }}
+                onAddField={onAddField}
               />
             )}
             {activeTab === "activity" && (
@@ -101,6 +115,8 @@ export function RightPanel({
                 contract={contract}
                 records={records}
                 derivations={derivations}
+                onUpdateField={onUpdateField}
+                onDeleteField={onDeleteField}
               />
             )}
           </div>
@@ -140,16 +156,41 @@ function SchemaTab({
   records,
   derivations,
   onPickField,
+  onAddField,
 }: {
   contract: Contract;
   records: Record<string, unknown>[];
   derivations: Record<string, { kind: string; targets?: string[] }>;
   onPickField: (name: string) => void;
+  onAddField: (input: AddPropertyInput) => Promise<void>;
 }) {
   const props = contract.schema[0].properties;
   const total = records.length;
   const nullCount = (name: string) =>
     records.filter((r) => r[name] == null).length;
+
+  const [adding, setAdding] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newType, setNewType] = useState<string>("string");
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    const name = newName.trim();
+    if (!name) return;
+    setError(null);
+    try {
+      await onAddField({
+        name,
+        logicalType: newType,
+        editable_by: ["agent:human"],
+      });
+      setNewName("");
+      setNewType("string");
+      setAdding(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "add failed");
+    }
+  };
 
   return (
     <div className="rp-pad">
@@ -171,7 +212,57 @@ function SchemaTab({
 
       <div className="rp-section-title">
         Fields <span className="muted mono small">{props.length}</span>
+        <span className="rp-tabs-spacer" />
+        <button
+          className="ghost-btn small"
+          onClick={() => setAdding((v) => !v)}
+        >
+          <Icons.Plus size={10} /> Add field
+        </button>
       </div>
+
+      {adding && (
+        <div className="add-field-form">
+          <input
+            className="mono"
+            placeholder="field_name"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value.replace(/[^a-z0-9_]/gi, "_").toLowerCase())}
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submit();
+              if (e.key === "Escape") setAdding(false);
+            }}
+          />
+          <select
+            className="mono"
+            value={newType}
+            onChange={(e) => setNewType(e.target.value)}
+          >
+            {[
+              "string",
+              "integer",
+              "number",
+              "boolean",
+              "date",
+              "timestamp",
+              "array",
+              "object",
+            ].map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+          <button className="apply-btn" onClick={submit} disabled={!newName.trim()}>
+            Add
+          </button>
+          <button className="icon-btn" onClick={() => setAdding(false)} title="Cancel">
+            <Icons.X size={11} />
+          </button>
+          {error && <div className="add-field-err mono small err">{error}</div>}
+        </div>
+      )}
       <ul className="fieldlist">
         {props.map((p) => {
           const nulls = nullCount(p.name);
@@ -405,11 +496,18 @@ function InspectorTab({
   contract,
   records,
   derivations,
+  onUpdateField,
+  onDeleteField,
 }: {
   fieldName: string | null;
   contract: Contract;
   records: Record<string, unknown>[];
   derivations: Record<string, { kind: string; targets?: string[]; model?: string; inputs?: string[]; prompt?: string }>;
+  onUpdateField: (
+    name: string,
+    changes: UpdatePropertyInput,
+  ) => Promise<string | null>;
+  onDeleteField: (name: string) => Promise<void>;
 }) {
   if (!fieldName) {
     return (
@@ -439,12 +537,15 @@ function InspectorTab({
     .sort((a, b) => b[1] - a[1])
     .slice(0, 12);
 
+  const editable = !field.primaryKey && !field["x-derived"];
   return (
     <div className="rp-pad">
-      <div className="ins-head-display">
-        <div className="ins-title">{field.name}</div>
-        <div className="ins-sub">{field.description || "—"}</div>
-      </div>
+      <InspectorEditableHeader
+        field={field}
+        editable={editable}
+        onUpdateField={onUpdateField}
+        onDeleteField={onDeleteField}
+      />
       <div className="ins-row">
         <FieldBadge prop={field} />
         <TypeChip t={field.logicalType} />
@@ -453,6 +554,12 @@ function InspectorTab({
           <span className="pill mono" data-tone="ai">derived</span>
         )}
       </div>
+      {editable && (
+        <InspectorEditableProps
+          field={field}
+          onUpdateField={onUpdateField}
+        />
+      )}
 
       {field["x-derived"] && deriv && (
         <>
@@ -536,6 +643,145 @@ function InspectorTab({
       {!field["x-derived"] && fieldName && (
         <FieldHistorySection fieldName={fieldName} records={records} />
       )}
+    </div>
+  );
+}
+
+function InspectorEditableHeader({
+  field,
+  editable,
+  onUpdateField,
+  onDeleteField,
+}: {
+  field: import("./types").ContractProperty;
+  editable: boolean;
+  onUpdateField: (
+    name: string,
+    changes: UpdatePropertyInput,
+  ) => Promise<string | null>;
+  onDeleteField: (name: string) => Promise<void>;
+}) {
+  const [name, setName] = useState(field.name);
+  const [desc, setDesc] = useState(field.description || "");
+  useEffect(() => {
+    setName(field.name);
+    setDesc(field.description || "");
+  }, [field.name, field.description]);
+
+  const commitName = async () => {
+    const next = name.trim();
+    if (!next || next === field.name) {
+      setName(field.name);
+      return;
+    }
+    const result = await onUpdateField(field.name, { new_name: next });
+    if (!result) setName(field.name);
+  };
+  const commitDesc = async () => {
+    if (desc === (field.description || "")) return;
+    await onUpdateField(field.name, { description: desc || null });
+  };
+
+  if (!editable) {
+    return (
+      <div className="ins-head-display">
+        <div className="ins-title">{field.name}</div>
+        <div className="ins-sub">{field.description || "—"}</div>
+      </div>
+    );
+  }
+  return (
+    <div className="ins-head-display">
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <input
+          className="ins-title-input mono"
+          value={name}
+          onChange={(e) =>
+            setName(e.target.value.replace(/[^a-z0-9_]/gi, "_").toLowerCase())
+          }
+          onBlur={commitName}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            if (e.key === "Escape") {
+              setName(field.name);
+              (e.target as HTMLInputElement).blur();
+            }
+          }}
+        />
+        <button
+          className="icon-btn"
+          onClick={() => {
+            if (confirm(`Delete field "${field.name}"?`)) onDeleteField(field.name);
+          }}
+          title="Delete field"
+          style={{ color: "var(--err)" }}
+        >
+          <Icons.X size={12} />
+        </button>
+      </div>
+      <input
+        className="ins-sub-input"
+        value={desc}
+        placeholder="add description…"
+        onChange={(e) => setDesc(e.target.value)}
+        onBlur={commitDesc}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+          if (e.key === "Escape") {
+            setDesc(field.description || "");
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
+      />
+    </div>
+  );
+}
+
+function InspectorEditableProps({
+  field,
+  onUpdateField,
+}: {
+  field: import("./types").ContractProperty;
+  onUpdateField: (
+    name: string,
+    changes: UpdatePropertyInput,
+  ) => Promise<string | null>;
+}) {
+  return (
+    <div className="ins-row" style={{ gap: 8 }}>
+      <label className="muted small">type</label>
+      <select
+        className="mono small"
+        value={field.logicalType}
+        onChange={(e) =>
+          onUpdateField(field.name, { logicalType: e.target.value })
+        }
+      >
+        {[
+          "string",
+          "integer",
+          "number",
+          "boolean",
+          "date",
+          "timestamp",
+          "array",
+          "object",
+        ].map((t) => (
+          <option key={t} value={t}>
+            {t}
+          </option>
+        ))}
+      </select>
+      <label className="muted small" style={{ marginLeft: 8 }}>
+        <input
+          type="checkbox"
+          checked={!!field.required}
+          onChange={(e) =>
+            onUpdateField(field.name, { required: e.target.checked })
+          }
+        />{" "}
+        required
+      </label>
     </div>
   );
 }

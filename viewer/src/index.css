@@ -941,6 +941,79 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   font-size: 11.5px;
 }
 
+/* ─── Add-field form ─────────────────────────────────────────────────── */
+.add-field-form {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 6px;
+  padding: 8px 10px;
+  margin: 6px 0;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  align-items: center;
+}
+.add-field-form input,
+.add-field-form select {
+  padding: 4px 8px;
+  background: var(--panel);
+  border: 1px solid var(--line-2);
+  border-radius: 3px;
+  font-size: 12px;
+  outline: none;
+}
+.add-field-form input:focus,
+.add-field-form select:focus {
+  border-color: var(--ink);
+}
+.add-field-form .add-field-err {
+  grid-column: 1 / -1;
+  margin-top: 4px;
+}
+
+/* Inspector editable header inputs */
+.ins-title-input {
+  display: block;
+  flex: 1;
+  font-size: 14px;
+  font-weight: 600;
+  border: 1px solid transparent;
+  background: transparent;
+  outline: none;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: "JetBrains Mono", monospace;
+}
+.ins-title-input:focus {
+  background: var(--panel-2);
+  border-color: var(--line-2);
+}
+.ins-sub-input {
+  display: block;
+  width: 100%;
+  font-size: 11.5px;
+  border: 1px solid transparent;
+  background: transparent;
+  outline: none;
+  padding: 2px 4px;
+  border-radius: 3px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.ins-sub-input:focus {
+  background: var(--panel-2);
+  border-color: var(--line-2);
+  color: var(--ink-2);
+}
+.ins-row select {
+  padding: 3px 6px;
+  background: var(--panel);
+  border: 1px solid var(--line-2);
+  border-radius: 3px;
+  font-size: 11.5px;
+  outline: none;
+}
+
 /* ─── Inspector ──────────────────────────────────────────────────────── */
 .ins-codeblock {
   background: var(--panel-2);

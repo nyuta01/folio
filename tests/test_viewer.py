@@ -286,3 +286,114 @@ def test_static_dir_mounts_when_present(tmp_path: Path, viewer_sheet: Path) -> N
         response = client.get("/")
         assert response.status_code == 200
         assert b"folio" in response.content
+
+
+# --- Contract editing -----------------------------------------------------
+
+
+def test_add_property_appends(viewer_client: TestClient) -> None:
+    token = _csrf(viewer_client)
+    response = viewer_client.post(
+        "/api/contract/properties",
+        json={"name": "tagline", "logicalType": "string", "editable_by": ["agent:test"]},
+        headers={CSRF_HEADER_NAME: token},
+    )
+    assert response.status_code == 200
+    contract = response.json()
+    names = [p["name"] for p in contract["schema"][0]["properties"]]
+    assert names[-1] == "tagline"
+
+
+def test_add_property_rejects_duplicate(viewer_client: TestClient) -> None:
+    token = _csrf(viewer_client)
+    response = viewer_client.post(
+        "/api/contract/properties",
+        json={"name": "company_name", "logicalType": "string"},
+        headers={CSRF_HEADER_NAME: token},
+    )
+    assert response.status_code == 400
+    assert response.json()["error"]["type"] == "OperationError"
+
+
+def test_update_property_renames_and_migrates_records(viewer_client: TestClient) -> None:
+    token = _csrf(viewer_client)
+    viewer_client.post(
+        "/api/contract/properties",
+        json={"name": "tagline", "logicalType": "string", "editable_by": ["agent:test"]},
+        headers={CSRF_HEADER_NAME: token},
+    )
+    viewer_client.post(
+        "/api/records",
+        json={
+            "records": [{"id": "cust_001", "tagline": "We make things"}],
+            "actor": "agent:test",
+        },
+        headers={CSRF_HEADER_NAME: token},
+    )
+    response = viewer_client.patch(
+        "/api/contract/properties/tagline",
+        json={"new_name": "slogan"},
+        headers={CSRF_HEADER_NAME: token},
+    )
+    assert response.status_code == 200
+    contract = response.json()
+    names = [p["name"] for p in contract["schema"][0]["properties"]]
+    assert "slogan" in names
+    assert "tagline" not in names
+
+    listing = viewer_client.get("/api/records").json()
+    one = next(r for r in listing["records"] if r["id"] == "cust_001")
+    assert "slogan" in one
+    assert "tagline" not in one
+
+
+def test_update_property_rejects_rename_when_referenced(
+    viewer_client: TestClient,
+) -> None:
+    token = _csrf(viewer_client)
+    response = viewer_client.patch(
+        "/api/contract/properties/company_name",
+        json={"new_name": "company_legal_name"},
+        headers={CSRF_HEADER_NAME: token},
+    )
+    assert response.status_code == 400
+    assert "x-inputs" in response.json()["error"]["message"]
+
+
+def test_update_property_rejects_pk(viewer_client: TestClient) -> None:
+    token = _csrf(viewer_client)
+    response = viewer_client.patch(
+        "/api/contract/properties/id",
+        json={"description": "new desc"},
+        headers={CSRF_HEADER_NAME: token},
+    )
+    assert response.status_code == 400
+    assert "primary-key" in response.json()["error"]["message"]
+
+
+def test_delete_property_strips_records(viewer_client: TestClient) -> None:
+    token = _csrf(viewer_client)
+    # first add a non-derived field to delete
+    viewer_client.post(
+        "/api/contract/properties",
+        json={"name": "tagline", "logicalType": "string", "editable_by": ["agent:test"]},
+        headers={CSRF_HEADER_NAME: token},
+    )
+    response = viewer_client.delete(
+        "/api/contract/properties/tagline",
+        headers={CSRF_HEADER_NAME: token},
+    )
+    assert response.status_code == 200
+    contract = response.json()
+    names = [p["name"] for p in contract["schema"][0]["properties"]]
+    assert "tagline" not in names
+
+
+def test_delete_property_refuses_derived(viewer_client: TestClient) -> None:
+    token = _csrf(viewer_client)
+    response = viewer_client.delete(
+        "/api/contract/properties/industry_tag",
+        headers={CSRF_HEADER_NAME: token},
+    )
+    assert response.status_code == 400
+    assert "derived" in response.json()["error"]["message"]

@@ -34,7 +34,7 @@ from ._cache import (
     write_cache,
 )
 from ._lock import acquire_sheet_lock
-from .contract import Contract, Property, Schema, load_contract
+from .contract import Contract, Property, Schema, load_contract, write_contract
 from .derivation import (
     AIDerivation,
     Derivation,
@@ -258,6 +258,165 @@ class Sheet:
             "deleted": deleted,
             "remaining": len(kept),
         }
+
+    # --- operation: contract editing ------------------------------------
+
+    def add_property(
+        self,
+        prop: dict[str, Any] | Property,
+        *,
+        actor: str | None = None,
+    ) -> Contract:
+        """Append a new property to the contract.
+
+        ``actor`` is logged on the lifecycle but does not gate the write —
+        contract edits are an admin operation, not a per-actor concern.
+        Returns the freshly-validated contract.
+        """
+        self._require_actor(actor, "add_property")
+        if isinstance(prop, Property):
+            prop_data = prop.model_dump(by_alias=True)
+        else:
+            prop_data = dict(prop)
+        with acquire_sheet_lock(self.path):
+            data = self._contract.model_dump(mode="json", by_alias=True)
+            existing_names = {p["name"] for p in data["schema"][0]["properties"]}
+            if prop_data.get("name") in existing_names:
+                raise OperationError(
+                    f"property already exists: {prop_data.get('name')!r}"
+                )
+            data["schema"][0]["properties"].append(prop_data)
+            new_contract = Contract.model_validate(data)
+            write_contract(self.path, new_contract)
+            self._contract = new_contract
+        return new_contract
+
+    def update_property(
+        self,
+        name: str,
+        *,
+        actor: str | None = None,
+        new_name: str | None = None,
+        logical_type: str | None = None,
+        description: str | None = None,
+        required: bool | None = None,
+        editable_by: list[str] | None = None,
+    ) -> Contract:
+        """Mutate one property. Renames also rewrite ``records.jsonl``.
+
+        Refuses primary-key changes and refuses to touch ``x-derived`` /
+        ``x-inputs`` (those are structural — edit the contract.yaml file).
+        """
+        self._require_actor(actor, "update_property")
+        with acquire_sheet_lock(self.path):
+            data = self._contract.model_dump(mode="json", by_alias=True)
+            props = data["schema"][0]["properties"]
+            idx = next(
+                (i for i, p in enumerate(props) if p["name"] == name), None
+            )
+            if idx is None:
+                raise OperationError(f"unknown property: {name!r}")
+            target = props[idx]
+            if target.get("primaryKey"):
+                raise OperationError(
+                    f"cannot edit the primary-key property {name!r} from the SDK"
+                )
+
+            renamed = False
+            if new_name is not None and new_name != name:
+                if any(p["name"] == new_name for p in props):
+                    raise OperationError(f"property already exists: {new_name!r}")
+                target["name"] = new_name
+                renamed = True
+                # If any other property depends on this field, fail loudly.
+                for other in props:
+                    if other is target:
+                        continue
+                    inputs = other.get("x-inputs") or []
+                    if name in inputs:
+                        raise OperationError(
+                            f"cannot rename {name!r}: referenced by "
+                            f"{other['name']!r} via x-inputs"
+                        )
+
+            if logical_type is not None:
+                target["logicalType"] = logical_type
+            if description is not None:
+                target["description"] = description or None
+            if required is not None:
+                target["required"] = bool(required)
+            if editable_by is not None:
+                target["x-editable-by"] = list(editable_by) or None
+
+            new_contract = Contract.model_validate(data)
+            write_contract(self.path, new_contract)
+            self._contract = new_contract
+
+            if renamed:
+                # Migrate records.jsonl: rename the key on every row.
+                existing = _records.read_records(self.records_path)
+                migrated = []
+                for row in existing:
+                    if name in row:
+                        new_row = {**row, new_name: row[name]}
+                        del new_row[name]
+                        migrated.append(new_row)
+                    else:
+                        migrated.append(row)
+                _records.atomic_write_records(self.records_path, migrated)
+
+        return new_contract
+
+    def delete_property(
+        self,
+        name: str,
+        *,
+        actor: str | None = None,
+    ) -> Contract:
+        """Remove a property. Refuses PK / derived. Strips the field from records."""
+        self._require_actor(actor, "delete_property")
+        with acquire_sheet_lock(self.path):
+            data = self._contract.model_dump(mode="json", by_alias=True)
+            props = data["schema"][0]["properties"]
+            target = next((p for p in props if p["name"] == name), None)
+            if target is None:
+                raise OperationError(f"unknown property: {name!r}")
+            if target.get("primaryKey"):
+                raise OperationError(
+                    f"cannot delete the primary-key property {name!r}"
+                )
+            if target.get("x-derived"):
+                raise OperationError(
+                    f"cannot delete derived property {name!r} from the SDK; "
+                    "remove the derivation file first"
+                )
+            for other in props:
+                if other is target:
+                    continue
+                if name in (other.get("x-inputs") or []):
+                    raise OperationError(
+                        f"cannot delete {name!r}: referenced by "
+                        f"{other['name']!r} via x-inputs"
+                    )
+
+            data["schema"][0]["properties"] = [p for p in props if p["name"] != name]
+            new_contract = Contract.model_validate(data)
+            write_contract(self.path, new_contract)
+            self._contract = new_contract
+
+            # Strip the field from every record.
+            existing = _records.read_records(self.records_path)
+            stripped = []
+            for row in existing:
+                if name in row:
+                    nr = dict(row)
+                    del nr[name]
+                    stripped.append(nr)
+                else:
+                    stripped.append(row)
+            _records.atomic_write_records(self.records_path, stripped)
+
+        return new_contract
 
     # --- operation: materialize -----------------------------------------
 

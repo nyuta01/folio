@@ -150,3 +150,74 @@ export async function materializeAll(actor: string): Promise<MaterializeEnvelope
   if (!response.ok) await unwrapError(response);
   return response.json();
 }
+
+export interface AddPropertyInput {
+  name: string;
+  logicalType?: string;
+  description?: string;
+  required?: boolean;
+  editable_by?: string[];
+}
+
+export async function addProperty(
+  prop: AddPropertyInput,
+  actor?: string,
+): Promise<Contract> {
+  const token = await csrfToken();
+  const response = await fetch("/api/contract/properties", {
+    method: "POST",
+    credentials: "include",
+    headers: {
+      "Content-Type": "application/json",
+      "X-CSRF-Token": token,
+    },
+    body: JSON.stringify({ ...prop, actor }),
+  });
+  if (!response.ok) await unwrapError(response);
+  return response.json();
+}
+
+export interface UpdatePropertyInput {
+  new_name?: string;
+  logicalType?: string;
+  description?: string | null;
+  required?: boolean;
+  editable_by?: string[];
+}
+
+export async function updateProperty(
+  name: string,
+  changes: UpdatePropertyInput,
+  actor?: string,
+): Promise<Contract> {
+  const token = await csrfToken();
+  const response = await fetch(
+    `/api/contract/properties/${encodeURIComponent(name)}`,
+    {
+      method: "PATCH",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRF-Token": token,
+      },
+      body: JSON.stringify({ ...changes, actor }),
+    },
+  );
+  if (!response.ok) await unwrapError(response);
+  return response.json();
+}
+
+export async function deleteProperty(
+  name: string,
+  actor?: string,
+): Promise<Contract> {
+  const token = await csrfToken();
+  const headers: Record<string, string> = { "X-CSRF-Token": token };
+  if (actor) headers["X-Folio-Actor"] = actor;
+  const response = await fetch(
+    `/api/contract/properties/${encodeURIComponent(name)}`,
+    { method: "DELETE", credentials: "include", headers },
+  );
+  if (!response.ok) await unwrapError(response);
+  return response.json();
+}

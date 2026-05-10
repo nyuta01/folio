@@ -73,6 +73,24 @@ class MaterializeBody(BaseModel):
     actor: str | None = None
 
 
+class AddPropertyBody(BaseModel):
+    name: str
+    logicalType: str = "string"
+    description: str | None = None
+    required: bool = False
+    editable_by: list[str] | None = None
+    actor: str | None = None
+
+
+class UpdatePropertyBody(BaseModel):
+    new_name: str | None = None
+    logicalType: str | None = None
+    description: str | None = None
+    required: bool | None = None
+    editable_by: list[str] | None = None
+    actor: str | None = None
+
+
 # --- error mapping --------------------------------------------------------
 
 
@@ -189,6 +207,53 @@ def build_app(
         _ensure_csrf_cookie(request, response, settings.csrf_token)
         sheet = _open()
         return sheet.contract.model_dump(mode="json", by_alias=True)
+
+    @app.post("/api/contract/properties")
+    def add_property(body: AddPropertyBody, request: Request) -> dict[str, Any]:
+        _check_csrf(request, settings.csrf_token)
+        actor = body.actor or settings.default_actor
+        if actor is None:
+            raise HTTPException(status_code=400, detail="actor is required")
+        prop = {
+            "name": body.name,
+            "logicalType": body.logicalType,
+        }
+        if body.description is not None:
+            prop["description"] = body.description
+        if body.required:
+            prop["required"] = True
+        if body.editable_by:
+            prop["x-editable-by"] = list(body.editable_by)
+        contract = _open(actor=actor).add_property(prop, actor=actor)
+        return contract.model_dump(mode="json", by_alias=True)
+
+    @app.patch("/api/contract/properties/{name}")
+    def update_property(
+        name: str, body: UpdatePropertyBody, request: Request
+    ) -> dict[str, Any]:
+        _check_csrf(request, settings.csrf_token)
+        actor = body.actor or settings.default_actor
+        if actor is None:
+            raise HTTPException(status_code=400, detail="actor is required")
+        contract = _open(actor=actor).update_property(
+            name,
+            actor=actor,
+            new_name=body.new_name,
+            logical_type=body.logicalType,
+            description=body.description,
+            required=body.required,
+            editable_by=body.editable_by,
+        )
+        return contract.model_dump(mode="json", by_alias=True)
+
+    @app.delete("/api/contract/properties/{name}")
+    def delete_property(name: str, request: Request) -> dict[str, Any]:
+        _check_csrf(request, settings.csrf_token)
+        actor = request.headers.get("X-Folio-Actor") or settings.default_actor
+        if actor is None:
+            raise HTTPException(status_code=400, detail="actor is required")
+        contract = _open(actor=actor).delete_property(name, actor=actor)
+        return contract.model_dump(mode="json", by_alias=True)
 
     # --- records ---------------------------------------------------------
 

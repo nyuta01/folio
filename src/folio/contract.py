@@ -113,6 +113,38 @@ class Contract(BaseModel):
         return self
 
 
+def write_contract(sheet_path: str | Path, contract: Contract) -> None:
+    """Atomically rewrite ``contract.yaml`` from a validated ``Contract``.
+
+    The contract is re-validated through Pydantic before serialization, so
+    callers can mutate the model in memory and rely on this to refuse
+    invalid intermediate states. Comments in the original file are not
+    preserved — Folio owns the file format.
+    """
+    target = Path(sheet_path) / "contract.yaml"
+    payload = contract.model_dump(mode="json", by_alias=True, exclude_defaults=False)
+    # Drop fields that default to falsy / empty so the on-disk YAML stays compact.
+    for prop in payload["schema"][0]["properties"]:
+        if prop.get("primaryKey") is False:
+            prop.pop("primaryKey", None)
+        if prop.get("required") is False:
+            prop.pop("required", None)
+        if prop.get("x-derived") is False:
+            prop.pop("x-derived", None)
+        if prop.get("x-inputs") == []:
+            prop.pop("x-inputs", None)
+        if prop.get("x-editable-by") in (None, []):
+            prop.pop("x-editable-by", None)
+        if prop.get("description") is None:
+            prop.pop("description", None)
+    if payload.get("description") is None:
+        payload.pop("description", None)
+    text = yaml.safe_dump(payload, sort_keys=False, allow_unicode=True)
+    tmp = target.with_suffix(".yaml.tmp")
+    tmp.write_text(text, encoding="utf-8")
+    tmp.replace(target)
+
+
 def load_contract(sheet_path: str | Path) -> Contract:
     """Load and validate ``<sheet_path>/contract.yaml``.
 

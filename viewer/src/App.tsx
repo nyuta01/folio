@@ -1,9 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
+import type {
+  AddPropertyInput,
+  UpdatePropertyInput,
+} from "./api";
 import { Icons } from "./Icons";
 import { ProvenancePop, RecordsGrid, SelectionBar } from "./RecordsGrid";
 import { QueryBar } from "./QueryBar";
 import { RightPanel, type TabId } from "./RightPanel";
 import {
+  addProperty,
+  deleteProperty,
   deleteRecords,
   getContract,
   getProvenance,
@@ -11,6 +17,7 @@ import {
   listRecords,
   materializeAll,
   runQuery,
+  updateProperty,
   upsertRecord,
 } from "./api";
 import { useEventStream } from "./useEventStream";
@@ -376,6 +383,136 @@ export default function App() {
     }
   };
 
+  // ─── Row add ─────────────────────────────────────────────────────────
+  const onAddRow = async () => {
+    if (!contract) return;
+    // Allocate a new id by extending the largest numeric suffix on the PK.
+    let n = records.length + 1;
+    let newId = `cust_${String(n).padStart(3, "0")}`;
+    const taken = new Set(records.map((r) => String(r[primaryKey])));
+    while (taken.has(newId)) {
+      n += 1;
+      newId = `cust_${String(n).padStart(3, "0")}`;
+    }
+    const stub: Record<string, unknown> = { [primaryKey]: newId };
+    fields.forEach((f) => {
+      if (f.name === primaryKey) return;
+      if (f.required) stub[f.name] = "";
+    });
+    try {
+      await upsertRecord(stub, actor);
+      const recs = await listRecords({ limit: 500 });
+      setRecords(recs.records);
+      addActivity({
+        id: "n" + Date.now(),
+        kind: "note",
+        actor,
+        text: `added row ${newId}`,
+        at: new Date().toISOString(),
+      });
+      setEditing({ recordId: newId, field: fields.find((f) => f.required && f.name !== primaryKey)?.name ?? primaryKey });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      addActivity({
+        id: "n" + Date.now(),
+        kind: "note",
+        actor,
+        text: `add row failed: ${msg}`,
+        at: new Date().toISOString(),
+      });
+    }
+  };
+
+  // ─── Contract editing ────────────────────────────────────────────────
+  const onAddField = async (input: AddPropertyInput) => {
+    try {
+      const next = await addProperty(input, actor);
+      setContract(next);
+      addActivity({
+        id: "f" + Date.now(),
+        kind: "note",
+        actor,
+        text: `added field ${input.name}`,
+        at: new Date().toISOString(),
+      });
+      setInspectorField(input.name);
+      setRpTab("inspector");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      addActivity({
+        id: "f" + Date.now(),
+        kind: "note",
+        actor,
+        text: `add field failed: ${msg}`,
+        at: new Date().toISOString(),
+      });
+      throw e;
+    }
+  };
+
+  const onUpdateField = async (
+    name: string,
+    changes: UpdatePropertyInput,
+  ): Promise<string | null> => {
+    try {
+      const next = await updateProperty(name, changes, actor);
+      setContract(next);
+      // If we renamed, follow the field, and refresh records.
+      const newName = changes.new_name && changes.new_name !== name ? changes.new_name : name;
+      if (changes.new_name && changes.new_name !== name) {
+        setInspectorField(changes.new_name);
+        const recs = await listRecords({ limit: 500 });
+        setRecords(recs.records);
+      }
+      addActivity({
+        id: "f" + Date.now(),
+        kind: "note",
+        actor,
+        text: `updated field ${name}${changes.new_name && changes.new_name !== name ? " → " + changes.new_name : ""}`,
+        at: new Date().toISOString(),
+      });
+      return newName;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      addActivity({
+        id: "f" + Date.now(),
+        kind: "note",
+        actor,
+        text: `update field failed: ${msg}`,
+        at: new Date().toISOString(),
+      });
+      return null;
+    }
+  };
+
+  const onDeleteField = async (name: string) => {
+    try {
+      const next = await deleteProperty(name, actor);
+      setContract(next);
+      const recs = await listRecords({ limit: 500 });
+      setRecords(recs.records);
+      addActivity({
+        id: "f" + Date.now(),
+        kind: "note",
+        actor,
+        text: `deleted field ${name}`,
+        at: new Date().toISOString(),
+      });
+      setInspectorField(null);
+      setRpTab("schema");
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      addActivity({
+        id: "f" + Date.now(),
+        kind: "note",
+        actor,
+        text: `delete field failed: ${msg}`,
+        at: new Date().toISOString(),
+      });
+      throw e;
+    }
+  };
+
   // keyboard
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -448,6 +585,11 @@ export default function App() {
               if (rpCollapsed) setRpCollapsed(false);
             }}
           />
+          <div className="grid-foot">
+            <button className="ghost-btn small" onClick={onAddRow}>
+              <Icons.Plus size={10} /> Add row
+            </button>
+          </div>
           <Statusbar
             total={records.length}
             shown={filtered.length}
@@ -469,6 +611,9 @@ export default function App() {
           activeTab={rpTab}
           setActiveTab={setRpTab}
           onSimulate={onSimulate}
+          onAddField={onAddField}
+          onUpdateField={onUpdateField}
+          onDeleteField={onDeleteField}
         />
       </div>
       {hovered && (
