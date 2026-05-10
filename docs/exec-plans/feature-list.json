@@ -324,6 +324,310 @@
       "notes": "Wired Sheet.materialize / Sheet.materialization_status / Sheet.provenance with the §10.6 envelope, dependency-ordered iteration over derivation files, cache short-circuiting, respect_human_override, force, atomic records-then-provenance writes, and failures-as-list. Added folio materialize, folio status, and folio provenance CLI verbs plus a deterministic scripts/smoke-materialize.sh that walks the §23.3 scenario through StubAIClient."
     },
     {
+      "id": "FOLIO-H-013",
+      "title": "Phase 2 product spec and backlog",
+      "priority": "P1",
+      "status": "done",
+      "owner": "agent",
+      "depends": ["FOLIO-H-012"],
+      "plan_url": "docs/exec-plans/active/FOLIO-H-013-plan.md",
+      "paths": [
+        "docs/product-specs/README.md",
+        "docs/product-specs/phase-2-scripts-and-readme-frontmatter.md",
+        "docs/exec-plans/active/FOLIO-H-013-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "AGENT_PROGRESS.md"
+      ],
+      "verification": {
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true
+      },
+      "notes": "Recorded the Phase 2 spec for reusable scripts/ runtime and README YAML frontmatter, and registered FOLIO-H-014 / FOLIO-H-015 implementation tasks."
+    },
+    {
+      "id": "FOLIO-H-014",
+      "title": "Implement Phase 2 scripts/ runtime",
+      "priority": "P2",
+      "status": "todo",
+      "owner": "agent",
+      "depends": ["FOLIO-H-013"],
+      "plan_url": null,
+      "paths": [
+        "src/folio/scripts.py",
+        "src/folio/cli.py",
+        "src/folio/sheet.py",
+        "tests/test_scripts.py",
+        "scripts/smoke-scripts.sh",
+        "Makefile",
+        "scripts/harness_check.py"
+      ],
+      "verification": {
+        "harness_check": null,
+        "drift_check": null,
+        "validate_docs": null,
+        "python_test": null,
+        "scripts_smoke": null
+      },
+      "notes": "Add scripts/ discovery (.py / .sh), runtime cache under <user-cache>/folio/<sheet-id>/runtime/ per ADR-0008, Sheet.run_script with path-traversal rejection, folio script run CLI verb, and a deterministic shell smoke."
+    },
+    {
+      "id": "FOLIO-H-015",
+      "title": "Implement Phase 2 README frontmatter",
+      "priority": "P2",
+      "status": "todo",
+      "owner": "agent",
+      "depends": ["FOLIO-H-013"],
+      "plan_url": null,
+      "paths": [
+        "src/folio/readme.py",
+        "src/folio/sheet.py",
+        "src/folio/cli.py",
+        "tests/test_readme.py"
+      ],
+      "verification": {
+        "harness_check": null,
+        "drift_check": null,
+        "validate_docs": null,
+        "python_test": null
+      },
+      "notes": "Add the Pydantic v2 frontmatter model (purpose, default_actor, optional tags/links/agent_skills), Sheet.metadata, and folio validate enhancement that surfaces frontmatter issues without blocking unless --strict is set."
+    },
+    {
+      "id": "FOLIO-H-016",
+      "title": "Phase 3 product spec and backlog",
+      "priority": "P1",
+      "status": "done",
+      "owner": "agent",
+      "depends": ["FOLIO-H-012"],
+      "plan_url": "docs/exec-plans/active/FOLIO-H-016-plan.md",
+      "paths": [
+        "docs/product-specs/README.md",
+        "docs/product-specs/phase-3-mcp-server-and-toon-output.md",
+        "docs/exec-plans/active/FOLIO-H-016-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "AGENT_PROGRESS.md"
+      ],
+      "verification": {
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true
+      },
+      "notes": "Recorded the Phase 3 spec for the MCP server (FastMCP) and TOON output, and registered FOLIO-H-017 / FOLIO-H-018 implementation tasks."
+    },
+    {
+      "id": "FOLIO-H-017",
+      "title": "Implement Phase 3 MCP server",
+      "priority": "P2",
+      "status": "todo",
+      "owner": "agent",
+      "depends": ["FOLIO-H-016"],
+      "plan_url": null,
+      "paths": [
+        "src/folio_mcp",
+        "pyproject.toml",
+        "tests/test_mcp.py",
+        "scripts/smoke-mcp.sh",
+        "Makefile",
+        "scripts/harness_check.py"
+      ],
+      "verification": {
+        "harness_check": null,
+        "drift_check": null,
+        "validate_docs": null,
+        "python_test": null,
+        "mcp_smoke": null
+      },
+      "notes": "Add the folio-mcp package with a FastMCP server exposing the nine SDK operations as MCP tools (with when-to-use guidance), per-tool Pydantic input models, in-process MCP tests, and a deterministic scripts/smoke-mcp.sh."
+    },
+    {
+      "id": "FOLIO-H-018",
+      "title": "Implement Phase 3 TOON output",
+      "priority": "P2",
+      "status": "todo",
+      "owner": "agent",
+      "depends": ["FOLIO-H-016"],
+      "plan_url": null,
+      "paths": [
+        "src/folio/_toon.py",
+        "src/folio/sheet.py",
+        "src/folio/cli.py",
+        "tests/test_toon.py"
+      ],
+      "verification": {
+        "harness_check": null,
+        "drift_check": null,
+        "validate_docs": null,
+        "python_test": null
+      },
+      "notes": "Add a thin TOON encoder for the JSON subset list_records returns, plumb format='toon' through Sheet.list_records and the folio list CLI."
+    },
+    {
+      "id": "FOLIO-H-019",
+      "title": "Phase 4 product spec and backlog",
+      "priority": "P1",
+      "status": "done",
+      "owner": "agent",
+      "depends": ["FOLIO-H-012"],
+      "plan_url": "docs/exec-plans/active/FOLIO-H-019-plan.md",
+      "paths": [
+        "docs/product-specs/README.md",
+        "docs/product-specs/phase-4-extension-kinds-and-datapackage.md",
+        "docs/exec-plans/active/FOLIO-H-019-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "AGENT_PROGRESS.md"
+      ],
+      "verification": {
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true
+      },
+      "notes": "Recorded the Phase 4 spec for extension derivation kinds (sql / http / python / cross_sheet) plus datapackage.json generation, and registered FOLIO-H-020 / FOLIO-H-021 / FOLIO-H-022 implementation tasks."
+    },
+    {
+      "id": "FOLIO-H-020",
+      "title": "Implement Phase 4 sql and http extension kinds",
+      "priority": "P2",
+      "status": "todo",
+      "owner": "agent",
+      "depends": ["FOLIO-H-019"],
+      "plan_url": null,
+      "paths": [
+        "src/folio/kinds/__init__.py",
+        "src/folio/kinds/_sql.py",
+        "src/folio/kinds/_http.py",
+        "src/folio/derivation.py",
+        "tests/test_kind_sql.py",
+        "tests/test_kind_http.py",
+        "scripts/smoke-extension-kinds.sh",
+        "Makefile",
+        "scripts/harness_check.py"
+      ],
+      "verification": {
+        "harness_check": null,
+        "drift_check": null,
+        "validate_docs": null,
+        "python_test": null,
+        "extension_kinds_smoke": null
+      },
+      "notes": "Introduce the kind registry, ship the sql and http extension kinds (with a deterministic stub HTTP transport), and add the extension-kinds smoke."
+    },
+    {
+      "id": "FOLIO-H-021",
+      "title": "Implement Phase 4 python and cross_sheet kinds",
+      "priority": "P2",
+      "status": "todo",
+      "owner": "agent",
+      "depends": ["FOLIO-H-014", "FOLIO-H-020"],
+      "plan_url": null,
+      "paths": [
+        "src/folio/kinds/_python.py",
+        "src/folio/kinds/_cross_sheet.py",
+        "tests/test_kind_python.py",
+        "tests/test_kind_cross_sheet.py"
+      ],
+      "verification": {
+        "harness_check": null,
+        "drift_check": null,
+        "validate_docs": null,
+        "python_test": null
+      },
+      "notes": "Ship the python kind (depends on Phase 2 scripts/) and the cross_sheet kind, with cross-sheet stale detection that includes the foreign sheet's records.jsonl content hash in the cache key."
+    },
+    {
+      "id": "FOLIO-H-022",
+      "title": "Implement Phase 4 datapackage.json generation",
+      "priority": "P2",
+      "status": "todo",
+      "owner": "agent",
+      "depends": ["FOLIO-H-019"],
+      "plan_url": null,
+      "paths": [
+        "src/folio/datapackage.py",
+        "src/folio/cli.py",
+        "tests/test_datapackage.py",
+        "pyproject.toml"
+      ],
+      "verification": {
+        "harness_check": null,
+        "drift_check": null,
+        "validate_docs": null,
+        "python_test": null
+      },
+      "notes": "Map the contract + records into a Frictionless Data Package descriptor per design overview §14.2, expose folio export datapackage, and validate the output against the frictionless library."
+    },
+    {
+      "id": "FOLIO-H-023",
+      "title": "Phase 5 product spec and backlog",
+      "priority": "P1",
+      "status": "done",
+      "owner": "agent",
+      "depends": ["FOLIO-H-012"],
+      "plan_url": "docs/exec-plans/active/FOLIO-H-023-plan.md",
+      "paths": [
+        "docs/product-specs/README.md",
+        "docs/product-specs/phase-5-viewer.md",
+        "docs/exec-plans/active/FOLIO-H-023-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "AGENT_PROGRESS.md"
+      ],
+      "verification": {
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true
+      },
+      "notes": "Recorded the Phase 5 spec for the local-only Viewer aligned with §19's V0..V6 stages, and registered FOLIO-H-024 / FOLIO-H-025 implementation tasks."
+    },
+    {
+      "id": "FOLIO-H-024",
+      "title": "Implement Phase 5 Viewer V0-V3",
+      "priority": "P2",
+      "status": "todo",
+      "owner": "agent",
+      "depends": ["FOLIO-H-023"],
+      "plan_url": null,
+      "paths": [
+        "src/folio_viewer",
+        "viewer",
+        "tests/test_viewer.py",
+        "scripts/smoke-viewer.sh",
+        "Makefile",
+        "scripts/harness_check.py",
+        "pyproject.toml"
+      ],
+      "verification": {
+        "harness_check": null,
+        "drift_check": null,
+        "validate_docs": null,
+        "python_test": null,
+        "viewer_smoke": null
+      },
+      "notes": "FastAPI backend + React/TanStack frontend covering V0 (read-only records), V1 (type chips), V2 (edit human-editable fields with CSRF token), and V3 (provenance hover + derivation badges)."
+    },
+    {
+      "id": "FOLIO-H-025",
+      "title": "Implement Phase 5 Viewer V4-V6",
+      "priority": "P2",
+      "status": "todo",
+      "owner": "agent",
+      "depends": ["FOLIO-H-024"],
+      "plan_url": null,
+      "paths": [
+        "src/folio_viewer",
+        "viewer",
+        "tests/test_viewer.py",
+        "scripts/smoke-viewer.sh"
+      ],
+      "verification": {
+        "harness_check": null,
+        "drift_check": null,
+        "validate_docs": null,
+        "python_test": null,
+        "viewer_smoke": null
+      },
+      "notes": "Materialize dashboard backed by StubAIClient, history view, SSE event stream, Playwright frontend smoke, and the folio serve CLI alias over folio-viewer."
+    },
+    {
       "id": "FOLIO-H-006",
       "title": "Maintain self-PDCA loop and quality feedback artifacts",
       "priority": "P1",

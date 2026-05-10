@@ -78,20 +78,22 @@ Last updated: 2026-05-10
 
 ## Next Action
 
-Phase 0 and Phase 1 are both feature-complete. No P0/P1
-implementation tasks are pending. Standing tasks remain:
+Phase 0 and Phase 1 are both feature-complete. Phases 2 through 5
+are now spec'd under `docs/product-specs/` and broken into bounded
+backlog tasks:
 
-- `FOLIO-H-006`: Self-PDCA loop maintenance. Natural next scope is a
-  semantic ADR-to-code drift check that asserts `anthropic` is
-  imported only in `AnthropicClientAdapter` (per ADR-0009) and that
-  `duckdb` and `filelock` remain in `src/folio/` (per ADR-0005 and
-  ADR-0006).
-- `FOLIO-H-007`: Permanent-fix loop maintenance. Acted on when a
-  concrete failure recurs.
-- Future phases: Phase 2 (`scripts/` + README frontmatter), Phase 3
-  (MCP + TOON), Phase 4 (extension kinds + `datapackage.json`),
-  Phase 5 (Viewer). Record a product spec under
-  `docs/product-specs/` before starting any of them.
+- Phase 2 (`FOLIO-H-014` … `FOLIO-H-015`): reusable `scripts/`
+  runtime, `Sheet.run_script`, and README YAML frontmatter.
+- Phase 3 (`FOLIO-H-017` … `FOLIO-H-018`): `folio-mcp` server (via
+  `FastMCP`) and TOON output for `list_records`.
+- Phase 4 (`FOLIO-H-020` … `FOLIO-H-022`): kind registry +
+  `sql` / `http` / `python` / `cross_sheet` extension kinds, plus
+  `datapackage.json` generation.
+- Phase 5 (`FOLIO-H-024` … `FOLIO-H-025`): the local-only
+  FastAPI + React Viewer covering stages V0 through V6.
+
+`FOLIO-H-006` and `FOLIO-H-007` remain standing tasks, acted on when
+a concrete drift signal or failure recurs.
 
 `FOLIO-H-006` and `FOLIO-H-007` remain standing tasks and should be
 acted on the moment a concrete drift signal appears.
