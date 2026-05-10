@@ -39,12 +39,21 @@ Last updated: 2026-05-10
   `src/folio/_import_kind.py` loads CSV / JSONL / JSON sources from
   inside the sheet directory and applies single- or multi-value
   mappings per record.
+- `src/folio/_cache.py` computes the RFC 8785 `input_hash` (`sha256:`
+  prefix), exposes `sha256_hex` / `sha256_file`, and persists cache
+  entries under the platformdirs-resolved
+  `<user-cache>/folio/<sheet-id>/cache/` with a two-character shard
+  prefix.
+- `src/folio/_provenance.py` provides append-only `provenance.jsonl`
+  helpers (`append_provenance`, `read_provenance`,
+  `latest_provenance`, `field_history`, `is_stale`) per §9 of the
+  design overview.
 - `make verify` runs harness shape (`harness-check`), drift detection
-  (`drift-check`), docs validation (`validate-docs`), 98 pytest cases
+  (`drift-check`), docs validation (`validate-docs`), 127 pytest cases
   (`python-test`) including atomic-write rollback, concurrent-writer
-  serialization, and the Phase 1 derivation + import-kind suites,
-  plus a deterministic CLI smoke (`cli-smoke`) that walks the §23.3
-  scenario from the design overview.
+  serialization, and the Phase 1 derivation / import-kind / cache /
+  provenance suites, plus a deterministic CLI smoke (`cli-smoke`)
+  that walks the §23.3 scenario from the design overview.
 - GitHub Actions installs dependencies via `uv sync --frozen` and runs the
   same `make verify` gate on pull requests and pushes to `main`.
 

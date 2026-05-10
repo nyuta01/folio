@@ -236,24 +236,30 @@
       "id": "FOLIO-H-010",
       "title": "Implement Phase 1 cache key and provenance",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "owner": "agent",
       "depends": ["FOLIO-H-009"],
-      "plan_url": null,
+      "plan_url": "docs/exec-plans/active/FOLIO-H-010-plan.md",
       "paths": [
+        "pyproject.toml",
+        "uv.lock",
         "src/folio/_cache.py",
         "src/folio/_provenance.py",
         "tests/test_cache.py",
         "tests/test_provenance.py",
-        "docs/design-docs/adrs"
+        "scripts/harness_check.py",
+        "docs/exec-plans/active/FOLIO-H-010-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "docs/QUALITY_SCORE.md",
+        "AGENT_PROGRESS.md"
       ],
       "verification": {
-        "harness_check": null,
-        "drift_check": null,
-        "validate_docs": null,
-        "python_test": null
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true,
+        "python_test": true
       },
-      "notes": "Add input_hash via RFC 8785 (rfc8785 package), cache root at <user-cache>/folio/<sheet-id>/cache/, append-only provenance.jsonl helpers with latest-wins read and full-history read, and stale detection across edits to the prompt body, derivation file, input value, and model id."
+      "notes": "Added compute_input_hash via RFC 8785 with sha256: prefix, sha256_hex / sha256_file helpers, the user-cache-rooted default_cache_root (per ADR-0008), shard-prefixed cache_path / read_cache / write_cache, and the append-only provenance.jsonl helpers (append_provenance, read_provenance, latest_provenance, field_history, is_stale)."
     },
     {
       "id": "FOLIO-H-011",

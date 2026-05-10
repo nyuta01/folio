@@ -20,15 +20,17 @@ Scores use a 1-5 scale:
 
 ## Current Assessment
 
-Phase 0 is feature-complete and ADR-anchored. Phase 1 has begun: the
-parsing surface (`folio.derivation`) loads `derivations/<field>.yaml`
+Phase 0 is feature-complete and ADR-anchored. Phase 1 is now
+half-implemented: `folio.derivation` parses `derivations/<field>.yaml`
 into discriminated `AIDerivation` / `ImportDerivation` models with
-field-level cycle detection and topological sort, and
-`folio._import_kind` executes CSV / JSONL / JSON imports against
-records under the sheet directory. `make verify` now runs 98 pytest
-cases plus the CLI smoke. The cache layer, provenance log, and ai
-kind driver remain ahead under `FOLIO-H-010` and `FOLIO-H-011`; the
-CLI verbs that surface them land with `FOLIO-H-012`.
+cycle detection and topological sort; `folio._import_kind` executes
+CSV / JSONL / JSON imports; `folio._cache` computes RFC 8785-canonical
+`input_hash` digests and persists cache entries under
+`<user-cache>/folio/<sheet-id>/cache/` (per ADR-0008); and
+`folio._provenance` exposes append-only `provenance.jsonl` helpers
+with latest-wins read, full-history read, and stale detection. `make
+verify` runs 127 pytest cases plus the CLI smoke. The ai kind driver
+(`FOLIO-H-011`) and the CLI verbs (`FOLIO-H-012`) are next.
 
 ## Review Cadence
 
