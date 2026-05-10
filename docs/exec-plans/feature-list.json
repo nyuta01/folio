@@ -453,23 +453,27 @@
       "id": "FOLIO-H-018",
       "title": "Implement Phase 3 TOON output",
       "priority": "P2",
-      "status": "todo",
+      "status": "done",
       "owner": "agent",
       "depends": ["FOLIO-H-016"],
-      "plan_url": null,
+      "plan_url": "docs/exec-plans/active/FOLIO-H-018-plan.md",
       "paths": [
         "src/folio/_toon.py",
         "src/folio/sheet.py",
         "src/folio/cli.py",
-        "tests/test_toon.py"
+        "tests/test_toon.py",
+        "scripts/harness_check.py",
+        "docs/exec-plans/active/FOLIO-H-018-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "AGENT_PROGRESS.md"
       ],
       "verification": {
-        "harness_check": null,
-        "drift_check": null,
-        "validate_docs": null,
-        "python_test": null
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true,
+        "python_test": true
       },
-      "notes": "Add a thin TOON encoder for the JSON subset list_records returns, plumb format='toon' through Sheet.list_records and the folio list CLI."
+      "notes": "Added a thin TOON encoder ([N]{cols}: header + comma-delimited rows, trivial scalars unquoted, JSON-encoded otherwise), plumbed format='json' | 'toon' through Sheet.list_records and folio list --format, and pinned the encoded shape in tests/test_toon.py."
     },
     {
       "id": "FOLIO-H-019",

@@ -16,7 +16,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
-from . import _ai_kind, _import_kind, _provenance, _query, _records, readme as _readme_mod, scripts as _scripts_mod
+from . import (
+    _ai_kind,
+    _import_kind,
+    _provenance,
+    _query,
+    _records,
+    _toon,
+    readme as _readme_mod,
+    scripts as _scripts_mod,
+)
 from ._cache import (
     compute_input_hash,
     default_cache_root,
@@ -101,14 +110,20 @@ class Sheet:
         limit: int = DEFAULT_LIST_LIMIT,
         cursor: str | None = None,
         params: Sequence[Any] | None = None,
+        format: str = "json",  # noqa: A002 — keeps spec naming
     ) -> dict[str, Any]:
         """List records.
 
         Returns a dict with ``records``, ``format``, ``limit``, and
-        ``next_cursor``. ``format`` is always ``"json"`` in Phase 0.
+        ``next_cursor``. ``format`` may be ``"json"`` (default) or
+        ``"toon"`` per §10.5 of the design overview.
         """
         if limit <= 0:
             raise OperationError("limit must be positive")
+        if format not in ("json", "toon"):
+            raise OperationError(
+                f"format must be 'json' or 'toon'; got {format!r}"
+            )
 
         offset = int(cursor) if cursor else 0
         if fields is not None:
@@ -129,9 +144,11 @@ class Sheet:
         has_more = len(rows) > limit
         rows = rows[:limit]
         next_cursor = str(offset + limit) if has_more else None
+
+        records: Any = _toon.encode(rows) if format == "toon" else rows
         return {
-            "records": rows,
-            "format": "json",
+            "records": records,
+            "format": format,
             "limit": limit,
             "next_cursor": next_cursor,
         }

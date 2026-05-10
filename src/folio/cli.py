@@ -141,7 +141,7 @@ def query_command(
     _emit_json(rows)
 
 
-@app.command(name="list", help="List records as a JSON envelope.")
+@app.command(name="list", help="List records as a JSON envelope (records may be json or toon).")
 @_handle_folio_errors
 def list_command(
     sheet: Path = SHEET_ARGUMENT,
@@ -166,6 +166,11 @@ def list_command(
         "--param",
         help="Positional ? parameter for --filter (repeat for multiple).",
     ),
+    format_: str = typer.Option(
+        "json",
+        "--format",
+        help="Records wire format: json (default) or toon.",
+    ),
 ) -> None:
     s = open_sheet(sheet)
     result = s.list_records(
@@ -174,6 +179,7 @@ def list_command(
         limit=limit,
         cursor=cursor,
         params=params or None,
+        format=format_,
     )
     _emit_json(result)
 
