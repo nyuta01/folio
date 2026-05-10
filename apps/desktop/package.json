@@ -5,6 +5,7 @@
   "description": "Electron wrapper for the Folio Viewer (FastAPI + React).",
   "author": {
     "name": "Folio",
+    "email": "noreply@github.com",
     "url": "https://github.com/nyuta01/folio"
   },
   "homepage": "https://github.com/nyuta01/folio",
