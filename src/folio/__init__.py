@@ -33,6 +33,7 @@ from .exceptions import (
     RecordsError,
     SheetError,
 )
+from .readme import Frontmatter, ReadmeError, load_readme_metadata, parse_frontmatter
 from .scripts import ScriptError, ScriptResult, discover_scripts
 from .sheet import Sheet, open_sheet
 
@@ -43,6 +44,7 @@ __all__ = [
     "Derivation",
     "DerivationError",
     "FolioError",
+    "Frontmatter",
     "ImportDerivation",
     "LockTimeoutError",
     "LogicalType",
@@ -51,6 +53,7 @@ __all__ = [
     "PermissionDeniedError",
     "Property",
     "QueryError",
+    "ReadmeError",
     "RecordsError",
     "Schema",
     "ScriptError",
@@ -62,7 +65,9 @@ __all__ = [
     "load_contract",
     "load_derivation",
     "load_derivations",
+    "load_readme_metadata",
     "open_sheet",
+    "parse_frontmatter",
     "topological_sort",
 ]
 

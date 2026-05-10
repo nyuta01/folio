@@ -379,23 +379,28 @@
       "id": "FOLIO-H-015",
       "title": "Implement Phase 2 README frontmatter",
       "priority": "P2",
-      "status": "todo",
+      "status": "done",
       "owner": "agent",
       "depends": ["FOLIO-H-013"],
-      "plan_url": null,
+      "plan_url": "docs/exec-plans/active/FOLIO-H-015-plan.md",
       "paths": [
+        "src/folio/__init__.py",
         "src/folio/readme.py",
         "src/folio/sheet.py",
         "src/folio/cli.py",
-        "tests/test_readme.py"
+        "tests/test_readme.py",
+        "scripts/harness_check.py",
+        "docs/exec-plans/active/FOLIO-H-015-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "AGENT_PROGRESS.md"
       ],
       "verification": {
-        "harness_check": null,
-        "drift_check": null,
-        "validate_docs": null,
-        "python_test": null
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true,
+        "python_test": true
       },
-      "notes": "Add the Pydantic v2 frontmatter model (purpose, default_actor, optional tags/links/agent_skills), Sheet.metadata, and folio validate enhancement that surfaces frontmatter issues without blocking unless --strict is set."
+      "notes": "Added Pydantic v2 Frontmatter model with required purpose / default_actor and optional tags / links / agent_skills, parse_frontmatter / load_readme_metadata helpers, Sheet.metadata lazy property, and folio validate enhancement that surfaces frontmatter problems as warnings by default and as errors with --strict."
     },
     {
       "id": "FOLIO-H-016",

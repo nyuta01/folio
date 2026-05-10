@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
-from . import _ai_kind, _import_kind, _provenance, _query, _records, scripts as _scripts_mod
+from . import _ai_kind, _import_kind, _provenance, _query, _records, readme as _readme_mod, scripts as _scripts_mod
 from ._cache import (
     compute_input_hash,
     default_cache_root,
@@ -66,6 +66,11 @@ class Sheet:
     @property
     def records_path(self) -> Path:
         return self.path / "records.jsonl"
+
+    @property
+    def metadata(self) -> _readme_mod.Frontmatter | None:
+        """Lazy-load README.md frontmatter (returns ``None`` when absent)."""
+        return _readme_mod.load_readme_metadata(self.path)
 
     @property
     def main_schema(self) -> Schema:

@@ -16,6 +16,7 @@ import typer
 
 from . import open_sheet
 from .exceptions import FolioError
+from .readme import ReadmeError
 from .scripts import SCRIPT_LANGUAGE_BY_EXTENSION, discover_scripts
 from .sheet import _default_ai_client_factory  # exposed for monkey-patching in tests
 
@@ -88,10 +89,15 @@ def _split_id_list(values: Sequence[str]) -> list[str]:
 # --- commands --------------------------------------------------------------
 
 
-@app.command(help="Validate contract.yaml and confirm records.jsonl is readable.")
+@app.command(help="Validate contract.yaml, records.jsonl, and README frontmatter.")
 @_handle_folio_errors
 def validate(
     sheet: Path = SHEET_ARGUMENT,
+    strict: bool = typer.Option(
+        False,
+        "--strict/--lenient",
+        help="Treat README frontmatter problems as errors.",
+    ),
 ) -> None:
     s = open_sheet(sheet)
     contract = s.get_contract()
@@ -103,6 +109,20 @@ def validate(
     count = int(rows[0]["n"])
     plural = "s" if count != 1 else ""
     typer.echo(f"records.jsonl is readable ({count} record{plural})")
+
+    try:
+        metadata = s.metadata
+    except ReadmeError as exc:
+        if strict:
+            raise
+        typer.echo(f"warning: README.md frontmatter: {exc}", err=True)
+        return
+
+    if metadata is not None:
+        typer.echo(
+            "README.md frontmatter is valid "
+            f"(purpose: {metadata.purpose}, default_actor: {metadata.default_actor})"
+        )
 
 
 @app.command(name="query", help="Execute DuckDB SQL against the sheet's records view.")
