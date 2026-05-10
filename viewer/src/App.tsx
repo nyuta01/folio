@@ -114,7 +114,7 @@ export default function App() {
   const [queryResult, setQueryResult] = useState<
     QueryResult | { error: string } | null
   >(null);
-  const [drawerOpen, setDrawerOpen] = useState(true);
+  const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerTab, setDrawerTab] = useState<DrawerTab>("query");
   const [history, setHistory] = useState<
     Array<{ q: string; rows: number | null; at: string }>
@@ -893,11 +893,7 @@ export default function App() {
   ]);
 
   if (!contract) {
-    return (
-      <div className="app">
-        <div className="empty">Loading sheet…</div>
-      </div>
-    );
+    return <LoadingSplash />;
   }
 
   return (
@@ -923,6 +919,7 @@ export default function App() {
         setDrawerTab={setDrawerTab}
         queryResult={queryResult}
         setQueryResult={setQueryResult}
+        sheetLabel={contract.id}
       />
       <div className={cls("body", rpCollapsed && "rp-collapsed")}>
         <main className="grid-pane">
@@ -1132,6 +1129,42 @@ function ShortcutHelp({ onClose }: { onClose: () => void }) {
             </div>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+export function LoadingSplash({
+  message = "Loading sheet…",
+  sublabel,
+}: {
+  message?: string;
+  sublabel?: string;
+} = {}) {
+  const [hint, setHint] = useState<string | null>(null);
+  useEffect(() => {
+    if (sublabel) return;
+    if (typeof window === "undefined") return;
+    const bridge = window.folioBridge;
+    if (!bridge) return;
+    bridge
+      .currentSheet()
+      .then((p) => {
+        if (p) setHint(p.split("/").pop() ?? null);
+      })
+      .catch(() => {
+        /* ignore */
+      });
+  }, [sublabel]);
+  return (
+    <div className="splash">
+      <div className="splash-card">
+        <div className="splash-mark mono">FOLIO</div>
+        <div className="splash-spinner" aria-hidden="true" />
+        <div className="splash-msg mono small">{message}</div>
+        {(sublabel ?? hint) && (
+          <div className="splash-sub mono small muted">{sublabel ?? hint}</div>
+        )}
       </div>
     </div>
   );

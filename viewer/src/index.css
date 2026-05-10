@@ -1710,3 +1710,170 @@ body.col-resizing * {
   margin-left: 0;
 }
 
+/* ── Sheet switcher (left of tab list) ───────────────────────────────── */
+.sheet-switcher-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-right: 6px;
+  padding-right: 6px;
+  border-right: 1px solid var(--line);
+  height: 100%;
+}
+.sheet-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-right: none;
+  color: var(--ink);
+  border-radius: 4px 0 0 4px;
+  cursor: pointer;
+  font-size: 11.5px;
+  max-width: 200px;
+}
+.sheet-switcher-caret {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 24px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  border-radius: 0 4px 4px 0;
+  cursor: pointer;
+  padding: 0;
+}
+.sheet-switcher-caret:hover {
+  background: var(--hover);
+  color: var(--ink);
+}
+.sheet-switcher:hover:not(.disabled):not(:disabled) {
+  background: var(--hover);
+  border-color: var(--line-2);
+}
+.sheet-switcher .mono {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sheet-switcher.disabled,
+.sheet-switcher:disabled {
+  cursor: not-allowed;
+  color: var(--muted);
+  background: var(--panel-2);
+}
+.sheet-switcher-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  z-index: 50;
+  min-width: 240px;
+  max-width: 360px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.10);
+  padding: 4px;
+}
+.ssm-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 6px 8px;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 11.5px;
+  text-align: left;
+  color: var(--ink);
+}
+.ssm-item:hover { background: var(--hover); }
+.ssm-item .kbd-tiny { margin-left: auto; }
+.ssm-recent {
+  flex-wrap: wrap;
+  align-items: baseline;
+}
+.ssm-recent-path {
+  width: 100%;
+  font-size: 10px;
+}
+.ssm-sep {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--line);
+}
+.ssm-head {
+  padding: 4px 8px 2px;
+  text-transform: uppercase;
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+}
+
+/* ── Loading splash (initial mount) ──────────────────────────────────── */
+.splash {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  width: 100vw;
+  background: var(--bg);
+}
+.splash-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 32px 40px;
+}
+.splash-mark {
+  font-size: 18px;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  color: var(--accent);
+}
+.splash-msg { color: var(--ink-2); }
+.splash-sub { font-size: 11px; }
+.splash-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid color-mix(in oklab, var(--accent) 25%, transparent);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.85s linear infinite;
+}
+
+/* ── Switch overlay (during sheet switch) ────────────────────────────── */
+.switch-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in oklab, var(--bg) 75%, transparent);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  animation: switch-fade-in 120ms ease-out;
+}
+.switch-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 18px;
+  border-radius: 6px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.10);
+}
+@keyframes switch-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+

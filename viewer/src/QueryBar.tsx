@@ -40,6 +40,7 @@ interface QueryBarProps {
   setDrawerTab: (t: DrawerTab) => void;
   queryResult: QueryResult | { error: string } | null;
   setQueryResult: (v: QueryResult | { error: string } | null) => void;
+  sheetLabel: string;
 }
 
 export function QueryBar({
@@ -63,6 +64,7 @@ export function QueryBar({
   setDrawerTab,
   queryResult,
   setQueryResult,
+  sheetLabel,
 }: QueryBarProps) {
   const [drawerH, setDrawerH] = useState(280);
   const dragRef = useRef<HTMLDivElement | null>(null);
@@ -156,6 +158,7 @@ export function QueryBar({
           />
         )}
         <div className="qdrawer-tabs">
+          <SheetSwitcher label={sheetLabel} />
           {tabs.map((t) => {
             const Ico = Icons[t.icon];
             return (
@@ -605,6 +608,153 @@ function SyntaxRef({
         </div>
       )}
     </div>
+  );
+}
+
+function SheetSwitcher({ label }: { label: string }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [switching, setSwitching] = useState<string | null>(null);
+  const [recents, setRecents] = useState<
+    Array<{ path: string; name: string }>
+  >([]);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+  const bridge = typeof window !== "undefined" ? window.folioBridge : undefined;
+
+  useEffect(() => {
+    if (!bridge || !menuOpen) return;
+    bridge.recentSheets().then(setRecents).catch(() => setRecents([]));
+  }, [bridge, menuOpen]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDoc = (e: MouseEvent) => {
+      const node = wrapRef.current;
+      if (node && !node.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    // Use mousedown so the close fires before any click handler inside the menu;
+    // contains() correctly keeps the menu open while interacting with it.
+    window.addEventListener("mousedown", onDoc);
+    return () => window.removeEventListener("mousedown", onDoc);
+  }, [menuOpen]);
+
+  if (!bridge) {
+    return (
+      <button
+        type="button"
+        className="sheet-switcher disabled"
+        title="Sheet switching is available in Folio Desktop. The browser viewer is bound to the sheet the server was started with."
+        disabled
+      >
+        <Icons.Folder size={11} />
+        <span className="mono small ellipsis">{label}</span>
+      </button>
+    );
+  }
+
+  const onOpenPicker = async () => {
+    setMenuOpen(false);
+    // Show overlay immediately. If the dialog is cancelled, hide it again.
+    // If the user picks a sheet, the new URL navigates this renderer away
+    // and the overlay state goes away with it.
+    setSwitching("Switching sheet…");
+    try {
+      const res = await bridge.openSheet();
+      if (!res?.ok) setSwitching(null);
+    } catch (err) {
+      setSwitching(null);
+      console.error("openSheet failed", err);
+    }
+  };
+
+  const onPickRecent = async (path: string) => {
+    setMenuOpen(false);
+    const name = path.split("/").pop() ?? path;
+    setSwitching(`Switching to ${name}…`);
+    try {
+      const res = await bridge.switchSheet(path);
+      if (!res?.ok) setSwitching(null);
+    } catch (err) {
+      setSwitching(null);
+      console.error("switchSheet failed", err);
+    }
+  };
+
+  return (
+    <>
+    <div className="sheet-switcher-wrap" ref={wrapRef}>
+      <button
+        type="button"
+        className="sheet-switcher"
+        onClick={onOpenPicker}
+        title="Open another sheet (⌘O)"
+      >
+        <Icons.Folder size={11} />
+        <span className="mono small ellipsis">{label}</span>
+      </button>
+      <button
+        type="button"
+        className="sheet-switcher-caret"
+        onClick={(e) => {
+          e.stopPropagation();
+          setMenuOpen((v) => !v);
+        }}
+        title="Recent sheets"
+        aria-label="Recent sheets"
+      >
+        <Icons.Chevron size={10} />
+      </button>
+      {menuOpen && (
+        <div className="sheet-switcher-menu" role="menu">
+          <button
+            type="button"
+            className="ssm-item"
+            onClick={onOpenPicker}
+            role="menuitem"
+          >
+            <Icons.Folder size={11} />
+            <span>Open Sheet…</span>
+            <span className="kbd-tiny mono small">⌘O</span>
+          </button>
+          {recents.length > 0 ? (
+            <>
+              <div className="ssm-sep" />
+              <div className="ssm-head mono small muted">Recent</div>
+              {recents.map((r) => (
+                <button
+                  key={r.path}
+                  type="button"
+                  className="ssm-item ssm-recent"
+                  onClick={() => onPickRecent(r.path)}
+                  role="menuitem"
+                  title={r.path}
+                >
+                  <span className="mono">{r.name}</span>
+                  <span className="muted small ellipsis ssm-recent-path">
+                    {r.path}
+                  </span>
+                </button>
+              ))}
+            </>
+          ) : (
+            <>
+              <div className="ssm-sep" />
+              <div className="ssm-head mono small muted">No recent sheets</div>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+    {switching && (
+      <div className="switch-overlay" role="status" aria-live="polite">
+        <div className="switch-card">
+          <div className="splash-spinner" aria-hidden="true" />
+          <div className="mono small">{switching}</div>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
 

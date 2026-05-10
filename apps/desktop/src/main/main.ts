@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, Menu, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,6 +7,7 @@ import { createServerManager, type ServerManager } from "./server-manager.js";
 
 interface Settings {
   lastSheet?: string;
+  recentSheets?: string[];
 }
 
 // dist/main/main.js → up 4 levels = repo root (dist/main → dist → desktop → apps → repo).
@@ -15,6 +16,8 @@ const repoRoot = join(here, "..", "..", "..", "..");
 const defaultStaticDir = join(repoRoot, "viewer", "dist");
 const venvBin = join(repoRoot, ".venv", "bin", "folio-viewer");
 const settingsFile = join(app.getPath("userData"), "settings.json");
+const preloadEntry = join(here, "..", "preload", "preload.cjs");
+const RECENT_LIMIT = 8;
 
 let serverManager: ServerManager | null = null;
 let mainWindow: BrowserWindow | null = null;
@@ -43,6 +46,26 @@ function writeSettings(next: Settings): void {
   } catch (err) {
     console.error("failed to persist settings", err);
   }
+}
+
+function rememberSheet(sheet: string): string[] {
+  const settings = readSettings();
+  const existing = settings.recentSheets ?? [];
+  const recent = [sheet, ...existing.filter((p) => p !== sheet)].slice(
+    0,
+    RECENT_LIMIT,
+  );
+  writeSettings({ ...settings, lastSheet: sheet, recentSheets: recent });
+  return recent;
+}
+
+function getRecentSheets(): string[] {
+  const list = readSettings().recentSheets ?? [];
+  return list.filter((p) => existsSync(p));
+}
+
+function isValidSheet(dir: string): boolean {
+  return existsSync(join(dir, "contract.yaml"));
 }
 
 function findFolioBin(): string {
@@ -122,7 +145,8 @@ async function startWithSheet(sheetPath: string): Promise<void> {
 
   serverManager = manager;
   currentSheet = sheetPath;
-  writeSettings({ lastSheet: sheetPath });
+  rememberSheet(sheetPath);
+  rebuildMenu();
 
   if (mainWindow && !mainWindow.isDestroyed()) {
     void mainWindow.loadURL(url);
@@ -145,6 +169,7 @@ function createWindow(url: string, sheetPath: string): BrowserWindow {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      preload: preloadEntry,
     },
   });
 
@@ -152,6 +177,16 @@ function createWindow(url: string, sheetPath: string): BrowserWindow {
   // overwrite our descriptive title. Block that so we keep "Folio · <sheet>".
   window.webContents.on("page-title-updated", (event) => event.preventDefault());
   window.setTitle(title);
+
+  // Surface preload + renderer console messages in our terminal — useful
+  // for diagnosing bridge / IPC issues without opening DevTools manually.
+  window.webContents.on(
+    "console-message",
+    (_event, level, message, line, sourceId) => {
+      const tag = ["log", "warn", "error"][level] ?? "info";
+      logLine(`[renderer:${tag}] ${sourceId}:${line} ${message}`);
+    },
+  );
 
   void window.loadURL(url);
 
@@ -171,8 +206,9 @@ function createWindow(url: string, sheetPath: string): BrowserWindow {
   return window;
 }
 
-function buildMenu(): void {
+function rebuildMenu(): void {
   const isMac = process.platform === "darwin";
+  const recents = getRecentSheets().filter((p) => p !== currentSheet);
   const template: Electron.MenuItemConstructorOptions[] = [
     ...(isMac
       ? ([
@@ -202,6 +238,30 @@ function buildMenu(): void {
             const sheet = await pickSheet(currentSheet ?? undefined);
             if (sheet) await startWithSheet(sheet);
           },
+        },
+        {
+          label: "Open Recent",
+          submenu:
+            recents.length === 0
+              ? [{ label: "No recent sheets", enabled: false }]
+              : [
+                  ...recents.map((p) => ({
+                    label: basename(p),
+                    sublabel: p,
+                    click: () => {
+                      void startWithSheet(p);
+                    },
+                  })),
+                  { type: "separator" as const },
+                  {
+                    label: "Clear Recent",
+                    click: () => {
+                      const settings = readSettings();
+                      writeSettings({ ...settings, recentSheets: [] });
+                      rebuildMenu();
+                    },
+                  },
+                ],
         },
         {
           label: "Reveal in Finder",
@@ -241,8 +301,39 @@ function buildMenu(): void {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+function registerIpcHandlers(): void {
+  ipcMain.handle("viewer:current-sheet", () => currentSheet);
+
+  ipcMain.handle("viewer:recent-sheets", () =>
+    getRecentSheets()
+      .filter((p) => p !== currentSheet)
+      .map((p) => ({ path: p, name: basename(p) })),
+  );
+
+  ipcMain.handle("viewer:open-sheet", async () => {
+    const sheet = await pickSheet(currentSheet ?? undefined);
+    if (sheet) {
+      await startWithSheet(sheet);
+      return { ok: true, path: sheet };
+    }
+    return { ok: false };
+  });
+
+  ipcMain.handle("viewer:switch-sheet", async (_event, target: unknown) => {
+    if (typeof target !== "string" || !existsSync(target)) {
+      return { ok: false, error: "path does not exist" };
+    }
+    if (!isValidSheet(target)) {
+      return { ok: false, error: "no contract.yaml in target directory" };
+    }
+    await startWithSheet(target);
+    return { ok: true, path: target };
+  });
+}
+
 app.whenReady().then(async () => {
-  buildMenu();
+  registerIpcHandlers();
+  rebuildMenu();
 
   let sheet: string | null = null;
   if (process.env.FOLIO_SHEET && existsSync(process.env.FOLIO_SHEET)) {
