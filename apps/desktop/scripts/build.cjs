@@ -16,11 +16,14 @@ fs.rmSync(DIST, { recursive: true, force: true });
 fs.rmSync(path.join(ROOT, "tsconfig.tsbuildinfo"), { force: true });
 
 console.log("[build] tsc -p tsconfig.json");
-execFileSync(
-  process.platform === "win32" ? "tsc.cmd" : "tsc",
-  ["-p", "tsconfig.json"],
-  { cwd: ROOT, stdio: "inherit" },
-);
+// Resolve the TypeScript compiler entry point and invoke `node` on it
+// directly. This avoids spawning a .cmd shim on Windows (which trips
+// EINVAL under strict spawn rules) and matches Unix behavior 1:1.
+const tscEntry = require.resolve("typescript/bin/tsc");
+execFileSync(process.execPath, [tscEntry, "-p", "tsconfig.json"], {
+  cwd: ROOT,
+  stdio: "inherit",
+});
 
 console.log("[build] copying preload/*.cjs → dist/preload/");
 fs.mkdirSync(PRELOAD_DST, { recursive: true });
