@@ -1,6 +1,8 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
+import { delimiter as PATH_DELIM } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createServerManager, type ServerManager } from "./server-manager.js";
@@ -72,10 +74,68 @@ function isValidSheet(dir: string): boolean {
   return existsSync(join(dir, "contract.yaml"));
 }
 
+// On macOS, GUI-launched apps inherit a minimal `PATH` that excludes the
+// directories where pipx / `uv tool install` / Homebrew put binaries.
+// Spawn the user's interactive shell once at startup to read the real PATH
+// they see in Terminal, then prepend it to process.env.PATH. No-op on
+// Windows (the launcher PATH there already covers user installs).
+function augmentPathFromShell(): void {
+  if (process.platform === "win32") return;
+  if (process.env.FOLIO_SKIP_PATH_FIX === "1") return;
+  const shell = process.env.SHELL || "/bin/zsh";
+  try {
+    const out = execFileSync(shell, ["-ilc", "echo $PATH"], {
+      encoding: "utf8",
+      timeout: 3000,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    const shellPath = out.trim();
+    if (shellPath) {
+      const current = process.env.PATH ?? "";
+      const merged = shellPath + (current ? PATH_DELIM + current : "");
+      process.env.PATH = merged;
+      logLine(`PATH augmented from ${shell}: ${shellPath}`);
+    }
+  } catch (err) {
+    logLine(
+      `PATH augmentation skipped (could not read ${shell} -ilc): ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+}
+
+function pipxOrUvCandidates(): string[] {
+  const home = app.getPath("home");
+  const exe = process.platform === "win32" ? "folio-viewer.exe" : "folio-viewer";
+  const dirs = [
+    // pipx and `uv tool install` both default to ~/.local/bin on Unix.
+    join(home, ".local", "bin"),
+    // Homebrew on Apple Silicon and Intel respectively.
+    "/opt/homebrew/bin",
+    "/usr/local/bin",
+    // Common pyenv shims.
+    join(home, ".pyenv", "shims"),
+  ];
+  if (process.platform === "win32") {
+    dirs.push(
+      join(process.env.USERPROFILE ?? home, ".local", "bin"),
+      join(process.env.APPDATA ?? "", "Python", "Scripts"),
+    );
+  }
+  return dirs.map((d) => join(d, exe));
+}
+
 function findFolioBin(): string {
   if (process.env.FOLIO_VIEWER_BIN) return process.env.FOLIO_VIEWER_BIN;
-  if (existsSync(venvBin)) return venvBin;
-  return "folio-viewer";
+  // Source-checkout shortcut: the developer ran `uv sync` and is launching
+  // from `apps/desktop/` via `npm start`. Skip it when the resolved path
+  // would point inside a packaged-app bundle.
+  if (!app.isPackaged && existsSync(venvBin)) return venvBin;
+  for (const candidate of pipxOrUvCandidates()) {
+    if (existsSync(candidate)) return candidate;
+  }
+  return "folio-viewer"; // last resort: rely on PATH lookup
 }
 
 function resolveStaticDir(): string | undefined {
@@ -146,19 +206,29 @@ async function startWithSheet(sheetPath: string): Promise<void> {
       msg.includes("not found") ||
       msg.includes("spawn failed") ||
       msg.includes("exited before ready");
+    const probedPaths = pipxOrUvCandidates();
+    const lookupLines = [
+      "  $FOLIO_VIEWER_BIN (env override)",
+      ...(app.isPackaged
+        ? []
+        : [`  ${venvBin}  (source-checkout .venv)`]),
+      ...probedPaths.map((p) => `  ${p}`),
+      "  folio-viewer  (PATH lookup)",
+    ];
     const detail = enoent
       ? [
           "The Folio Desktop app shells out to the `folio-viewer` Python CLI",
           "and could not find it on this machine.",
           "",
-          `Lookup order: FOLIO_VIEWER_BIN → ${venvBin} → PATH.`,
+          "Locations checked:",
+          ...lookupLines,
           "",
           "To install Folio:",
-          "  pipx install folio       # recommended",
+          "  pipx install folio       # recommended (lands in ~/.local/bin/)",
           "  uv tool install folio    # alternative",
           "",
-          "Or if you are running from a source checkout, `uv sync` from the",
-          "repo root creates `.venv/bin/folio-viewer` automatically.",
+          "After installing, click \"Try again\" — the app re-augments PATH from",
+          "your interactive shell at every launch, so reopening should also work.",
           "",
           `Underlying error: ${msg}`,
         ].join("\n")
@@ -378,6 +448,7 @@ function registerIpcHandlers(): void {
 }
 
 app.whenReady().then(async () => {
+  augmentPathFromShell();
   registerIpcHandlers();
   rebuildMenu();
 
