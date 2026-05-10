@@ -13,7 +13,7 @@
   "type": "module",
   "main": "./dist/main/main.js",
   "scripts": {
-    "build": "rm -rf dist tsconfig.tsbuildinfo && tsc -p tsconfig.json && mkdir -p dist/preload && cp src/preload/*.cjs dist/preload/",
+    "build": "node scripts/build.cjs",
     "check": "tsc -p tsconfig.json --noEmit",
     "clean": "rm -rf dist node_modules out",
     "start": "electron dist/main/main.js",
