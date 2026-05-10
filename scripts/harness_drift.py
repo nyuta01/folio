@@ -221,6 +221,60 @@ if feature_list is not None and isinstance(feature_list.get("tasks"), list):
     validate_quality_score(tasks)
 
 
+def validate_adr_anchored_invariants() -> None:
+    """Reject silent drift away from ADR-anchored implementation choices."""
+    src_dir = ROOT / "src" / "folio"
+    if not src_dir.is_dir():
+        return
+
+    src_files = sorted(src_dir.rglob("*.py"))
+
+    # ADR-0009: anthropic must be imported only in _ai_kind.py.
+    anthropic_pattern = re.compile(
+        r"^\s*(import\s+anthropic|from\s+anthropic\b)", re.MULTILINE
+    )
+    for path in src_files:
+        if path.name == "_ai_kind.py":
+            continue
+        text = path.read_text(encoding="utf-8")
+        if anthropic_pattern.search(text):
+            fail(
+                f"{path.relative_to(ROOT)}: anthropic must be imported only "
+                "in src/folio/_ai_kind.py per ADR-0009"
+            )
+
+    # ADR-0005: DuckDB must remain in use somewhere under src/folio/.
+    if not _any_module_imports(src_files, "duckdb"):
+        fail("ADR-0005 anchor: no module under src/folio/ imports duckdb")
+
+    # ADR-0006: filelock must remain in use somewhere under src/folio/.
+    if not _any_module_imports(src_files, "filelock"):
+        fail("ADR-0006 anchor: no module under src/folio/ imports filelock")
+
+    # ADR-0008: sample sheets under tests/fixtures/ must not bundle env state.
+    fixtures_dir = ROOT / "tests" / "fixtures"
+    if fixtures_dir.is_dir():
+        forbidden = (".cache", ".venv", ".folio-cache", ".folio-runtime")
+        for child in fixtures_dir.rglob("*"):
+            if child.name in forbidden:
+                fail(
+                    f"{child.relative_to(ROOT)}: sample sheets must not bundle "
+                    f"{child.name} per ADR-0008"
+                )
+
+
+def _any_module_imports(paths: list[Path], module: str) -> bool:
+    pattern = re.compile(
+        rf"^\s*(import\s+{re.escape(module)}\b|from\s+{re.escape(module)}\b)",
+        re.MULTILINE,
+    )
+    for path in paths:
+        if pattern.search(path.read_text(encoding="utf-8")):
+            return True
+    return False
+
+
+validate_adr_anchored_invariants()
 validate_failure_log((feature_list or {}).get("tasks") or [])
 
 

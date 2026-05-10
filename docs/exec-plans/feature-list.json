@@ -628,6 +628,29 @@
       "notes": "Materialize dashboard backed by StubAIClient, history view, SSE event stream, Playwright frontend smoke, and the folio serve CLI alias over folio-viewer."
     },
     {
+      "id": "FOLIO-H-026",
+      "title": "Add semantic ADR-to-code drift checks",
+      "priority": "P1",
+      "status": "done",
+      "owner": "agent",
+      "depends": ["FOLIO-H-005", "FOLIO-H-011"],
+      "plan_url": "docs/exec-plans/active/FOLIO-H-026-plan.md",
+      "paths": [
+        "scripts/harness_drift.py",
+        "docs/exec-plans/active/FOLIO-H-026-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "docs/QUALITY_SCORE.md",
+        "AGENT_PROGRESS.md"
+      ],
+      "verification": {
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true,
+        "python_test": true
+      },
+      "notes": "Added validate_adr_anchored_invariants in harness_drift.py: anthropic must be imported only in _ai_kind.py (ADR-0009); duckdb (ADR-0005) and filelock (ADR-0006) must each be imported somewhere under src/folio/; tests/fixtures sheets must not bundle .cache / .venv / .folio-cache / .folio-runtime per ADR-0008."
+    },
+    {
       "id": "FOLIO-H-006",
       "title": "Maintain self-PDCA loop and quality feedback artifacts",
       "priority": "P1",
