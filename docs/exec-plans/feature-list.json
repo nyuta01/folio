@@ -61,26 +61,32 @@
       "id": "FOLIO-H-002",
       "title": "Scaffold Python package and Phase 0 contract validation",
       "priority": "P0",
-      "status": "todo",
+      "status": "done",
       "owner": "agent",
       "depends": ["FOLIO-H-001"],
-      "plan_url": null,
+      "plan_url": "docs/exec-plans/active/FOLIO-H-002-plan.md",
       "paths": [
         "pyproject.toml",
-        "src/folio",
-        "tests",
+        "src/folio/__init__.py",
+        "src/folio/contract.py",
+        "src/folio/exceptions.py",
+        "tests/__init__.py",
+        "tests/test_contract.py",
         "Makefile",
-        "docs/product-specs/phase-0-minimum-sheet.md",
+        ".github/workflows/verify.yml",
+        "scripts/harness_check.py",
+        "docs/exec-plans/active/FOLIO-H-002-plan.md",
+        "docs/exec-plans/feature-list.json",
         "docs/QUALITY_SCORE.md",
         "AGENT_PROGRESS.md"
       ],
       "verification": {
-        "harness_check": null,
-        "drift_check": null,
-        "validate_docs": null,
-        "python_test": null
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true,
+        "python_test": true
       },
-      "notes": "Add the folio Python package scaffold, Pydantic v2 contract.yaml validation, the validate operation, and a python-test target behind make verify."
+      "notes": "Added the folio Python package scaffold, Pydantic v2 contract.yaml validation, ten contract pytest cases, the python-test target, and CI uv sync wiring so make verify is reproducible across environments."
     },
     {
       "id": "FOLIO-H-003",

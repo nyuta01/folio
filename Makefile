@@ -8,6 +8,7 @@ SHELL := /bin/bash
 MAKEFLAGS += --no-print-directory
 
 PYTHON ?= python3
+UV ?= uv
 
 .DEFAULT_GOAL := help
 
@@ -31,6 +32,14 @@ drift-check: ## Validate plan/failure-log drift invariants.
 validate-docs: ## Validate design docs, ADR structure, and docs-local links.
 	@$(PYTHON) scripts/validate_docs.py
 
+.PHONY: sync
+sync: ## Install Python dependencies into the project virtual environment.
+	@$(UV) sync
+
+.PHONY: python-test
+python-test: ## Run Folio Python unit tests.
+	@$(UV) run --frozen pytest tests
+
 .PHONY: verify
-verify: harness-check drift-check validate-docs ## Run the current single verification gate.
+verify: harness-check drift-check validate-docs python-test ## Run the current single verification gate.
 	@echo "verify: ok"

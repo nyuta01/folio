@@ -12,19 +12,23 @@ Scores use a 1-5 scale:
 
 | Domain | Score | Evidence | Weak Spot | Next Task |
 |---|---:|---|---|---|
-| Harness PDCA | 3 | `make verify` runs `harness-check`, `drift-check`, and `validate-docs`; GitHub Actions runs the same gate on pull requests and pushes to `main` | No product code, no smoke tests, no semantic drift checks beyond docs structure yet | `FOLIO-H-002` |
-| Sheet Spec | 3 | Design overview defines `contract.yaml`, `records.jsonl`, derivations, provenance, cache-key, and operations end-to-end with ODCS subset alignment | Spec has no machine-checked sample sheet under `make verify` yet | `FOLIO-H-002` |
-| Phase 0 SDK | 1 | Phase 0 spec exists at `docs/product-specs/phase-0-minimum-sheet.md` | No Python package, no Pydantic v2 contract validation, no DuckDB-backed read operations yet | `FOLIO-H-002` |
+| Harness PDCA | 4 | `make verify` runs `harness-check`, `drift-check`, `validate-docs`, and `python-test`; GitHub Actions runs the same gate on pull requests and pushes to `main` after `uv sync` | Semantic design drift checks beyond docs structure are still shallow | `FOLIO-H-006` |
+| Sheet Spec | 3 | Design overview defines `contract.yaml`, `records.jsonl`, derivations, provenance, cache-key, and operations end-to-end with ODCS subset alignment | Records.jsonl conformance and derivation execution are not yet covered by an executable check | `FOLIO-H-003` |
+| Phase 0 SDK | 2 | `folio` Python package loads `contract.yaml` via Pydantic v2 with primary-key, duplicate-name, and derived-input invariants; `pytest` covers ten cases including invalid YAML and unknown extension attributes | Records.jsonl reading, query/list/get/upsert/delete, `.lock` semantics, and atomic writes are not implemented yet | `FOLIO-H-003` |
 | Phase 0 CLI | 1 | Phase 0 spec lists the required CLI verbs | No `folio` CLI binary, no Typer wiring, no CLI smoke yet | `FOLIO-H-004` |
-| Design Docs & ADRs | 4 | Canonical design docs live under `docs/design-docs/`, ADRs are indexed and templated, and `make verify` includes `validate-docs` for structure, reachability, and confirmation sections | ADR coverage is minimal (one record); semantic design-to-code drift checks will be needed once code lands | `FOLIO-H-005` |
+| Design Docs & ADRs | 4 | Canonical design docs live under `docs/design-docs/`, ADRs are indexed and templated, and `make verify` includes `validate-docs` for structure, reachability, and confirmation sections | ADR coverage is minimal (one record); semantic design-to-code drift checks will be needed as code lands | `FOLIO-H-005` |
 
 ## Current Assessment
 
-The repository has only the design document and the AI-first harness baseline.
-`make verify` validates harness shape, structured task state, active plan PDCA
-sections, failure-log status, and design-doc/ADR structure. GitHub Actions runs
-the same gate. No product code exists yet, so Phase 0 SDK and CLI scores are
-expected to climb as `FOLIO-H-002` through `FOLIO-H-004` land.
+The repository now has the AI-first harness baseline and the first product
+code: a `folio` Python package whose `load_contract` validates `contract.yaml`
+against the Phase 0 invariants in `docs/design-docs/overview.md` §6. `make
+verify` validates harness shape, structured task state, active plan PDCA
+sections, failure-log status, design-doc/ADR structure, and the Phase 0
+contract test suite. GitHub Actions runs the same gate after installing
+dependencies via `uv sync --frozen`. Records.jsonl reading, write
+operations, and the CLI are still ahead, so Phase 0 SDK and CLI scores will
+keep climbing as `FOLIO-H-003` and `FOLIO-H-004` land.
 
 ## Review Cadence
 

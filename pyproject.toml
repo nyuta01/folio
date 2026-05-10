@@ -1,0 +1,39 @@
+[project]
+name = "folio"
+version = "0.1.0"
+description = "Portable, AI-native data sheets."
+readme = "README.md"
+requires-python = ">=3.13"
+license = { text = "MIT" }
+authors = [{ name = "Folio contributors" }]
+keywords = ["data-contract", "odcs", "ai-agent", "duckdb", "jsonl"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "pydantic>=2.6",
+    "pyyaml>=6.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/nyuta01/folio"
+Documentation = "https://github.com/nyuta01/folio/blob/main/docs/design-docs/overview.md"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+]
+
+[build-system]
+requires = ["hatchling>=1.21"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/folio"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

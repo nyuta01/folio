@@ -34,6 +34,7 @@ REQUIRED_FILES = [
     "AGENT_PROGRESS.md",
     "Makefile",
     "README.md",
+    "pyproject.toml",
     ".github/workflows/verify.yml",
     "design-doc.md",
     "docs/design-docs/README.md",
@@ -54,6 +55,11 @@ REQUIRED_FILES = [
     "scripts/harness_check.py",
     "scripts/harness_drift.py",
     "scripts/validate_docs.py",
+    "src/folio/__init__.py",
+    "src/folio/contract.py",
+    "src/folio/exceptions.py",
+    "tests/__init__.py",
+    "tests/test_contract.py",
 ]
 
 for relative in REQUIRED_FILES:
@@ -173,6 +179,7 @@ if exists("Makefile"):
         r"^verify:.*harness-check",
         r"^verify:.*drift-check",
         r"^verify:.*validate-docs",
+        r"^verify:.*python-test",
     ):
         if not re.search(target_fragment, makefile, re.MULTILINE):
             fail(f"Makefile verify target must match {target_fragment}")
@@ -186,6 +193,8 @@ if exists(".github/workflows/verify.yml"):
         fail(".github/workflows/verify.yml must constrain push branches")
     for required_text in (
         "actions/setup-python@",
+        "astral-sh/setup-uv@",
+        "uv sync",
         "make verify",
     ):
         if required_text not in workflow:
