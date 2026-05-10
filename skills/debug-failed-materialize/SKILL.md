@@ -3,10 +3,10 @@ name: debug-failed-materialize
 description: >-
   Diagnose per-cell failures from `folio materialize` — read the §10.6
   envelope, locate the bad cell in `provenance.jsonl`, narrow with
-  `--target` + `--record-ids`, and re-run with `--force`. Invoke when
-  the user reports "materialize is failing", "this column came back
-  null", "AI calls timing out", or pastes a non-empty `failures[]`
-  list from the envelope.
+  a positional target + `--ids`, and re-run with `--force`. Invoke
+  when the user reports "materialize is failing", "this column came
+  back null", "AI calls timing out", or pastes a non-empty
+  `failures[]` list from the envelope.
 ---
 
 # Debug a failed `folio materialize`
@@ -28,8 +28,9 @@ This skill does **not** apply when:
 - The user has a *contract* error (`folio validate` fails). That's a
   schema problem, not a materialize problem — fix `contract.yaml` first.
 - The cells succeeded but the *values* are wrong. That's a prompt /
-  script bug — narrow with `--target` + `--record-ids` + `--force` to
-  iterate, but it's not a "failure" in the envelope sense.
+  script bug — narrow with the positional target + `--ids` +
+  `--force` to iterate, but it's not a "failure" in the envelope
+  sense.
 
 ## Recap: the §10.6 envelope
 
@@ -86,12 +87,14 @@ Every `folio materialize` run prints:
    case from step 2 — one target, one record:
 
    ```bash
-   folio materialize ./<sheet> \
+   folio materialize ./<sheet> <field> \
      --actor agent:debug \
-     --target <field> \
-     --record-ids <record_id> \
+     --ids <record_id> \
      --force
    ```
+
+   `folio materialize` takes the target as a positional argument
+   (one at a time); `--ids` is comma-separated or repeatable.
 
    `--force` ignores the cache so you re-execute even if the input
    hasn't changed. Without it, after the first failure the cell may
@@ -112,8 +115,12 @@ Every `folio materialize` run prints:
    the cell should have a fresh provenance line:
 
    ```bash
-   folio provenance ./<sheet> --record-id <id> --field <field>
+   folio provenance ./<sheet> <record_id> <field>
    ```
+
+   `folio provenance` takes the record ID and field as positional
+   arguments. Add `--history` to see every entry in the append-only
+   log instead of just the latest.
 
    You should see a new `at:` timestamp, the matching `actor:`, and
    for `ai` cells a populated `model:` and `cost_usd:` (unless the
@@ -136,10 +143,11 @@ Every `folio materialize` run prints:
 7. **Once the one-record case is healthy, broaden.**
 
    ```bash
-   folio materialize ./<sheet> --actor agent:debug --target <field>
+   folio materialize ./<sheet> <field> --actor agent:debug
    ```
 
-   If `failures` is `[]`, drop the `--target` and run everything.
+   If `failures` is `[]`, drop the positional target and run
+   everything.
 
 ## Verify
 
@@ -169,8 +177,8 @@ echo "$out"
   `cross_sheet` — all benign. The only red signal is `failures[]`.
 - **Editing a derivation file mid-debug and forgetting it invalidates
   the cache.** That's correct behaviour, but it means the next run
-  will re-execute many cells. Narrow with `--target` + `--record-ids`
-  during iteration.
+  will re-execute many cells. Narrow with a positional target +
+  `--ids` during iteration.
 - **Filing a bug against Folio for a `python` script crash.** The
   `error` field reproduces the user's script's exception verbatim;
   the bug is in their derivation, not in Folio. Repro by running the

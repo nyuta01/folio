@@ -15,6 +15,19 @@ npm package.
 
 — Nothing yet.
 
+## `folio-agent-skills` [0.1.1] — 2026-05-11
+
+### Fixed
+
+- Corrected stale CLI flag references in three SKILL.md files:
+  `folio materialize` takes the derivation target as a *positional*
+  argument (not `--target`) and filters by `--ids` (not
+  `--record-ids`); `folio provenance` takes record ID + field as
+  positional arguments (not `--record-id` / `--field`);
+  `folio list` filters by `--filter "id = ?" --param <id>` (no
+  `--record-ids` flag). Discovered during an end-to-end smoke against
+  `folio-kit==0.1.5`.
+
 ## [0.1.5] — 2026-05-11
 
 ### Added

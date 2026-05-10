@@ -1,6 +1,6 @@
 {
   "name": "folio-agent-skills",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Distributable agent skills for working with Folio (AI-native data sheets). Compatible with skills.sh and TanStack Intent.",
   "keywords": [
     "folio",

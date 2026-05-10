@@ -103,8 +103,11 @@ This skill does **not** apply when:
    ```bash
    folio validate ./customers
    folio validate ./customer-revenue
-   folio materialize ./customers --actor agent:demo --target current_revenue_usd
+   folio materialize ./customers current_revenue_usd --actor agent:demo
    ```
+
+   The derivation target is a positional argument to `folio
+   materialize`; omit it to materialize every derivation.
 
    The §10.6 envelope:
 
@@ -124,7 +127,7 @@ This skill does **not** apply when:
 ```bash
 folio validate <sheet>
 folio validate <foreign_sheet>
-folio materialize <sheet> --actor agent:demo --target <field>
+folio materialize <sheet> <field> --actor agent:demo
 ```
 
 All three should exit 0. The materialize envelope's `failures` should

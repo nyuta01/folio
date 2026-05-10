@@ -115,11 +115,14 @@ This skill does **not** apply when:
 
    ```bash
    folio validate ./customers
-   folio materialize ./customers \
+   folio materialize ./customers industry_tag \
      --actor agent:demo \
-     --target industry_tag \
-     --record-ids cust_001
+     --ids cust_001
    ```
+
+   `folio materialize` takes the target as a positional argument
+   (one at a time; omit it to materialize every derivation), and
+   `--ids` is comma-separated or repeated.
 
    The output is the §10.6 envelope:
 
@@ -130,17 +133,19 @@ This skill does **not** apply when:
 8. **Inspect the value & provenance.** Read it back:
 
    ```bash
-   folio list ./customers --record-ids cust_001
-   folio provenance ./customers --record-id cust_001 --field industry_tag
+   folio list ./customers --filter "id = ?" --param cust_001
+   folio provenance ./customers cust_001 industry_tag
    ```
 
-   The provenance line includes `model`, `input_hash`, and `cost_usd`.
+   `folio provenance` takes the record ID and field as positional
+   arguments. The provenance line includes `model`, `input_hash`,
+   and `cost_usd`.
 
 ## Verify
 
 ```bash
 folio validate <sheet>
-folio materialize <sheet> --actor agent:demo --target <field> --record-ids <one_id>
+folio materialize <sheet> <field> --actor agent:demo --ids <one_id>
 ```
 
 Both should exit 0 and the envelope's `failures` should be `[]`.
