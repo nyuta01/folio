@@ -181,6 +181,122 @@
       "notes": "Added seven accepted ADRs anchoring the Phase 0 design choices encoded in the SDK and CLI: Python as reference implementation, ODCS subset, JSONL records, DuckDB SELECT-only queries, single-writer .lock, fnmatch-based editable_by, and cache/runtime placement outside the sheet. Each ADR's Confirmation names a make verify check."
     },
     {
+      "id": "FOLIO-H-008",
+      "title": "Phase 1 product spec and backlog",
+      "priority": "P0",
+      "status": "done",
+      "owner": "agent",
+      "depends": ["FOLIO-H-005"],
+      "plan_url": "docs/exec-plans/active/FOLIO-H-008-plan.md",
+      "paths": [
+        "docs/product-specs/README.md",
+        "docs/product-specs/phase-1-derivations-and-provenance.md",
+        "docs/exec-plans/active/FOLIO-H-008-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "AGENT_PROGRESS.md"
+      ],
+      "verification": {
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true
+      },
+      "notes": "Recorded the Phase 1 executable spec (derivations, materialize, provenance, cache, CLI verbs, verification expectations, reference scenario) and registered four implementation tasks FOLIO-H-009 through FOLIO-H-012 to keep loops bounded."
+    },
+    {
+      "id": "FOLIO-H-009",
+      "title": "Implement Phase 1 derivation parsing and import kind",
+      "priority": "P0",
+      "status": "todo",
+      "owner": "agent",
+      "depends": ["FOLIO-H-008"],
+      "plan_url": null,
+      "paths": [
+        "src/folio/derivation.py",
+        "src/folio/_import_kind.py",
+        "tests/test_derivation.py",
+        "tests/fixtures/import-kind",
+        "scripts/harness_check.py",
+        "docs/product-specs/phase-1-derivations-and-provenance.md"
+      ],
+      "verification": {
+        "harness_check": null,
+        "drift_check": null,
+        "validate_docs": null,
+        "python_test": null
+      },
+      "notes": "Add Pydantic v2 models for derivations/<field>.yaml, validate-time cycle detection, the targets/output/output_schema correspondence rule, prompt vs prompt_ref collision rejection, and the import kind for CSV/JSONL/JSON sources."
+    },
+    {
+      "id": "FOLIO-H-010",
+      "title": "Implement Phase 1 cache key and provenance",
+      "priority": "P0",
+      "status": "todo",
+      "owner": "agent",
+      "depends": ["FOLIO-H-009"],
+      "plan_url": null,
+      "paths": [
+        "src/folio/_cache.py",
+        "src/folio/_provenance.py",
+        "tests/test_cache.py",
+        "tests/test_provenance.py",
+        "docs/design-docs/adrs"
+      ],
+      "verification": {
+        "harness_check": null,
+        "drift_check": null,
+        "validate_docs": null,
+        "python_test": null
+      },
+      "notes": "Add input_hash via RFC 8785 (rfc8785 package), cache root at <user-cache>/folio/<sheet-id>/cache/, append-only provenance.jsonl helpers with latest-wins read and full-history read, and stale detection across edits to the prompt body, derivation file, input value, and model id."
+    },
+    {
+      "id": "FOLIO-H-011",
+      "title": "Implement Phase 1 ai kind via the Anthropic SDK",
+      "priority": "P0",
+      "status": "todo",
+      "owner": "agent",
+      "depends": ["FOLIO-H-010"],
+      "plan_url": null,
+      "paths": [
+        "src/folio/_ai_kind.py",
+        "tests/test_ai_kind.py",
+        "pyproject.toml",
+        "docs/design-docs/adrs"
+      ],
+      "verification": {
+        "harness_check": null,
+        "drift_check": null,
+        "validate_docs": null,
+        "python_test": null
+      },
+      "notes": "Add the ai kind driver (anthropic SDK), prompt template expansion limited to {{ field }}, multi-target output_schema validation against the contract logicalType, deterministic stub mode for tests, retry policy, and cost_usd capture in provenance."
+    },
+    {
+      "id": "FOLIO-H-012",
+      "title": "Add Phase 1 CLI verbs and materialize smoke",
+      "priority": "P0",
+      "status": "todo",
+      "owner": "agent",
+      "depends": ["FOLIO-H-011"],
+      "plan_url": null,
+      "paths": [
+        "src/folio/cli.py",
+        "tests/test_cli.py",
+        "scripts/smoke-materialize.sh",
+        "Makefile",
+        "scripts/harness_check.py"
+      ],
+      "verification": {
+        "harness_check": null,
+        "drift_check": null,
+        "validate_docs": null,
+        "python_test": null,
+        "cli_smoke": null,
+        "materialize_smoke": null
+      },
+      "notes": "Add folio materialize, folio status, and folio provenance verbs over the SDK, plus a deterministic scripts/smoke-materialize.sh that walks the §23.3 scenario from the design overview using the ai-kind stub."
+    },
+    {
       "id": "FOLIO-H-006",
       "title": "Maintain self-PDCA loop and quality feedback artifacts",
       "priority": "P1",

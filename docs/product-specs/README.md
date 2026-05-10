@@ -6,7 +6,8 @@ reading the entire design overview.
 
 | Spec | Phase | Status |
 |---|---|---|
-| [Phase 0 — minimum sheet](phase-0-minimum-sheet.md) | 0 | spec only, no implementation yet |
+| [Phase 0 — minimum sheet](phase-0-minimum-sheet.md) | 0 | implemented (`FOLIO-H-002` … `FOLIO-H-005`) |
+| [Phase 1 — derivations and provenance](phase-1-derivations-and-provenance.md) | 1 | spec only; broken into `FOLIO-H-009` … `FOLIO-H-012` |
 
 Specs reference the canonical design at
 [`docs/design-docs/overview.md`](../design-docs/overview.md) for vocabulary

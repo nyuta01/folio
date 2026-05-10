@@ -40,15 +40,21 @@ Last updated: 2026-05-10
 
 ## Next Action
 
-Phase 0 is complete and ADR-anchored. Backlog priorities:
+Phase 0 is complete and ADR-anchored. Phase 1 is now spec'd at
+`docs/product-specs/phase-1-derivations-and-provenance.md` and broken
+into four bounded tasks. Start in dependency order:
 
-- `FOLIO-H-006`: Strengthen self-PDCA / quality artifacts. A natural next
-  scope is a semantic ADR-to-code drift check that asserts the
-  dependencies named in ADRs 0005 (`duckdb`) and 0006 (`filelock`)
-  remain in `src/folio/`, and that no sample sheet under `tests/` writes
-  to `<sheet>/.cache/` per ADR-0008.
-- Begin Phase 1 (derivations + provenance + cache layer) once a new
-  product spec under `docs/product-specs/` is recorded.
+- `FOLIO-H-009`: Pydantic models for `derivations/<field>.yaml`,
+  validate-time cycle detection, and the `import` kind.
+- `FOLIO-H-010`: `input_hash` (RFC 8785) + cache layer +
+  `provenance.jsonl` helpers.
+- `FOLIO-H-011`: `ai` kind via the `anthropic` SDK with deterministic
+  stub mode.
+- `FOLIO-H-012`: CLI verbs (`materialize`, `status`, `provenance`) +
+  deterministic offline smoke.
+
+`FOLIO-H-006` and `FOLIO-H-007` remain standing tasks and should be
+acted on the moment a concrete drift signal appears.
 
 ## Open Notes
 
