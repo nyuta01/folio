@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Icons } from "./Icons";
 import { FieldBadge, TypeChip } from "./RecordsGrid";
 import {
@@ -11,6 +11,7 @@ import type {
   Contract,
   ProvenanceEntry,
 } from "./types";
+import type { AgentAvailability } from "./folio-bridge";
 
 const cls = (...xs: Array<string | false | null | undefined>) =>
   xs.filter(Boolean).join(" ");
@@ -31,11 +32,12 @@ const fmtCost = (n: number) => "$" + n.toFixed(4);
 // (e.g. legacy persisted UI state) — it's coerced back to `schema`
 // inside the panel, since the inspector now lives as a nested detail
 // view inside the Schema tab.
-export type TabId = "schema" | "activity" | "inspector";
+export type TabId = "schema" | "activity" | "chat" | "inspector";
 
 const TABS: Array<{ id: TabId; label: string; icon: keyof typeof Icons }> = [
   { id: "schema", label: "Schema", icon: "Cell" },
   { id: "activity", label: "Activity", icon: "Sparkle" },
+  { id: "chat", label: "Chat", icon: "Bot" },
 ];
 
 interface RightPanelProps {
@@ -163,6 +165,7 @@ export function RightPanel({
                   onSimulate={onSimulate}
                 />
               )}
+              {normalisedTab === "chat" && <ChatTab />}
             </div>
           </div>
         </div>
@@ -878,5 +881,261 @@ function FieldHistorySection({
         ))}
       </div>
     </>
+  );
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// Chat tab — drives a coding agent (Claude Code today; Codex / Aider later)
+// over the Electron preload bridge. The bridge is only present inside the
+// Folio Desktop shell; when running as a plain browser tab the tab shows
+// a "Desktop only" message.
+// ───────────────────────────────────────────────────────────────────────────
+
+type ChatTurn =
+  | { role: "user"; text: string }
+  | { role: "agent"; text: string; sessionId: string; stderr?: string; done: boolean; error?: string | null; exitCode?: number | null };
+
+function ChatTab() {
+  const bridge = (typeof window !== "undefined" && window.folioBridge?.agents) || null;
+  const [agents, setAgents] = useState<AgentAvailability[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState<string>("claude-code");
+  const [turns, setTurns] = useState<ChatTurn[]>([]);
+  const [draft, setDraft] = useState("");
+  const [running, setRunning] = useState<string | null>(null); // active sessionId
+  const [hasTurnedOnce, setHasTurnedOnce] = useState(false);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to the bottom on new chunks.
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: "end" });
+  }, [turns]);
+
+  // Probe available agents on mount.
+  useEffect(() => {
+    if (!bridge) return;
+    bridge.list().then((list) => {
+      setAgents(list);
+      const firstAvail = list.find((a) => a.available)?.id;
+      if (firstAvail) setSelectedAgent(firstAvail);
+    });
+  }, [bridge]);
+
+  // Subscribe to streaming events for the lifetime of the tab. The
+  // handlers append to whichever agent turn matches `sessionId`.
+  useEffect(() => {
+    if (!bridge) return;
+    const offChunk = bridge.onChunk(({ sessionId, stream, data }) => {
+      setTurns((cur) => {
+        const i = cur.findIndex((t) => t.role === "agent" && t.sessionId === sessionId);
+        if (i < 0) return cur;
+        const next = cur.slice();
+        const t = next[i] as Extract<ChatTurn, { role: "agent" }>;
+        if (stream === "stdout") {
+          next[i] = { ...t, text: t.text + data };
+        } else {
+          next[i] = { ...t, stderr: (t.stderr ?? "") + data };
+        }
+        return next;
+      });
+    });
+    const offEnd = bridge.onEnd(({ sessionId, exitCode, error }) => {
+      setTurns((cur) =>
+        cur.map((t) =>
+          t.role === "agent" && t.sessionId === sessionId
+            ? { ...t, done: true, exitCode, error }
+            : t,
+        ),
+      );
+      setRunning((cur) => (cur === sessionId ? null : cur));
+    });
+    return () => {
+      offChunk();
+      offEnd();
+    };
+  }, [bridge]);
+
+  if (!bridge) {
+    return (
+      <div className="rp-pad">
+        <div className="rp-section-title">Chat</div>
+        <p className="muted small">
+          The chat panel runs coding agents on the sheet's directory. It needs
+          access to the host shell and is therefore <strong>Folio Desktop
+          only</strong> — the standalone <code>folio serve</code> viewer can't
+          spawn binaries.
+        </p>
+        <p className="muted small">
+          Launch the desktop app and reopen this sheet to use it.
+        </p>
+      </div>
+    );
+  }
+
+  const send = async () => {
+    const prompt = draft.trim();
+    if (!prompt || running) return;
+    const spec = agents.find((a) => a.id === selectedAgent);
+    if (!spec?.available) return;
+
+    setDraft("");
+    setTurns((cur) => [...cur, { role: "user", text: prompt }]);
+
+    const result = await bridge.run({
+      agentId: selectedAgent,
+      prompt,
+      isFollowup: hasTurnedOnce,
+    });
+    if (!result.ok) {
+      setTurns((cur) => [
+        ...cur,
+        {
+          role: "agent",
+          sessionId: "err-" + Date.now(),
+          text: "",
+          done: true,
+          error: result.error,
+          exitCode: null,
+        },
+      ]);
+      return;
+    }
+    setRunning(result.sessionId);
+    setHasTurnedOnce(true);
+    setTurns((cur) => [
+      ...cur,
+      { role: "agent", sessionId: result.sessionId, text: "", done: false },
+    ]);
+  };
+
+  const stop = () => {
+    if (running) bridge.stop({ sessionId: running });
+  };
+
+  const selectedSpec = agents.find((a) => a.id === selectedAgent);
+  const canSend = !!selectedSpec?.available && !running && draft.trim().length > 0;
+
+  return (
+    <div className="chat-tab">
+      <div className="chat-header rp-pad">
+        <div className="chat-pickrow">
+          <label className="muted small" htmlFor="chat-agent">agent</label>
+          <select
+            id="chat-agent"
+            className="mono small"
+            value={selectedAgent}
+            onChange={(e) => setSelectedAgent(e.target.value)}
+            disabled={!!running}
+          >
+            {agents.map((a) => (
+              <option key={a.id} value={a.id} disabled={!a.available}>
+                {a.label}
+                {a.available ? "" : " (not installed)"}
+              </option>
+            ))}
+          </select>
+          {selectedSpec?.version && (
+            <span className="muted small mono">{selectedSpec.version}</span>
+          )}
+        </div>
+        {selectedSpec && !selectedSpec.available && (
+          <div className="chat-install-hint muted small">
+            {selectedSpec.installHint ?? "binary not on $PATH"}
+          </div>
+        )}
+        {hasTurnedOnce && (
+          <button
+            className="ghost-btn small"
+            onClick={() => {
+              setTurns([]);
+              setHasTurnedOnce(false);
+            }}
+            disabled={!!running}
+            title="Start a new conversation"
+          >
+            <Icons.Plus size={10} /> New chat
+          </button>
+        )}
+      </div>
+
+      <div className="chat-stream">
+        {turns.length === 0 && (
+          <div className="chat-empty muted small">
+            Send a message to {selectedSpec?.label ?? "the agent"}. It runs in
+            this sheet's directory and can read / edit files there.
+          </div>
+        )}
+        {turns.map((t, i) => (
+          <ChatBubble key={i} turn={t} />
+        ))}
+        <div ref={bottomRef} />
+      </div>
+
+      <div className="chat-composer">
+        <textarea
+          className="mono"
+          placeholder={
+            selectedSpec?.available
+              ? "ask the agent…  (⌘/Ctrl + Enter to send)"
+              : "agent not installed"
+          }
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              send();
+            }
+          }}
+          disabled={!selectedSpec?.available || !!running}
+          rows={3}
+        />
+        <div className="chat-composer-actions">
+          {running ? (
+            <button className="ghost-btn small" onClick={stop}>
+              <Icons.X size={10} /> Stop
+            </button>
+          ) : (
+            <button
+              className="apply-btn"
+              onClick={send}
+              disabled={!canSend}
+              title="Send (⌘/Ctrl + Enter)"
+            >
+              Send
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChatBubble({ turn }: { turn: ChatTurn }) {
+  if (turn.role === "user") {
+    return (
+      <div className="chat-bubble chat-user">
+        <div className="chat-bubble-text">{turn.text}</div>
+      </div>
+    );
+  }
+  return (
+    <div className="chat-bubble chat-agent">
+      {turn.text && <div className="chat-bubble-text">{turn.text}</div>}
+      {!turn.done && !turn.text && (
+        <div className="chat-typing muted small">…</div>
+      )}
+      {turn.stderr && (
+        <details className="chat-stderr">
+          <summary className="muted small">stderr</summary>
+          <pre className="mono small">{turn.stderr}</pre>
+        </details>
+      )}
+      {turn.done && turn.error && (
+        <div className="chat-error err small">⚠ {turn.error}</div>
+      )}
+      {turn.done && turn.exitCode != null && turn.exitCode !== 0 && !turn.error && (
+        <div className="muted small">exited {turn.exitCode}</div>
+      )}
+    </div>
   );
 }

@@ -6,6 +6,7 @@ import { delimiter as PATH_DELIM } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createServerManager, type ServerManager } from "./server-manager.js";
+import * as agents from "./agents.js";
 
 interface Settings {
   lastSheet?: string;
@@ -516,6 +517,49 @@ function registerIpcHandlers(): void {
     await startWithSheet(target);
     return { ok: true, path: target };
   });
+
+  // Coding-agent registry. Implementation lives in `./agents.ts`; this
+  // file just glues the IPC channels to it. Adding Codex / Aider later
+  // is a registry-only change.
+  ipcMain.handle("agents:list", async () => agents.listAgents());
+
+  ipcMain.handle(
+    "agents:run",
+    async (event, payload: unknown) => {
+      if (!payload || typeof payload !== "object") {
+        return { ok: false, error: "invalid payload" };
+      }
+      const p = payload as Record<string, unknown>;
+      const agentId = typeof p.agentId === "string" ? p.agentId : "";
+      const prompt = typeof p.prompt === "string" ? p.prompt : "";
+      const cwd =
+        typeof p.cwd === "string" && p.cwd ? p.cwd : currentSheet ?? "";
+      const isFollowup = !!p.isFollowup;
+      if (!agentId || !prompt || !cwd) {
+        return { ok: false, error: "agentId, prompt, and cwd are required" };
+      }
+      return agents.runAgent(
+        { agentId, prompt, cwd, isFollowup },
+        event.sender,
+      );
+    },
+  );
+
+  ipcMain.handle("agents:input", async (_event, payload: unknown) => {
+    if (!payload || typeof payload !== "object") return { ok: false };
+    const p = payload as Record<string, unknown>;
+    if (typeof p.sessionId !== "string" || typeof p.text !== "string") {
+      return { ok: false, error: "sessionId and text are required" };
+    }
+    return { ok: agents.sendInput(p.sessionId, p.text) };
+  });
+
+  ipcMain.handle("agents:stop", async (_event, payload: unknown) => {
+    if (!payload || typeof payload !== "object") return { ok: false };
+    const p = payload as Record<string, unknown>;
+    if (typeof p.sessionId !== "string") return { ok: false };
+    return { ok: agents.stopSession(p.sessionId) };
+  });
 }
 
 app.whenReady().then(async () => {
@@ -552,6 +596,7 @@ app.whenReady().then(async () => {
 });
 
 app.on("before-quit", async (event) => {
+  agents.shutdownAllAgents();
   if (serverManager?.running) {
     event.preventDefault();
     await serverManager.stop();
