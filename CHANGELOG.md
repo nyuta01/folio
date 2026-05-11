@@ -15,6 +15,34 @@ npm package.
 
 — Nothing yet.
 
+## [0.1.8] — 2026-05-11
+
+### Added
+
+- **`folio init`** — new scaffold verb that creates a ready-to-use sheet
+  directory (`contract.yaml`, `records.jsonl`, `README.md`,
+  `skills/getting-started.md`) from a single command:
+  `folio init --name my-sheet`.  The scaffold is validated at creation
+  time so errors surface immediately.
+- **Desktop Chat tab** — run Claude Code coding agents directly on a
+  sheet directory from within the Folio desktop app.
+- **Chat streaming + multi-session** — streaming thinking tokens,
+  multiple concurrent chat sessions, and sheet export from the Chat tab.
+- **Viewer: type-aware inline cell editing** — the records grid now
+  renders and edits cells according to `logicalType` (string, number,
+  boolean, array, enum, date/datetime, etc.).
+- **Viewer: tag-chip editor for `logicalType: array`** — array-typed
+  cells display as removable tag chips with an add-chip control.
+- **Viewer: native `enum` dropdown** — `contract.yaml` properties with
+  an `enum` list get a dropdown editor in the Viewer.
+- **SDK: JSON-typed column round-trip** — `execute_query` now
+  deserialises JSON-typed DuckDB columns back to native Python
+  arrays/objects instead of returning raw strings.
+- **`examples/product-catalog`** — new example sheet exercising every
+  logical type in one schema.
+- **`examples/task-tracker`** — agent-driven CLI feature-list demo with
+  `x-editable-by` declarations for Viewer inline edits.
+
 ## [0.1.7] — 2026-05-11
 
 ### Added
