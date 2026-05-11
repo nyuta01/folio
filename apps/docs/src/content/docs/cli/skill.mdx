@@ -1,0 +1,82 @@
+---
+title: folio skill
+description: List, render, and validate packaged operating procedures under sheet/skills/.
+---
+
+```text
+folio skill list <SHEET>
+folio skill show <SHEET> <NAME> [--arg name=value]...
+folio skill validate <SHEET>
+```
+
+`skills/` is a sheet-scoped namespace for packaged how-to procedures
+authored as markdown with YAML frontmatter. See the [Sheet skills
+specification](/sheet/skills/) for the file format and validation
+rules.
+
+## list
+
+```bash
+$ folio skill list ./customers
+[
+  {
+    "name": "fill-missing-industries",
+    "description": "Fill the industry_tag field for every customer that's still null.",
+    "audience": "agent",
+    "arguments": [],
+    "tools": ["materialize", "list_records", "provenance"],
+    "allowed_actors": ["agent:*", "human:*"]
+  }
+]
+```
+
+Returns one entry per `skills/*.md` file. Skills are emitted in
+sorted (basename) order so the output is stable across runs.
+
+## show
+
+```bash
+$ folio skill show ./onboarding advance-onboarding --arg hire_id=ob_002
+# Advance onboarding for ob_002
+
+Mark one checklist item complete on `ob_002` and let the
+derivations recompute the rolled-up `progress` / `status`.
+
+…
+```
+
+Renders the skill's markdown body with `{name}` placeholders
+substituted from `--arg name=value` pairs. Repeat `--arg` once per
+substitution.
+
+- Unsupplied **optional** arguments leave their placeholder visible
+  in the output, so a downstream consumer can fill them in.
+- Unsupplied **required** arguments cause a non-zero exit with a
+  `SkillError` describing what is missing.
+
+## validate
+
+```bash
+$ folio skill validate ./customers
+1 skill(s) validated under ./customers/skills/
+  ok  fill-missing-industries  Fill the industry_tag field for every customer that's still null.
+```
+
+Loads every `skills/*.md`, runs the full validation gate
+(frontmatter parses, name matches basename, argument placeholders
+declared, tools cross-checked against the live `Sheet` SDK surface),
+and prints one line per skill. Exits non-zero on the first invalid
+file.
+
+Use as a CI check inside a sheet's own pipeline:
+
+```bash
+folio validate ./<sheet> && folio skill validate ./<sheet>
+```
+
+## See also
+
+- [Sheet skills specification](/sheet/skills/) — file format,
+  validation rules, MCP / SDK integration.
+- [`folio-agent-skills` npm package](https://www.npmjs.com/package/folio-agent-skills) —
+  distinct: ships *product*-level knowledge about Folio itself.

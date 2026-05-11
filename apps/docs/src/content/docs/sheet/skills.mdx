@@ -1,0 +1,180 @@
+---
+title: "skills/"
+description: Packaged how-to procedures that ship inside a Folio sheet — discoverable via MCP, runnable from CLI, validated by the harness.
+---
+
+A **sheet skill** is a short, named markdown procedure stored inside
+the sheet at `skills/<name>.md`. It captures operating instructions
+that an agent or a human can pick up when they open the sheet:
+"fill missing customer industries", "refresh weekly revenue",
+"review the onboarding queue". Skills ship as part of the sheet's
+tarball, so a recipient gets the operating manual along with the
+data.
+
+Two related — but distinct — surfaces use the word "skills":
+
+| Layer | Where it lives | What it knows |
+|---|---|---|
+| **Sheet skills** (this page) | `<sheet>/skills/<name>.md` | Domain-specific procedures for **this sheet's data**. |
+| **`folio-agent-skills` npm package** | npm registry | Product-level knowledge about **Folio itself** — how to author a contract, configure a derivation, debug materialize. Generic. |
+
+## Layout
+
+```
+my-sheet/
+├── contract.yaml
+├── records.jsonl
+├── derivations/
+├── scripts/
+├── skills/                       ← here
+│   ├── refresh-revenue.md
+│   ├── audit-provenance.md
+│   └── fill-missing-industries.md
+└── README.md
+```
+
+One markdown file per skill. The file's basename is the skill's id
+and must agree with the `name:` field in the frontmatter.
+
+## File format
+
+```markdown
+---
+name: refresh-revenue
+description: Re-import the latest revenue numbers from finance.
+audience: agent              # agent | human | both (default: agent)
+arguments:                   # optional — placeholders in the body
+  - name: as_of
+    description: ISO date for the snapshot tag.
+    required: true
+tools:                       # optional, advisory cross-check
+  - materialize
+  - list_records
+allowed_actors:              # optional, fnmatch patterns
+  - "agent:ops:*"
+  - "human:finance"
+---
+
+# Refresh revenue
+
+Re-import the `customer-revenue-{as_of}.csv` shipped by finance and
+re-materialize the downstream sidecar.
+
+…
+```
+
+Body is plain markdown — **skills do not embed executable code**.
+Anything with side effects goes through Folio's derivations / SDK
+tools; the skill *describes when and how* to invoke them.
+Placeholders of the form `{name}` are substituted from the
+`arguments` block at render time.
+
+## Validation
+
+`folio validate` (and `Sheet(...)`) check, per `skills/*.md`:
+
+1. YAML frontmatter parses; `name` and `description` are present.
+2. `name` matches `^[a-z][a-z0-9-]*$` (URL-safe) and equals the
+   file's basename.
+3. `audience` is one of `agent` / `human` / `both` (default
+   `agent`).
+4. `tools` only references real SDK method names — folio cross-checks
+   against the live `Sheet` surface.
+5. `arguments[].name` matches `^[a-z][a-z0-9_]*$`; every `{name}`
+   placeholder in the body is declared.
+6. `allowed_actors` patterns are well-formed `fnmatch` (same syntax
+   as `x-editable-by`).
+
+The README frontmatter's `agent_skills:` list (when present) becomes
+a manifest. Mismatches between the manifest and `skills/*.md` are
+**warnings**, so external consumers can ship a subset.
+
+## CLI
+
+```bash
+folio skill list <sheet>
+folio skill show <sheet> <name> [--arg name=value ...]
+folio skill validate <sheet>
+```
+
+`skill show --arg name=value` substitutes `{name}` placeholders into
+the rendered body, so consumers can copy-paste a fully concrete
+procedure into a chat.
+
+## Python SDK
+
+```python
+sheet = open_sheet("./customers", actor="agent:ops")
+skills = sheet.list_skills()                # list[Skill]
+greet  = sheet.get_skill("fill-missing-industries")  # Skill | None
+body   = sheet.render_skill("fill-missing-industries", {"only_country": "JP"})
+```
+
+`Skill` is a pydantic model — `name`, `description`, `audience`,
+`arguments`, `tools`, `allowed_actors`, `body`.
+
+## MCP
+
+The Folio MCP server (`folio-mcp`) publishes one **prompt** per
+discovered skill under `prompts/list`. Prompt name uses the form
+`<sheet-id>:<skill-name>` to avoid collisions when a single server
+hosts multiple sheets:
+
+```
+example-customers:fill-missing-industries
+example-customer-revenue:refresh-revenue
+example-onboarding:advance-onboarding
+```
+
+Skill arguments are exposed as the prompt's argument schema;
+`prompts/get` returns the rendered body with substitutions filled
+in. Tools / `allowed_actors` are **advisory** metadata — the actual
+enforcement still happens at the MCP tool layer (existing
+`x-editable-by` semantics).
+
+## Worked example
+
+```yaml
+# examples/onboarding/skills/advance-onboarding.md
+---
+name: advance-onboarding
+description: Walk a hire's checklist forward by one item.
+arguments:
+  - name: hire_id
+    required: true
+allowed_actors: ["human:hr:*", "human:buddy"]
+---
+
+# Advance onboarding for {hire_id}
+
+Mark one checklist item complete on `{hire_id}` and let the
+derivations recompute the rolled-up `status`.
+
+…
+```
+
+```bash
+$ folio skill show examples/onboarding advance-onboarding --arg hire_id=ob_002
+# Advance onboarding for ob_002
+
+Mark one checklist item complete on `ob_002` and let the
+…
+```
+
+The same skill is reachable over MCP as the prompt
+`example-onboarding:advance-onboarding`, with `hire_id` shown as a
+required argument.
+
+## When to use a skill vs. other surfaces
+
+| You want… | Use |
+|---|---|
+| Computed field on every record | a `derivations/<field>.yaml` |
+| Reusable script invoked by the runtime | a `scripts/<name>.py` |
+| Operating procedure an agent / human follows | a `skills/<name>.md` |
+
+Skills sit at the "prose" layer. They link the deterministic
+mechanics (derivations, scripts) into a story humans and agents can
+follow. They're cheap to add and free to ignore — every Folio
+runtime that doesn't know about skills simply doesn't surface them,
+but the sheet stays portable.

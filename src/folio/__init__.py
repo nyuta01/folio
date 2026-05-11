@@ -23,7 +23,13 @@ from .derivation import (
     load_derivations,
     topological_sort,
 )
-from ._skill import Skill, SkillArgument, load_skills, validate_skills_manifest
+from ._skill import (
+    Skill,
+    SkillArgument,
+    export_claude_skills,
+    load_skills,
+    validate_skills_manifest,
+)
 from .exceptions import (
     ContractError,
     FolioError,
@@ -67,6 +73,7 @@ __all__ = [
     "SkillError",
     "detect_cycles",
     "discover_scripts",
+    "export_claude_skills",
     "load_contract",
     "load_derivation",
     "load_derivations",

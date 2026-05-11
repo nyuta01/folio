@@ -119,3 +119,48 @@ def test_list_skills_empty_when_no_dir(tmp_path: Path) -> None:
     (sheet / "contract.yaml").write_text(CONTRACT)
     (sheet / "records.jsonl").write_text('{"id":"a"}\n')
     assert open_sheet(sheet, actor="agent:test").list_skills() == []
+
+
+# --- Claude Skills export bridge ----------------------------------------
+
+
+def test_export_claude_skills_emits_one_dir_per_skill(
+    sheet_with_skills, tmp_path: Path
+) -> None:
+    from folio import export_claude_skills
+
+    out = tmp_path / "out"
+    written = export_claude_skills(sheet_with_skills.path, out)
+    paths = sorted(p.relative_to(out).as_posix() for p in written)
+    assert paths == [
+        "t__audit/SKILL.md",
+        "t__greet/SKILL.md",
+    ]
+
+
+def test_export_claude_skills_records_constraints(
+    sheet_with_skills, tmp_path: Path
+) -> None:
+    from folio import export_claude_skills
+
+    out = tmp_path / "out"
+    export_claude_skills(sheet_with_skills.path, out)
+    body = (out / "t__greet" / "SKILL.md").read_text()
+    assert "name: t__greet" in body
+    assert "description:" in body
+    # Constraint section captures Folio-specific metadata.
+    assert "Constraints (Folio metadata)" in body
+    assert "Allowed SDK tools" in body
+    assert "`materialize`" in body
+    assert "`who` (required)" in body
+
+
+def test_export_claude_skills_creates_out_dir(
+    sheet_with_skills, tmp_path: Path
+) -> None:
+    from folio import export_claude_skills
+
+    out = tmp_path / "deep" / "out"  # parents don't exist
+    written = export_claude_skills(sheet_with_skills.path, out)
+    assert out.is_dir()
+    assert len(written) == 2

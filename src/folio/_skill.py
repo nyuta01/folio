@@ -211,6 +211,92 @@ def load_skills(
     return skills
 
 
+def export_claude_skills(
+    sheet_path: str | Path,
+    out_dir: str | Path,
+) -> list[Path]:
+    """Emit a Claude-Code-compatible ``SKILL.md`` per discovered skill.
+
+    For a sheet with id ``my-sheet`` and a skill ``foo``, writes
+    ``<out_dir>/my-sheet__foo/SKILL.md`` whose frontmatter contains the
+    keys Claude Skills recognizes (``name``, ``description``) plus a
+    "Constraints" section for Folio-specific metadata (``tools``,
+    ``allowed_actors``, ``audience``).
+
+    The bridge is **derived, read-only output** — the sheet's
+    ``skills/`` directory is always the source of truth. Re-run the
+    export whenever you change a skill.
+
+    Returns the list of written ``SKILL.md`` paths.
+    """
+    from .contract import load_contract
+
+    root = Path(sheet_path)
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    contract = load_contract(root)
+    skills = load_skills(root)
+
+    written: list[Path] = []
+    for skill in skills:
+        skill_dir = out / f"{contract.id}__{skill.name}"
+        skill_dir.mkdir(parents=True, exist_ok=True)
+        target = skill_dir / "SKILL.md"
+
+        frontmatter_lines = [
+            "---",
+            f"name: {contract.id}__{skill.name}",
+            f"description: {_format_yaml_block(skill.description)}",
+            "---",
+        ]
+
+        body_parts = [skill.body.rstrip()]
+        constraints: list[str] = []
+        if skill.audience != "agent":
+            constraints.append(f"- **Audience**: `{skill.audience}`")
+        if skill.tools:
+            constraints.append(
+                "- **Allowed SDK tools**: " + ", ".join(f"`{t}`" for t in skill.tools)
+            )
+        if skill.allowed_actors:
+            constraints.append(
+                "- **Allowed actors** (`fnmatch`): "
+                + ", ".join(f"`{p}`" for p in skill.allowed_actors)
+            )
+        if skill.arguments:
+            constraints.append("- **Arguments**:")
+            for arg in skill.arguments:
+                req = " (required)" if arg.required else ""
+                desc = f" — {arg.description}" if arg.description else ""
+                constraints.append(f"  - `{arg.name}`{req}{desc}")
+
+        if constraints:
+            body_parts.append("")
+            body_parts.append("## Constraints (Folio metadata)")
+            body_parts.append("")
+            body_parts.extend(constraints)
+
+        content = "\n".join(frontmatter_lines) + "\n\n" + "\n".join(body_parts) + "\n"
+        target.write_text(content, encoding="utf-8")
+        written.append(target)
+
+    return written
+
+
+def _format_yaml_block(text: str) -> str:
+    """Quote a description string so YAML round-trips losslessly.
+
+    Multi-line descriptions become folded block scalars; single-line
+    descriptions become double-quoted strings with embedded quotes
+    escaped. Keeps the Claude-side parser happy.
+    """
+    if "\n" in text:
+        body = text.replace("\n", "\n  ")
+        return f">-\n  {body}"
+    return '"' + text.replace('"', '\\"') + '"'
+
+
 def validate_skills_manifest(
     sheet_path: str | Path,
     manifest: list[str] | None,

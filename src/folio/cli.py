@@ -356,6 +356,30 @@ def export_datapackage(
     typer.echo(f"wrote {target}")
 
 
+@export_app.command(
+    "claude-skills",
+    help="Export per-sheet skills/ as Claude Code SKILL.md directories.",
+)
+@_handle_folio_errors
+def export_claude_skills_cmd(
+    sheet: Path = SHEET_ARGUMENT,
+    out: Path = typer.Option(
+        Path(".claude/skills"),
+        "--out",
+        help="Destination directory (defaults to .claude/skills/).",
+    ),
+) -> None:
+    from ._skill import export_claude_skills
+
+    written = export_claude_skills(sheet, out)
+    if not written:
+        typer.echo(f"no skills found under {sheet}/skills/ — nothing to export")
+        return
+    typer.echo(f"wrote {len(written)} SKILL.md file(s) under {out}/")
+    for path in written:
+        typer.echo(f"  {path}")
+
+
 @script_app.command("list", help="List runnable scripts under sheet/scripts/.")
 @_handle_folio_errors
 def script_list(
