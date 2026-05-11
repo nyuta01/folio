@@ -400,6 +400,73 @@ def script_run(
     )
 
 
+skill_app = typer.Typer(
+    no_args_is_help=True,
+    add_completion=False,
+    help="Packaged how-to procedures under sheet/skills/.",
+)
+app.add_typer(skill_app, name="skill")
+
+
+@skill_app.command("list", help="List skills declared under sheet/skills/.")
+@_handle_folio_errors
+def skill_list(
+    sheet: Path = SHEET_ARGUMENT,
+) -> None:
+    s = open_sheet(sheet)
+    payload = [
+        {
+            "name": skill.name,
+            "description": skill.description,
+            "audience": skill.audience,
+            "arguments": [a.model_dump(exclude_none=True) for a in skill.arguments],
+            "tools": skill.tools,
+            "allowed_actors": skill.allowed_actors,
+        }
+        for skill in s.list_skills()
+    ]
+    _emit_json(payload)
+
+
+@skill_app.command(
+    "show",
+    help="Show the rendered body of a skill, optionally with arguments filled.",
+)
+@_handle_folio_errors
+def skill_show(
+    sheet: Path = SHEET_ARGUMENT,
+    name: str = typer.Argument(..., help="Skill name (basename of skills/<name>.md)."),
+    arg: Optional[list[str]] = typer.Option(
+        None,
+        "--arg",
+        help="Argument substitution in the form name=value. Repeatable.",
+    ),
+) -> None:
+    s = open_sheet(sheet)
+    args: dict[str, str] = {}
+    for item in arg or []:
+        if "=" not in item:
+            raise typer.BadParameter(f"--arg must be in name=value form, got {item!r}")
+        k, _, v = item.partition("=")
+        args[k] = v
+    typer.echo(s.render_skill(name, args))
+
+
+@skill_app.command("validate", help="Validate every skills/*.md under a sheet.")
+@_handle_folio_errors
+def skill_validate(
+    sheet: Path = SHEET_ARGUMENT,
+) -> None:
+    s = open_sheet(sheet)
+    skills = s.list_skills()
+    typer.echo(f"{len(skills)} skill(s) validated under {sheet}/skills/")
+    if not skills:
+        return
+    width = max(len(skill.name) for skill in skills)
+    for skill in skills:
+        typer.echo(f"  ok  {skill.name:<{width}}  {skill.description}")
+
+
 @app.command(
     name="serve",
     help="Serve <sheet> via folio-viewer (alias for `folio-viewer serve`).",

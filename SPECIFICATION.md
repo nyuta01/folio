@@ -666,6 +666,7 @@ Typer command tree, JSON to stdout. Verbs:
 | `status` | Print materialization counts per derived field. |
 | `provenance` | Print provenance for a record × field. |
 | `script` | Sub-app: `script list`, `script run <name>`. |
+| `skill` | Sub-app: `skill list`, `skill show <name>`, `skill validate`. Packaged operating procedures under `<sheet>/skills/`. |
 | `export` | Sub-app: `export datapackage` (Frictionless descriptor). |
 | `serve` | Run the local Viewer (delegates to `folio-viewer`). |
 
