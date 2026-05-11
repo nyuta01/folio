@@ -6,6 +6,7 @@ remains stateless and reads always see the latest ``records.jsonl`` content.
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 from typing import Any, Sequence
@@ -80,7 +81,14 @@ def execute_query(
     sql: str,
     params: Sequence[Any] | None = None,
 ) -> list[dict[str, Any]]:
-    """Execute ``sql`` against the sheet's ``records`` view and return rows."""
+    """Execute ``sql`` against the sheet's ``records`` view and return rows.
+
+    DuckDB returns ``JSON``-typed columns as JSON-encoded strings, which is
+    surprising for callers expecting the array/object value declared on the
+    contract. Walk the result and ``json.loads`` any column whose contract
+    ``logicalType`` is ``array`` or ``object``, leaving columns that aren't
+    on the contract (aggregates, expression-only SELECTs) untouched.
+    """
     ensure_select_only(sql)
     connection = duckdb.connect(":memory:")
     try:
@@ -92,7 +100,27 @@ def execute_query(
         raise QueryError(f"query failed: {exc}") from exc
     finally:
         connection.close()
-    return [dict(zip(column_names, row)) for row in rows]
+
+    json_columns = {
+        prop.name
+        for prop in contract.main_schema.properties
+        if prop.logical_type in ("array", "object") and prop.name in column_names
+    }
+
+    results: list[dict[str, Any]] = []
+    for row in rows:
+        record = dict(zip(column_names, row))
+        for name in json_columns:
+            raw = record.get(name)
+            if isinstance(raw, str):
+                try:
+                    record[name] = json.loads(raw)
+                except json.JSONDecodeError:
+                    # Leave the raw string in place; callers can decide
+                    # whether a malformed JSON cell is recoverable.
+                    pass
+        results.append(record)
+    return results
 
 
 def _create_records_view(
