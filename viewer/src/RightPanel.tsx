@@ -27,12 +27,15 @@ const fmtTime = (iso: string): string => {
 };
 const fmtCost = (n: number) => "$" + n.toFixed(4);
 
+// `inspector` is kept in the union for callers that still emit it
+// (e.g. legacy persisted UI state) — it's coerced back to `schema`
+// inside the panel, since the inspector now lives as a nested detail
+// view inside the Schema tab.
 export type TabId = "schema" | "activity" | "inspector";
 
 const TABS: Array<{ id: TabId; label: string; icon: keyof typeof Icons }> = [
   { id: "schema", label: "Schema", icon: "Cell" },
   { id: "activity", label: "Activity", icon: "Sparkle" },
-  { id: "inspector", label: "Inspector", icon: "Eye" },
 ];
 
 interface RightPanelProps {
@@ -73,14 +76,37 @@ export function RightPanel({
   onUpdateField,
   onDeleteField,
 }: RightPanelProps) {
-  const activeDef = TABS.find((t) => t.id === activeTab) ?? TABS[0];
+  // Legacy `inspector` value funnels back into `schema` so the rail
+  // never shows a third tab.
+  const normalisedTab: TabId = activeTab === "inspector" ? "schema" : activeTab;
+  const activeDef = TABS.find((t) => t.id === normalisedTab) ?? TABS[0];
+  const onSchema = normalisedTab === "schema";
+  const inFieldView = onSchema && inspectorField !== null;
 
   return (
     <aside className={cls("rp", collapsed && "collapsed")}>
       {!collapsed && (
         <div className="rp-content">
           <div className="rp-content-head">
-            <span className="rp-content-title mono">{activeDef.label}</span>
+            {inFieldView && (
+              <button
+                className="icon-btn"
+                onClick={() => setInspectorField(null)}
+                title="Back to schema"
+              >
+                <Icons.ChevronL size={12} />
+              </button>
+            )}
+            <span className="rp-content-title mono">
+              {inFieldView ? (
+                <>
+                  <span className="muted">Schema · </span>
+                  {inspectorField}
+                </>
+              ) : (
+                activeDef.label
+              )}
+            </span>
             {activeDef.id === "activity" && agentOnline && (
               <span className="live-dot live" />
             )}
@@ -90,26 +116,20 @@ export function RightPanel({
             </button>
           </div>
           <div className="rp-body">
-            {activeTab === "schema" && (
+            {onSchema && !inFieldView && (
               <SchemaTab
                 contract={contract}
                 records={records}
                 derivations={derivations}
+                selectedField={inspectorField}
                 onPickField={(name) => {
                   setInspectorField(name);
-                  setActiveTab("inspector");
+                  if (activeTab !== "schema") setActiveTab("schema");
                 }}
                 onAddField={onAddField}
               />
             )}
-            {activeTab === "activity" && (
-              <ActivityTab
-                activity={activity}
-                agentOnline={agentOnline}
-                onSimulate={onSimulate}
-              />
-            )}
-            {activeTab === "inspector" && (
+            {onSchema && inFieldView && (
               <InspectorTab
                 fieldName={inspectorField}
                 contract={contract}
@@ -119,20 +139,35 @@ export function RightPanel({
                 onDeleteField={onDeleteField}
               />
             )}
+            {normalisedTab === "activity" && (
+              <ActivityTab
+                activity={activity}
+                agentOnline={agentOnline}
+                onSimulate={onSimulate}
+              />
+            )}
           </div>
         </div>
       )}
       <div className="rp-rail-bar">
         {TABS.map((t) => {
           const Ico = Icons[t.icon];
-          const isActive = !collapsed && activeTab === t.id;
+          const isActive = !collapsed && normalisedTab === t.id;
           return (
             <button
               key={t.id}
               className={cls("rp-rail-btn", isActive && "active")}
               onClick={() => {
-                if (isActive) onToggle();
-                else {
+                if (isActive) {
+                  // Clicking the active rail when in the field-detail
+                  // view pops back to the list, otherwise collapses
+                  // the panel.
+                  if (t.id === "schema" && inFieldView) {
+                    setInspectorField(null);
+                  } else {
+                    onToggle();
+                  }
+                } else {
                   setActiveTab(t.id);
                   if (collapsed) onToggle();
                 }
@@ -155,12 +190,14 @@ function SchemaTab({
   contract,
   records,
   derivations,
+  selectedField,
   onPickField,
   onAddField,
 }: {
   contract: Contract;
   records: Record<string, unknown>[];
   derivations: Record<string, { kind: string; targets?: string[] }>;
+  selectedField: string | null;
   onPickField: (name: string) => void;
   onAddField: (input: AddPropertyInput) => Promise<void>;
 }) {
@@ -269,12 +306,18 @@ function SchemaTab({
           return (
             <li
               key={p.name}
-              className={cls("field-item", p["x-derived"] && "is-derived")}
+              className={cls(
+                "field-item",
+                p["x-derived"] && "is-derived",
+                selectedField === p.name && "is-selected",
+              )}
               onClick={() => onPickField(p.name)}
             >
               <div className="field-name">
                 <span className="mono">{p.name}</span>
                 <FieldBadge prop={p} />
+                <span className="rp-tabs-spacer" />
+                <Icons.ChevronR size={10} />
               </div>
               <div className="field-meta">
                 <TypeChip t={p.logicalType} />

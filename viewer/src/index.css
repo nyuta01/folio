@@ -899,6 +899,16 @@ a.cell-link {
   padding-left: 6px;
   margin-left: -8px;
 }
+.field-item.is-selected {
+  background: var(--hover);
+}
+.field-item .field-name svg {
+  color: var(--ink-3, var(--ink-2));
+  opacity: 0.5;
+}
+.field-item:hover .field-name svg {
+  opacity: 1;
+}
 .field-name {
   display: flex;
   align-items: center;

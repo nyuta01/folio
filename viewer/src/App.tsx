@@ -567,7 +567,7 @@ export default function App() {
         at: new Date().toISOString(),
       });
       setInspectorField(input.name);
-      setRpTab("inspector");
+      setRpTab("schema");
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       addActivity({
@@ -970,7 +970,7 @@ export default function App() {
             onEditError={(msg) => showToast(msg, "err")}
             onPickField={(name) => {
               setInspectorField(name);
-              setRpTab("inspector");
+              setRpTab("schema");
               if (rpCollapsed) setRpCollapsed(false);
             }}
           />

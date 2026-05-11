@@ -41,6 +41,7 @@ export const Icons = {
   X: (p: IconProps) => <Icon {...p} d="M3.5 3.5 12.5 12.5M12.5 3.5 3.5 12.5" />,
   Chevron: (p: IconProps) => <Icon {...p} d="M5 6.5 8 9.5 11 6.5" />,
   ChevronR: (p: IconProps) => <Icon {...p} d="M6 4.5 9.5 8 6 11.5" />,
+  ChevronL: (p: IconProps) => <Icon {...p} d="M10 4.5 6.5 8 10 11.5" />,
   Lock: (p: IconProps) => <Icon {...p} d="M4.5 7V5.5a3.5 3.5 0 0 1 7 0V7M3.5 7h9v6.5h-9z" />,
   Link: (p: IconProps) => <Icon {...p} d="M7 4H4.5A2.5 2.5 0 0 0 2 6.5v3A2.5 2.5 0 0 0 4.5 12H7M9 4h2.5A2.5 2.5 0 0 1 14 6.5v3a2.5 2.5 0 0 1-2.5 2.5H9M5.5 8h5" />,
   Doc: (p: IconProps) => <Icon {...p} d="M3.5 2h6L13 5.5V14H3.5V2Zm6 0v3.5H13" />,
