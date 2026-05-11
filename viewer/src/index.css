@@ -80,15 +80,19 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
   background: var(--bg);
 }
 
+:root { --rp-width: 360px; }
 .body {
   display: grid;
-  grid-template-columns: 1fr 360px;
+  grid-template-columns: 1fr var(--rp-width);
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  transition: grid-template-columns 0.2s;
   background: var(--bg);
 }
+/* Animate the collapse/expand toggle, but not the live drag — the
+ * resize handle removes the transition while a drag is in progress so
+ * the panel tracks the cursor 1:1. */
+.body.rp-animating { transition: grid-template-columns 0.2s; }
 .body.rp-collapsed { grid-template-columns: 1fr 44px; }
 
 .grid-pane {
@@ -210,6 +214,47 @@ input, select, textarea { font-family: inherit; font-size: inherit; color: inher
 }
 .toolbtn:disabled { opacity: 0.6; cursor: wait; }
 .toolbtn.small { padding: 3px 8px; font-size: 11px; }
+
+/* Export-format dropdown anchored to the toolbar trigger. Positioned
+ * below the button via the wrapper's relative box. */
+.export-menu-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.export-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 50;
+  min-width: 220px;
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.export-menu-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  width: 100%;
+  padding: 6px 10px;
+  background: transparent;
+  border: none;
+  border-radius: 3px;
+  text-align: left;
+  cursor: pointer;
+  color: var(--ink);
+}
+.export-menu-item:hover { background: var(--hover); }
+.export-menu-label { font-size: 12px; font-weight: 500; }
+.export-menu-sub { line-height: 1.2; }
 
 .ghost-btn {
   background: transparent;
@@ -739,6 +784,7 @@ a.cell-link {
 
 /* ─── Right panel ─────────────────────────────────────────────────────── */
 .rp {
+  position: relative;
   display: flex;
   background: var(--panel);
   border-left: 1px solid var(--line);
@@ -749,6 +795,36 @@ a.cell-link {
 .rp.collapsed {
   width: 44px;
   justify-content: center;
+}
+/* 6px-wide hit zone on the left edge for drag-to-resize. Only the
+ * middle hairline is rendered; the rest is invisible padding so the
+ * cursor target is forgiving without looking heavy. */
+.rp-resizer {
+  position: absolute;
+  top: 0;
+  left: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+}
+.rp-resizer::before {
+  content: "";
+  width: 1px;
+  height: 100%;
+  background: transparent;
+  transition: background 100ms ease;
+}
+.rp-resizer:hover::before,
+.rp-resizer.dragging::before {
+  background: var(--accent);
+}
+body.rp-resizing,
+body.rp-resizing * {
+  cursor: col-resize !important;
+  user-select: none;
 }
 .rp-content {
   display: flex;
@@ -837,75 +913,398 @@ a.cell-link {
 }
 
 /* Chat tab ------------------------------------------------------------ */
+/* Override the panel's default "everything scrolls together" only when
+ * the chat tab is rendered. Schema / Activity / Inspector tabs keep
+ * their existing behaviour (single tall scroll inside rp-body).
+ * The `min-width: 0` chain is what stops a single wide tool chip /
+ * code block from pushing the entire stream wider than the panel. */
+.rp-body:has(.chat-tab) {
+  display: flex;
+  overflow: hidden;
+  min-width: 0;
+}
+.rp-view:has(.chat-tab) {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  overflow: hidden;
+}
 .chat-tab {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-width: 0;
   min-height: 0;
 }
 .chat-header {
   border-bottom: 1px solid var(--line);
-  padding-bottom: 8px;
+  padding: 8px 12px;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  background: var(--panel);
 }
 .chat-pickrow {
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.chat-pickrow select {
+.chat-agent-select {
   flex: 0 0 auto;
-  padding: 2px 4px;
+  padding: 3px 6px;
   border: 1px solid var(--line);
-  background: var(--panel);
+  background: var(--panel-2);
   color: var(--ink);
   font-size: 11px;
+  border-radius: 3px;
+}
+.chat-version {
+  letter-spacing: 0.02em;
 }
 .chat-install-hint {
   border-left: 2px solid var(--warn);
   padding-left: 6px;
   background: var(--panel-2);
 }
-.chat-stream {
+.chat-sessions-row {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+.chat-session-trigger {
   flex: 1;
-  min-height: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  color: var(--ink);
+  font-size: 11.5px;
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+}
+.chat-session-trigger:hover { background: var(--hover); }
+.chat-session-caret {
+  display: inline-flex;
+  transition: transform 120ms ease;
+  color: var(--muted);
+  flex: 0 0 auto;
+}
+.chat-session-trigger.open .chat-session-caret {
+  transform: rotate(90deg);
+}
+.chat-session-trigger-label { flex: 1; min-width: 0; }
+.chat-session-count {
+  flex: 0 0 auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 6px;
+  line-height: 1.5;
+}
+.chat-session-new {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+}
+.chat-sessions-menu {
+  list-style: none;
+  margin: 0;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  box-shadow: var(--shadow);
+  max-height: 240px;
   overflow-y: auto;
-  padding: 10px 14px 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 2px;
 }
-.chat-empty {
-  margin: 24px 0;
+.chat-session-empty {
+  padding: 8px 6px;
   text-align: center;
 }
-.chat-bubble {
-  max-width: 92%;
-  padding: 8px 10px;
-  border-radius: 8px;
+.chat-session-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 3px;
+}
+.chat-session-row:hover { background: var(--hover); }
+.chat-session-row.active { background: var(--select); }
+.chat-session-pick {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  align-items: flex-start;
+  background: transparent;
+  border: none;
+  padding: 6px 8px;
+  text-align: left;
+  color: var(--ink);
+  cursor: pointer;
+  min-width: 0;
+}
+.chat-session-title {
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.3;
+  width: 100%;
+}
+.chat-session-time { font-size: 10.5px; }
+.chat-session-del {
+  flex: 0 0 auto;
+  padding: 4px 6px;
+  opacity: 0;
+  transition: opacity 80ms ease;
+}
+.chat-session-row:hover .chat-session-del,
+.chat-session-row.active .chat-session-del {
+  opacity: 0.7;
+}
+.chat-session-del:hover { opacity: 1; color: var(--err); }
+.chat-stream {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  /* Defensive cap: even with `min-width: 0` propagated, a stubbornly
+   * unwrappable child (long URL, tool chip with one giant token) could
+   * still produce a horizontal scroll. Hide it — code blocks and
+   * tables already get their own internal scroll. */
+  overflow-x: hidden;
+  padding: 14px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--bg);
+}
+.chat-empty {
+  margin: 32px 0;
+  text-align: center;
+  line-height: 1.6;
+}
+.chat-row {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+}
+.chat-row-user { justify-content: flex-end; }
+.chat-row-agent { justify-content: flex-start; }
+.chat-bubble {
+  max-width: 88%;
+  min-width: 0;
+  /* Force long unbreakable tokens (URLs, paths, ids) to wrap rather
+   * than push the bubble past max-width. */
+  overflow-wrap: anywhere;
+  padding: 9px 12px;
+  font-size: 12.5px;
+  line-height: 1.55;
+  border-radius: 10px;
 }
 .chat-bubble-text {
   white-space: pre-wrap;
   word-break: break-word;
 }
-.chat-user {
-  align-self: flex-end;
-  background: var(--accent-soft, var(--panel-2));
-  border: 1px solid var(--accent);
-  color: var(--ink);
+/* Markdown rendered inside an agent bubble. Tight rhythm — bubbles
+ * already constrain width, so headings stay reasonable without their
+ * usual document-scale spacing. */
+.chat-md > :first-child { margin-top: 0; }
+.chat-md > :last-child { margin-bottom: 0; }
+.chat-md p { margin: 6px 0; line-height: 1.55; }
+.chat-md h1, .chat-md h2, .chat-md h3, .chat-md h4 {
+  margin: 12px 0 6px;
+  line-height: 1.25;
+  font-weight: 600;
 }
-.chat-agent {
-  align-self: flex-start;
+.chat-md h1 { font-size: 14.5px; }
+.chat-md h2 { font-size: 13.5px; }
+.chat-md h3 { font-size: 12.8px; color: var(--ink-2); }
+.chat-md h4 { font-size: 12.4px; color: var(--ink-2); }
+.chat-md ul, .chat-md ol {
+  margin: 6px 0;
+  padding-left: 20px;
+}
+.chat-md li { margin: 2px 0; line-height: 1.5; }
+.chat-md li > p { margin: 2px 0; }
+.chat-md code {
+  font-family: var(--mono, ui-monospace);
+  font-size: 11.5px;
   background: var(--panel-2);
   border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 1px 4px;
+  overflow-wrap: anywhere;
+}
+.chat-md pre {
+  margin: 8px 0;
+  padding: 8px 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  max-width: 100%;
+  overflow-x: auto;
+  font-size: 11.5px;
+  line-height: 1.45;
+}
+.chat-md pre code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  font-size: inherit;
+}
+.chat-md blockquote {
+  margin: 6px 0;
+  padding: 2px 10px;
+  border-left: 3px solid var(--line-2);
+  color: var(--muted);
+}
+.chat-md a {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.chat-md table {
+  border-collapse: collapse;
+  margin: 8px 0;
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  font-size: 11.5px;
+}
+.chat-md th, .chat-md td {
+  border: 1px solid var(--line);
+  padding: 4px 8px;
+  text-align: left;
+}
+.chat-md th { background: var(--panel-2); font-weight: 600; }
+.chat-md hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 10px 0;
+}
+
+/* Thinking block — collapsed by default once the run is done, open
+ * while streaming so the user can watch it reason. */
+.chat-thinking {
+  margin: 4px 0 6px;
+  border-left: 2px solid var(--line-2);
+  padding-left: 8px;
+}
+.chat-thinking summary {
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  padding: 1px 0;
+}
+.chat-thinking summary::-webkit-details-marker { display: none; }
+.chat-thinking summary::before {
+  content: "▸";
+  font-size: 9px;
+  transition: transform 100ms ease;
+  display: inline-block;
+}
+.chat-thinking[open] summary::before { transform: rotate(90deg); }
+.chat-thinking summary:hover { color: var(--ink-2); }
+.chat-thinking-body {
+  margin-top: 4px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+  font-style: italic;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* Tool use chip — a small one-line affordance under the streaming
+ * answer. The expandable result is hidden behind a click. */
+.chat-tool {
+  display: block;
+  align-self: flex-start;
+  margin: 4px 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+  border-radius: 4px;
+  width: 100%;
+  min-width: 0;
+  font-size: 11.5px;
+}
+.chat-tool summary {
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  color: var(--ink-2);
+  min-width: 0;
+}
+.chat-tool summary::-webkit-details-marker { display: none; }
+.chat-tool-icon { font-size: 11px; flex: 0 0 auto; }
+.chat-tool-name {
+  font-family: var(--mono, ui-monospace);
+  font-weight: 600;
+  font-size: 11px;
+  flex: 0 0 auto;
+}
+.chat-tool-args {
+  font-family: var(--mono, ui-monospace);
+  color: var(--muted);
+  font-size: 10.5px;
+  /* Take the remaining row width and clip with an ellipsis. The
+   * `min-width: 0` is what lets a flex item shrink below its content
+   * size — without it a long arg pushes the chip wider than the
+   * bubble. */
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-tool-body {
+  border-top: 1px solid var(--line);
+  padding: 6px 8px;
+  font-family: var(--mono, ui-monospace);
+  font-size: 11px;
+  color: var(--ink-2);
+}
+.chat-tool-body pre {
+  margin: 4px 0 0;
+  white-space: pre-wrap;
+  max-height: 200px;
+  overflow: auto;
+}
+.chat-tool.is-error { border-color: var(--err); }
+.chat-tool.is-error .chat-tool-icon { color: var(--err); }
+.chat-user {
+  background: var(--human-soft);
+  border: 1px solid color-mix(in oklch, var(--human-soft) 70%, var(--line));
   color: var(--ink);
+  border-bottom-right-radius: 3px;
+}
+.chat-agent {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  border-bottom-left-radius: 3px;
+  box-shadow: 0 1px 0 rgba(20, 18, 10, 0.03);
 }
 .chat-typing {
-  letter-spacing: 2px;
+  letter-spacing: 3px;
+  font-size: 14px;
   animation: chatPulse 1.2s ease-in-out infinite;
 }
 @keyframes chatPulse {
@@ -913,17 +1312,25 @@ a.cell-link {
   50%      { opacity: 1; }
 }
 .chat-stderr {
-  margin-top: 6px;
+  margin-top: 8px;
+  border-top: 1px dashed var(--line-2);
+  padding-top: 6px;
 }
+.chat-stderr summary {
+  cursor: pointer;
+  user-select: none;
+}
+.chat-stderr summary:hover { color: var(--ink-2); }
 .chat-stderr pre {
   white-space: pre-wrap;
-  background: var(--panel);
+  background: var(--panel-2);
   border: 1px solid var(--line);
-  padding: 6px;
+  padding: 6px 8px;
   border-radius: 4px;
   margin: 4px 0 0;
   max-height: 160px;
   overflow: auto;
+  color: var(--muted);
 }
 .chat-error {
   margin-top: 6px;
@@ -934,22 +1341,25 @@ a.cell-link {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  background: var(--panel);
 }
 .chat-composer textarea {
   width: 100%;
   resize: vertical;
   min-height: 56px;
   max-height: 220px;
-  padding: 6px 8px;
+  padding: 7px 9px;
   border: 1px solid var(--line);
   background: var(--panel);
   color: var(--ink);
-  font-size: 12px;
+  font-size: 12.5px;
   font-family: var(--mono, ui-monospace);
+  border-radius: 4px;
+  line-height: 1.5;
 }
 .chat-composer textarea:focus {
   outline: none;
-  border-color: var(--ink);
+  border-color: var(--ink-2);
 }
 .chat-composer-actions {
   display: flex;

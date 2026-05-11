@@ -9,7 +9,47 @@
 
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { existsSync } from "node:fs";
+import { join, delimiter as PATH_DELIM } from "node:path";
 import type { WebContents } from "electron";
+
+/** Shape passed to AgentSpec.argv for one turn. */
+export interface AgentTurnInput {
+  prompt: string;
+  isFollowup: boolean;
+  /** Stable UUID identifying the *renderer-side* conversation. Adapters
+   * that support resumable sessions thread it through to their CLI
+   * (e.g. claude --session-id / --resume). */
+  sessionId: string;
+  /** Optional system-prompt addendum the host wants appended (sheet
+   * context, skills hints, etc.). Adapters that can't append a system
+   * prompt should ignore this. */
+  systemHint?: string;
+}
+
+/** Structured event the renderer renders into the chat bubble. The
+ * `index` field is per-message — adapters reset it whenever the agent
+ * starts a new assistant message in the same turn (claude's tool-use
+ * roundtrip emits multiple messages). The renderer collapses indices
+ * into a flat append-only block list. */
+export type AgentEvent =
+  | { kind: "message_start" }
+  | {
+      kind: "block_start";
+      index: number;
+      blockType: "text" | "thinking" | "tool_use";
+      toolName?: string;
+      toolUseId?: string;
+    }
+  | { kind: "block_delta"; index: number; text: string }
+  | { kind: "block_stop"; index: number }
+  | {
+      kind: "tool_result";
+      toolUseId: string;
+      content: string;
+      isError?: boolean;
+    }
+  | { kind: "status"; status: string };
 
 /** One coding-agent CLI Folio knows how to spawn. */
 export interface AgentSpec {
@@ -18,13 +58,92 @@ export interface AgentSpec {
   /** Binary on $PATH. */
   bin: string;
   /** Build argv for one turn. */
-  argv: (turn: { prompt: string; isFollowup: boolean }) => string[];
+  argv: (turn: AgentTurnInput) => string[];
   /** Probe to check if the binary exists. */
   check: { args: string[] };
   /** Whether subsequent turns can reuse the prior session. */
   supportsContinue: boolean;
   /** Human-readable hint shown when the binary is missing. */
   installHint: string;
+  /** Parse one stdout line into zero or more structured events. When
+   * absent, stdout is forwarded verbatim as a synthetic text block so
+   * unknown adapters still produce visible output. */
+  parseLine?: (line: string) => AgentEvent[];
+}
+
+function parseClaudeStreamJsonLine(line: string): AgentEvent[] {
+  const trimmed = line.trim();
+  if (!trimmed) return [];
+  let obj: Record<string, unknown>;
+  try {
+    obj = JSON.parse(trimmed) as Record<string, unknown>;
+  } catch {
+    return [];
+  }
+  const events: AgentEvent[] = [];
+  const type = obj.type as string | undefined;
+
+  if (type === "stream_event" && obj.event && typeof obj.event === "object") {
+    const ev = obj.event as Record<string, unknown>;
+    const evType = ev.type as string | undefined;
+    if (evType === "message_start") {
+      events.push({ kind: "message_start" });
+    } else if (evType === "content_block_start") {
+      const cb = ev.content_block as Record<string, unknown> | undefined;
+      const cbType = cb?.type as string | undefined;
+      if (cbType === "text" || cbType === "thinking" || cbType === "tool_use") {
+        events.push({
+          kind: "block_start",
+          index: Number(ev.index ?? 0),
+          blockType: cbType,
+          toolName: cbType === "tool_use" ? (cb?.name as string) : undefined,
+          toolUseId: cbType === "tool_use" ? (cb?.id as string) : undefined,
+        });
+      }
+    } else if (evType === "content_block_delta") {
+      const d = ev.delta as Record<string, unknown> | undefined;
+      const dt = d?.type as string | undefined;
+      let text = "";
+      if (dt === "text_delta") text = (d?.text as string) ?? "";
+      else if (dt === "thinking_delta") text = (d?.thinking as string) ?? "";
+      else if (dt === "input_json_delta")
+        text = (d?.partial_json as string) ?? "";
+      else return events;
+      events.push({ kind: "block_delta", index: Number(ev.index ?? 0), text });
+    } else if (evType === "content_block_stop") {
+      events.push({ kind: "block_stop", index: Number(ev.index ?? 0) });
+    }
+  } else if (type === "user" && obj.message && typeof obj.message === "object") {
+    const msg = obj.message as Record<string, unknown>;
+    const content = msg.content;
+    if (Array.isArray(content)) {
+      for (const c of content as Array<Record<string, unknown>>) {
+        if (c.type === "tool_result") {
+          const raw = c.content;
+          let text = "";
+          if (typeof raw === "string") text = raw;
+          else if (Array.isArray(raw)) {
+            text = raw
+              .map((x: Record<string, unknown>) =>
+                typeof x.text === "string" ? x.text : "",
+              )
+              .join("");
+          }
+          events.push({
+            kind: "tool_result",
+            toolUseId: String(c.tool_use_id ?? ""),
+            content: text,
+            isError: !!c.is_error,
+          });
+        }
+      }
+    }
+  } else if (type === "system" && obj.subtype === "status") {
+    const status = obj.status as string | undefined;
+    if (status) events.push({ kind: "status", status });
+  }
+
+  return events;
 }
 
 export const AGENTS: Record<string, AgentSpec> = {
@@ -32,18 +151,69 @@ export const AGENTS: Record<string, AgentSpec> = {
     id: "claude-code",
     label: "Claude Code",
     bin: "claude",
-    argv: ({ prompt, isFollowup }) => [
+    argv: ({ prompt, isFollowup, sessionId, systemHint }) => [
       "--print",
-      ...(isFollowup ? ["--continue"] : []),
+      // stream-json + partial messages so the renderer can show thinking
+      // blocks, tool calls, and incremental text deltas. `--verbose` is
+      // required by claude when using stream-json in print mode.
+      "--output-format",
+      "stream-json",
+      "--verbose",
+      "--include-partial-messages",
+      // First turn: assign our UUID. Follow-ups: resume that same UUID,
+      // so the renderer's chat-session list maps 1-1 to claude's
+      // on-disk session store. This lets us run multiple parallel
+      // conversations in the same sheet directory — `--continue` only
+      // resumes "the most recent" and would collapse them all together.
+      ...(isFollowup
+        ? ["--resume", sessionId]
+        : ["--session-id", sessionId]),
+      ...(systemHint ? ["--append-system-prompt", systemHint] : []),
       prompt,
     ],
     check: { args: ["--version"] },
     supportsContinue: true,
     installHint:
       "Install Claude Code: https://docs.anthropic.com/en/docs/claude-code/quickstart",
+    parseLine: parseClaudeStreamJsonLine,
   },
   // Add codex / aider / etc. here. The renderer needs no change.
 };
+
+/** Build a short system-prompt addendum that orients the agent inside a
+ * Folio sheet. Only mentions resources we can confirm exist (the
+ * `folio` CLI on PATH, the `skills/` subdir when populated, etc.).
+ * Returns `undefined` to skip injection if nothing useful applies. */
+function buildSheetHint(cwd: string): string | undefined {
+  const hasContract = existsSync(join(cwd, "contract.yaml"));
+  if (!hasContract) return undefined;
+  const skillsDir = join(cwd, "skills");
+  const hasSkills = existsSync(skillsDir);
+  const lines: string[] = [
+    "You are operating inside a Folio sheet (a contract-driven dataset directory).",
+    "- `contract.yaml` at the cwd root defines the schema and derivations. The `name:` field there is metadata — it is NOT the SQL table name.",
+    "- The `folio` CLI is on your PATH. All verbs take the sheet directory as the first positional argument; use `.` (the cwd).",
+    "- Read verbs (no --actor needed):",
+    "    • `folio list .` — JSON envelope of records",
+    "    • `folio count .` — `--where '<sql>'` optional",
+    "    • `folio query . \"<sql>\"` — DuckDB SQL; the only table is `FROM records` (column names match contract properties; the `name:` in contract.yaml is NOT the table name)",
+    "    • `folio status .` — materialization counts per derived field",
+    "    • `folio provenance . <id> <field>` — history for one cell",
+    "- Write verbs (ALL require `--actor agent:claude-code`):",
+    "    • `folio upsert . --actor agent:claude-code --file -` (reads JSONL from stdin; one record per line)",
+    "    • `folio delete . --actor agent:claude-code --ids id1,id2`",
+    "    • `folio materialize . --actor agent:claude-code [<target>]` — recompute derived fields",
+  ];
+  if (hasSkills) {
+    lines.push(
+      "- Per-sheet workflows ship under `./skills/*.md`. Enumerate with `folio skill list .` (JSON). Render one with `folio skill show . <name>`.",
+    );
+  }
+  lines.push(
+    "- Prefer read-only verbs first; confirm before destructive writes. Mutations are recorded in `provenance.jsonl`.",
+  );
+  return lines.join("\n");
+}
 
 export interface AgentAvailability {
   id: string;
@@ -57,6 +227,10 @@ export interface RunSessionOptions {
   agentId: string;
   prompt: string;
   cwd: string;
+  /** Renderer-side UUID for the conversation. Required: lets the
+   * adapter use --session-id / --resume so multiple conversations in
+   * the same cwd don't collide. */
+  sessionId: string;
   isFollowup?: boolean;
 }
 
@@ -122,16 +296,56 @@ export function runAgent(
 ): { ok: true; sessionId: string } | { ok: false; error: string } {
   const spec = AGENTS[opts.agentId];
   if (!spec) return { ok: false, error: `unknown agent: ${opts.agentId}` };
+  if (!opts.sessionId) return { ok: false, error: "sessionId is required" };
+
+  const systemHint = buildSheetHint(opts.cwd);
+
+  // Source-checkout convenience: if the sheet is a `folio` repo checkout
+  // with `.venv/bin/folio`, make sure that's first on PATH. Packaged
+  // installs come in via shell-PATH augmentation at app startup.
+  const env = { ...process.env };
+  const venvCandidates = [
+    join(opts.cwd, ".venv", "bin"),
+    // Walk up a couple of levels — sheets often live under examples/<name>/
+    // while the venv is at the repo root.
+    join(opts.cwd, "..", ".venv", "bin"),
+    join(opts.cwd, "..", "..", ".venv", "bin"),
+  ];
+  for (const dir of venvCandidates) {
+    if (existsSync(join(dir, "folio"))) {
+      env.PATH = dir + PATH_DELIM + (env.PATH ?? "");
+      break;
+    }
+  }
 
   let proc: ChildProcessWithoutNullStreams;
   try {
-    proc = spawn(spec.bin, spec.argv({ prompt: opts.prompt, isFollowup: !!opts.isFollowup }), {
-      cwd: opts.cwd,
-      stdio: "pipe",
-      env: process.env,
-    });
+    proc = spawn(
+      spec.bin,
+      spec.argv({
+        prompt: opts.prompt,
+        isFollowup: !!opts.isFollowup,
+        sessionId: opts.sessionId,
+        systemHint,
+      }),
+      {
+        cwd: opts.cwd,
+        stdio: "pipe",
+        env,
+      },
+    );
   } catch (err) {
     return { ok: false, error: (err as Error).message };
+  }
+
+  // Close stdin immediately. The CLIs we target (`claude --print`, etc.)
+  // read the prompt from argv and otherwise wait up to 3 seconds for stdin
+  // before emitting a noisy "no stdin data received" warning to stderr.
+  // We never feed them stdin from the renderer, so make it explicit.
+  try {
+    proc.stdin.end();
+  } catch {
+    /* stdin already closed */
   }
 
   const id = newId();
@@ -152,9 +366,45 @@ export function runAgent(
 
   send("agents:start", { sessionId: id, agentId: spec.id, label: spec.label });
 
-  proc.stdout.on("data", (b: Buffer) =>
-    send("agents:chunk", { sessionId: id, stream: "stdout", data: b.toString("utf8") }),
-  );
+  if (spec.parseLine) {
+    // Line-buffered: stream-json adapters emit one JSON event per line.
+    // Forward parsed `AgentEvent`s on agents:event; raw stdout never
+    // reaches the renderer (it would just be machine-readable JSON the
+    // chat bubble can't display anyway).
+    let buf = "";
+    const onLine = (line: string) => {
+      const events = spec.parseLine!(line);
+      for (const ev of events) {
+        send("agents:event", { sessionId: id, event: ev });
+      }
+    };
+    proc.stdout.on("data", (b: Buffer) => {
+      buf += b.toString("utf8");
+      let nl: number;
+      while ((nl = buf.indexOf("\n")) >= 0) {
+        const line = buf.slice(0, nl);
+        buf = buf.slice(nl + 1);
+        onLine(line);
+      }
+    });
+    proc.stdout.on("end", () => {
+      if (buf.length) onLine(buf);
+      buf = "";
+    });
+  } else {
+    // Plain-text adapter: forward stdout verbatim as a synthetic text
+    // block so the chat bubble can still render it.
+    proc.stdout.on("data", (b: Buffer) => {
+      send("agents:event", {
+        sessionId: id,
+        event: {
+          kind: "block_delta",
+          index: 0,
+          text: b.toString("utf8"),
+        },
+      });
+    });
+  }
   proc.stderr.on("data", (b: Buffer) =>
     send("agents:chunk", { sessionId: id, stream: "stderr", data: b.toString("utf8") }),
   );

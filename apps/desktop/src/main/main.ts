@@ -534,12 +534,16 @@ function registerIpcHandlers(): void {
       const prompt = typeof p.prompt === "string" ? p.prompt : "";
       const cwd =
         typeof p.cwd === "string" && p.cwd ? p.cwd : currentSheet ?? "";
+      const sessionId = typeof p.sessionId === "string" ? p.sessionId : "";
       const isFollowup = !!p.isFollowup;
-      if (!agentId || !prompt || !cwd) {
-        return { ok: false, error: "agentId, prompt, and cwd are required" };
+      if (!agentId || !prompt || !cwd || !sessionId) {
+        return {
+          ok: false,
+          error: "agentId, prompt, cwd, and sessionId are required",
+        };
       }
       return agents.runAgent(
-        { agentId, prompt, cwd, isFollowup },
+        { agentId, prompt, cwd, sessionId, isFollowup },
         event.sender,
       );
     },
