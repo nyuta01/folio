@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28">
-  <!-- V3-05 Pair — two offset squares, suggests "multiple records" without page-rows. -->
-  <rect width="28" height="28" rx="5" fill="#faf9f5"/>
-  <rect x="6"  y="9"  width="13" height="13" rx="2" fill="#e08a5d"/>
-  <rect x="10" y="5"  width="13" height="13" rx="2" fill="#c45c2c"/>
-</svg>

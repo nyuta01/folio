@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28">
-  <!-- V2-05 Cut-corner brutalist: refined D from v1, no inner "page" framing, no row hints. -->
-  <path d="M4 2 L18 2 L26 10 L26 24 a2 2 0 0 1 -2 2 L4 26 a2 2 0 0 1 -2 -2 L2 4 a2 2 0 0 1 2 -2 Z"
-        fill="#c45c2c"/>
-  <path d="M18 2 L18 10 L26 10 Z" fill="#a04e23"/>
-</svg>
