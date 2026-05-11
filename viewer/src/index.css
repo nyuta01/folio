@@ -599,6 +599,20 @@ body.col-resizing * {
   font-size: 12px;
   outline: none;
 }
+/* `select`s render with browser-specific arrow chrome; remove the extra
+   padding so the value sits where the cell text was. */
+select.cell-input {
+  padding: 0 8px;
+}
+/* JSON / array textarea: keep it visible above the row without
+   overflowing the surrounding grid. */
+textarea.cell-input-multi {
+  height: auto;
+  min-height: 32px;
+  padding: 4px 12px;
+  resize: vertical;
+  white-space: pre;
+}
 .cell-prov-dot {
   width: 5px;
   height: 5px;

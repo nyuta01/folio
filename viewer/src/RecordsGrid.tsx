@@ -32,37 +32,204 @@ export function TypeChip({ t }: { t: string }) {
 
 export { FieldBadge };
 
+type CommitMove = "down" | "up" | "right" | "left" | "none";
+
 interface CellEditorProps {
   value: unknown;
-  onCommit: (value: string, move?: "down" | "up" | "right" | "left" | "none") => void;
+  field: ContractProperty;
+  onCommit: (value: unknown, move?: CommitMove) => void;
   onCancel: () => void;
+  onError?: (message: string) => void;
 }
-function CellEditor({ value, onCommit, onCancel }: CellEditorProps) {
-  const [v, setV] = useState(value == null ? "" : String(value));
-  const ref = useRef<HTMLInputElement>(null);
+
+// Parse the raw editor string into the value the SDK should receive.
+// Returns `{ ok, value }` so the caller can keep the editor open on
+// invalid input rather than silently dropping the keystrokes.
+function parseByType(
+  raw: string,
+  logicalType: ContractProperty["logicalType"],
+): { ok: true; value: unknown } | { ok: false; error: string } {
+  const trimmed = raw.trim();
+  if (trimmed === "") return { ok: true, value: null };
+  switch (logicalType) {
+    case "integer": {
+      if (!/^-?\d+$/.test(trimmed)) return { ok: false, error: "must be an integer" };
+      const n = Number.parseInt(trimmed, 10);
+      if (!Number.isFinite(n)) return { ok: false, error: "integer out of range" };
+      return { ok: true, value: n };
+    }
+    case "number": {
+      const n = Number(trimmed);
+      if (!Number.isFinite(n)) return { ok: false, error: "must be a number" };
+      return { ok: true, value: n };
+    }
+    case "boolean": {
+      if (trimmed === "true") return { ok: true, value: true };
+      if (trimmed === "false") return { ok: true, value: false };
+      return { ok: false, error: "boolean must be true or false" };
+    }
+    case "array":
+    case "object": {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (logicalType === "array" && !Array.isArray(parsed)) {
+          return { ok: false, error: "must be a JSON array" };
+        }
+        if (
+          logicalType === "object" &&
+          (parsed === null || typeof parsed !== "object" || Array.isArray(parsed))
+        ) {
+          return { ok: false, error: "must be a JSON object" };
+        }
+        return { ok: true, value: parsed };
+      } catch (err) {
+        return { ok: false, error: "invalid JSON" };
+      }
+    }
+    case "date":
+      // Accept either yyyy-mm-dd from <input type=date> or any non-empty
+      // string the user typed (free text fallback).
+      if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+        return { ok: true, value: trimmed };
+      }
+      return { ok: true, value: trimmed };
+    case "timestamp": {
+      // <input type=datetime-local> emits yyyy-mm-ddThh:mm[:ss], no `Z`.
+      // Normalise to ISO-8601 UTC if it parses cleanly.
+      if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?$/.test(trimmed)) {
+        const d = new Date(trimmed + (trimmed.length === 16 ? ":00Z" : "Z"));
+        if (!Number.isNaN(d.getTime())) {
+          return { ok: true, value: d.toISOString().replace(/\.\d{3}Z$/, "Z") };
+        }
+      }
+      return { ok: true, value: trimmed };
+    }
+    default:
+      return { ok: true, value: trimmed };
+  }
+}
+
+function stringifyForEdit(value: unknown, logicalType: ContractProperty["logicalType"]): string {
+  if (value == null) return "";
+  if (logicalType === "array" || logicalType === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+  if (logicalType === "timestamp") {
+    // datetime-local wants yyyy-mm-ddThh:mm (no zone).
+    const s = String(value);
+    const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::\d{2})?/.exec(s);
+    return m ? `${m[1]}T${m[2]}` : s;
+  }
+  return String(value);
+}
+
+function CellEditor({ value, field, onCommit, onCancel, onError }: CellEditorProps) {
+  const logicalType = field.logicalType;
+  const [v, setV] = useState<string>(() => stringifyForEdit(value, logicalType));
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const selectRef = useRef<HTMLSelectElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   useEffect(() => {
-    ref.current?.focus();
-    ref.current?.select();
+    inputRef.current?.focus();
+    inputRef.current?.select();
+    selectRef.current?.focus();
+    textareaRef.current?.focus();
+    textareaRef.current?.select();
   }, []);
+
+  const commit = (raw: string, move: CommitMove) => {
+    const parsed = parseByType(raw, logicalType);
+    if (!parsed.ok) {
+      onError?.(`${field.name}: ${parsed.error}`);
+      return;
+    }
+    onCommit(parsed.value, move);
+  };
+
+  const handleKey = (
+    e: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>,
+  ) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onCancel();
+      return;
+    }
+    if (e.key === "Enter") {
+      // In textarea (array/object), allow newline with shift+enter for
+      // hand-edited multi-line JSON; commit on bare Enter.
+      const isTextarea = logicalType === "array" || logicalType === "object";
+      if (isTextarea && e.shiftKey) return;
+      e.preventDefault();
+      commit(v, e.shiftKey ? "up" : "down");
+      return;
+    }
+    if (e.key === "Tab") {
+      e.preventDefault();
+      commit(v, e.shiftKey ? "left" : "right");
+      return;
+    }
+  };
+
+  if (logicalType === "boolean") {
+    return (
+      <select
+        ref={selectRef}
+        className="cell-input mono"
+        value={v}
+        onChange={(e) => {
+          setV(e.target.value);
+          // selects don't always emit a follow-on blur; commit eagerly.
+          commit(e.target.value, "none");
+        }}
+        onBlur={() => commit(v, "none")}
+        onKeyDown={handleKey}
+      >
+        <option value=""></option>
+        <option value="true">true</option>
+        <option value="false">false</option>
+      </select>
+    );
+  }
+
+  if (logicalType === "array" || logicalType === "object") {
+    return (
+      <textarea
+        ref={textareaRef}
+        className="cell-input mono cell-input-multi"
+        rows={2}
+        value={v}
+        placeholder={logicalType === "array" ? '["a","b"]' : '{"k":"v"}'}
+        onChange={(e) => setV(e.target.value)}
+        onBlur={() => commit(v, "none")}
+        onKeyDown={handleKey}
+      />
+    );
+  }
+
+  const inputType =
+    logicalType === "integer" || logicalType === "number"
+      ? "number"
+      : logicalType === "date"
+      ? "date"
+      : logicalType === "timestamp"
+      ? "datetime-local"
+      : "text";
+  const step = logicalType === "integer" ? "1" : logicalType === "number" ? "any" : undefined;
+
   return (
     <input
-      ref={ref}
+      ref={inputRef}
       className="cell-input mono"
+      type={inputType}
+      step={step}
       value={v}
       onChange={(e) => setV(e.target.value)}
-      onBlur={() => onCommit(v, "none")}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          onCommit(v, e.shiftKey ? "up" : "down");
-        } else if (e.key === "Tab") {
-          e.preventDefault();
-          onCommit(v, e.shiftKey ? "left" : "right");
-        } else if (e.key === "Escape") {
-          e.preventDefault();
-          onCancel();
-        }
-      }}
+      onBlur={() => commit(v, "none")}
+      onKeyDown={handleKey}
     />
   );
 }
@@ -106,9 +273,10 @@ interface CellProps {
   onCommit: (
     recordId: string,
     field: string,
-    value: string,
-    move?: "down" | "up" | "right" | "left" | "none",
+    value: unknown,
+    move?: CommitMove,
   ) => void;
+  onEditError?: (message: string) => void;
 }
 
 function Cell({
@@ -125,6 +293,7 @@ function Cell({
   setFocused,
   onHover,
   onCommit,
+  onEditError,
 }: CellProps) {
   const isPK = field.primaryKey === true;
   const isDerived = field["x-derived"] === true;
@@ -148,8 +317,10 @@ function Cell({
       <td className="td td-edit">
         <CellEditor
           value={value}
+          field={field}
           onCommit={(v, move) => onCommit(recordId, field.name, v, move)}
           onCancel={() => setEditing(null)}
+          onError={onEditError}
         />
       </td>
     );
@@ -205,10 +376,11 @@ interface RecordsGridProps {
   onCommit: (
     recordId: string,
     field: string,
-    value: string,
-    move?: "down" | "up" | "right" | "left" | "none",
+    value: unknown,
+    move?: CommitMove,
   ) => void;
   onPickField: (name: string) => void;
+  onEditError?: (message: string) => void;
 }
 
 // Per-field "preferred for content" widths — used as a floor so common
@@ -254,6 +426,7 @@ export function RecordsGrid({
   onHover,
   onCommit,
   onPickField,
+  onEditError,
 }: RecordsGridProps) {
   const [colOverrides, setColOverrides] = useState<Record<string, number>>({});
   const widthOf = (c: ContractProperty) =>
@@ -393,6 +566,7 @@ export function RecordsGrid({
                       setFocused={setFocused}
                       onHover={onHover}
                       onCommit={onCommit}
+                      onEditError={onEditError}
                     />
                   );
                 })}

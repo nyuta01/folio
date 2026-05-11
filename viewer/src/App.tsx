@@ -402,13 +402,14 @@ export default function App() {
   const commitEdit = async (
     rid: string,
     field: string,
-    value: string,
+    value: unknown,
     move: "down" | "up" | "right" | "left" | "none" = "none",
   ) => {
     setEditing(null);
     setFocused({ recordId: rid, field });
-    const next = value === "" ? null : value;
-    await applyCellEdit(rid, field, next);
+    // `value` is already parsed and typed by RecordsGrid's CellEditor
+    // (booleans, numbers, arrays, etc.); empty inputs arrive as null.
+    await applyCellEdit(rid, field, value);
     if (move !== "none") moveFocus(move, { recordId: rid, field });
   };
 
@@ -840,7 +841,7 @@ export default function App() {
         );
         if (editable) {
           e.preventDefault();
-          commitEdit(focused.recordId, focused.field, "", "none");
+          commitEdit(focused.recordId, focused.field, null, "none");
         }
         return;
       }
@@ -966,6 +967,7 @@ export default function App() {
             setSelected={setSelected}
             onHover={setHovered}
             onCommit={commitEdit}
+            onEditError={(msg) => showToast(msg, "err")}
             onPickField={(name) => {
               setInspectorField(name);
               setRpTab("inspector");
