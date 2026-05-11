@@ -109,7 +109,7 @@ Visit [http://127.0.0.1:3000/](http://127.0.0.1:3000/):
 3. **Tuesday — finance updates revenue.** Finance updates
    `customer-revenue/records.jsonl`. The next materialize sees the
    foreign sheet's hash flipped and re-joins **every** customer (per the
-   [`cross_sheet`](/sheet/derivations/cross-sheet/) cache rules).
+   [`cross_sheet`](/folio/sheet/derivations/cross-sheet/) cache rules).
 
 4. **Friday — human review.** A reviewer opens the Viewer, fixes a few
    `country_code` values (the deterministic lookup misses some
@@ -130,7 +130,7 @@ Visit [http://127.0.0.1:3000/](http://127.0.0.1:3000/):
 ## See also
 
 - [examples/customers/README.md](https://github.com/nyuta01/folio/blob/main/examples/customers/README.md)
-- [`cross_sheet` derivation](/sheet/derivations/cross-sheet/) — semantics
+- [`cross_sheet` derivation](/folio/sheet/derivations/cross-sheet/) — semantics
   and cache rules for the 1:1 sidecar pattern.
-- [Editing and provenance](/get-started/editing-and-provenance/) — the
+- [Editing and provenance](/folio/get-started/editing-and-provenance/) — the
   human-review loop in detail.

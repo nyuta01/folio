@@ -6,7 +6,7 @@ description: The typed schema at the heart of every sheet — ODCS-aligned with 
 `contract.yaml` is the only required schema file. It declares the sheet's
 identity, version, and per-field types. Folio uses an [Open Data Contract
 Standard (ODCS)](https://github.com/bitol-io/open-data-contract-standard) subset
-([ADR-0003](/reference/adrs/)) so external tools — `datacontract-cli`,
+([ADR-0003](/folio/reference/adrs/)) so external tools — `datacontract-cli`,
 `frictionless`, ad-hoc readers — can read it without bespoke logic.
 
 ## Minimal contract
@@ -165,8 +165,8 @@ invocation, so it always sees the current state.
 
 ## Where to go next
 
-- [records.jsonl](/sheet/records/) — what valid rows look like.
-- [Edit permissions](/sheet/editable-by/) — patterns and edge cases for
+- [records.jsonl](/folio/sheet/records/) — what valid rows look like.
+- [Edit permissions](/folio/sheet/editable-by/) — patterns and edge cases for
   `x-editable-by`.
-- [Reference: contract.yaml spec](/reference/contract-spec/) — the exhaustive
+- [Reference: contract.yaml spec](/folio/reference/contract-spec/) — the exhaustive
   list of every accepted attribute.

@@ -11,14 +11,14 @@ folio serve <SHEET>
 ```
 
 `folio serve` is a thin alias for `folio-viewer serve`. It opens the
-[Viewer](/viewer/overview/) — a local-only FastAPI + React app — against
+[Viewer](/folio/viewer/overview/) — a local-only FastAPI + React app — against
 the given sheet.
 
 ## Defaults
 
 | Flag | Default | Notes |
 |---|---|---|
-| `--host` | `127.0.0.1` | Local-only by design ([§19.1](/viewer/overview/)). |
+| `--host` | `127.0.0.1` | Local-only by design ([§19.1](/folio/viewer/overview/)). |
 | `--port` | `3000` | |
 | `--actor` | none | Required for the inline editor. |
 | `--static-dir` | auto | Serves `viewer/dist/` if it exists alongside the working directory. |
@@ -67,7 +67,7 @@ UI.
 
 ## See also
 
-- [Viewer overview](/viewer/overview/) — full architecture.
-- [REST API](/viewer/rest-api/) — every endpoint.
-- [Events (SSE)](/viewer/events/) — `/events` stream of materialize
+- [Viewer overview](/folio/viewer/overview/) — full architecture.
+- [REST API](/folio/viewer/rest-api/) — every endpoint.
+- [Events (SSE)](/folio/viewer/events/) — `/events` stream of materialize
   lifecycle frames.

@@ -4,7 +4,7 @@ description: Every method on Sheet with signatures, return shapes, and examples.
 ---
 
 The `Sheet` class is the SDK's working surface. Construct one with
-[`open_sheet`](/sdk/open-sheet/) and call any of the methods below.
+[`open_sheet`](/folio/sdk/open-sheet/) and call any of the methods below.
 
 ## `get_contract`
 
@@ -28,7 +28,7 @@ sheet.query(sql: str, params: Sequence[Any] | None = None) -> list[dict]
 ```
 
 Run a DuckDB `SELECT` against the `records` view. Read-only; non-SELECT
-statements raise `QueryError` ([ADR-0005](/reference/adrs/)).
+statements raise `QueryError` ([ADR-0005](/folio/reference/adrs/)).
 
 ```python
 rows = sheet.query(
@@ -133,7 +133,7 @@ sheet.materialize(
 ) -> dict
 ```
 
-Run derivations. Returns the [§10.6 envelope](/cli/materialize/):
+Run derivations. Returns the [§10.6 envelope](/folio/cli/materialize/):
 
 ```python
 {"materialized": 12, "skipped": 7, "failures": [...], "total_cost": 0.0}

@@ -34,7 +34,7 @@ The Viewer maps `FolioError` to a typed JSON envelope; the CLI prints
 
 ## `ContractError`
 
-`contract.yaml` is missing, malformed, or fails [validation](/sheet/contract/).
+`contract.yaml` is missing, malformed, or fails [validation](/folio/sheet/contract/).
 Raised by:
 
 - `open_sheet`
@@ -74,7 +74,7 @@ DuckDB rejected the query, **or** the query violates the SELECT-only rule.
 Examples:
 
 - `only SELECT statements are allowed` (`UPDATE`, `INSERT`, `ATTACH`, …
-  all raise this — see [ADR-0005](/reference/adrs/)).
+  all raise this — see [ADR-0005](/folio/reference/adrs/)).
 - `DuckDB error: Catalog Error: ...`
 
 ## `OperationError`

@@ -13,7 +13,7 @@ contract or before committing a sheet.
 
 ## What it checks
 
-- `contract.yaml` is valid YAML and matches the [Folio contract spec](/sheet/contract/).
+- `contract.yaml` is valid YAML and matches the [Folio contract spec](/folio/sheet/contract/).
 - Exactly one property is `primaryKey: true`.
 - Every property declares a known `logicalType`.
 - `x-derived` properties have a non-empty `x-inputs` whose names exist on
@@ -26,7 +26,7 @@ contract or before committing a sheet.
 
 | Flag | Purpose |
 |---|---|
-| `--strict` | Also validate `README.md`'s YAML frontmatter against the [`Frontmatter`](/sdk/sheet-api/#metadata) schema. |
+| `--strict` | Also validate `README.md`'s YAML frontmatter against the [`Frontmatter`](/folio/sdk/sheet-api/#metadata) schema. |
 
 ## Exit semantics
 

@@ -8,12 +8,12 @@ folio.open_sheet(path: str | Path, *, actor: str | None = None) -> Sheet
 ```
 
 The single entry point to the SDK. Returns a `Sheet` ready for any of the
-operations documented in [Sheet API](/sdk/sheet-api/).
+operations documented in [Sheet API](/folio/sdk/sheet-api/).
 
 ## Behaviour
 
 - **Reads `contract.yaml` immediately.** The contract is validated against
-  the [Folio spec](/sheet/contract/); failures raise `ContractError`.
+  the [Folio spec](/folio/sheet/contract/); failures raise `ContractError`.
 - **Does not read `records.jsonl`.** Lazy until a query / list / read.
 - **Does not acquire the lock.** Lazy until a write.
 - **Stores the actor.** Used by write operations unless they're given an
@@ -53,7 +53,7 @@ The MCP server uses this pattern: it stores `default_actor` from the
 | Error | Cause |
 |---|---|
 | `SheetError: sheet path is not a directory: <path>` | The directory doesn't exist or isn't a directory. |
-| `ContractError: ...` | `contract.yaml` is missing, malformed, or fails [validation](/sheet/contract/). |
+| `ContractError: ...` | `contract.yaml` is missing, malformed, or fails [validation](/folio/sheet/contract/). |
 | `RecordsError: invalid JSON on line N` | `records.jsonl` won't parse. |
 
 `ContractError` includes the field name and what's wrong. `RecordsError`

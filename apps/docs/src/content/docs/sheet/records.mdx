@@ -14,7 +14,7 @@ trailing comma, no enclosing array.
 
 That's it. The format is intentionally trivial so `head`, `grep`,
 `jq -c`, and DuckDB's `read_json_auto` all work without ceremony
-([ADR-0004](/reference/adrs/)).
+([ADR-0004](/folio/reference/adrs/)).
 
 ## Encoding and line semantics
 
@@ -51,7 +51,7 @@ records.jsonl               ← atomically rename over the old file
 A reader holding an open file descriptor on `records.jsonl` sees a complete
 older snapshot. A new reader sees the new file. There is no torn state.
 
-A `.lock` file in the sheet serializes writers (single-writer, [ADR-0006](/reference/adrs/)).
+A `.lock` file in the sheet serializes writers (single-writer, [ADR-0006](/folio/reference/adrs/)).
 
 ## Querying via DuckDB
 
@@ -70,7 +70,7 @@ sheet.query("SELECT * FROM records WHERE country = ?", ["Japan"])
 ```
 
 Only `SELECT` is allowed. INSERT / UPDATE / DELETE / DDL are rejected at the
-Folio layer ([ADR-0005](/reference/adrs/)). Use `upsert_records` and
+Folio layer ([ADR-0005](/folio/reference/adrs/)). Use `upsert_records` and
 `delete_records` to mutate.
 
 ## Pagination

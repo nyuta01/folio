@@ -135,12 +135,12 @@ rm -rf "<user-cache>/folio/<sheet-id>/runtime/venv"
 ```
 
 Folio doesn't ship `requirements.txt`-hashing for venv invalidation yet
-([FOLIO-H-006](/reference/adrs/) is a placeholder). Removing the directory
+([FOLIO-H-006](/folio/reference/adrs/) is a placeholder). Removing the directory
 is the supported workaround.
 
 ## Why outside the sheet
 
-This is [ADR-0008](/reference/adrs/). Two reasons:
+This is [ADR-0008](/folio/reference/adrs/). Two reasons:
 
 - **Portability.** The sheet stays `tar`-portable.
 - **Per-environment correctness.** The cache and venv depend on the host

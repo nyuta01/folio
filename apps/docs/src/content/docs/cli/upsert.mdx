@@ -58,7 +58,7 @@ silently drop unknown columns.
 ## Atomicity
 
 The write goes through `temp file + rename` and is single-writer
-([ADR-0006](/reference/adrs/)). Either every record in the batch lands or
+([ADR-0006](/folio/reference/adrs/)). Either every record in the batch lands or
 none do. Provenance lines are appended only after `records.jsonl` is
 committed.
 
@@ -94,6 +94,6 @@ string).
 
 ## See also
 
-- [`folio delete`](/cli/delete/) — remove rows by primary key.
-- [`folio materialize`](/cli/materialize/) — fill `x-derived` fields.
-- [Edit permissions](/sheet/editable-by/) — patterns and edge cases.
+- [`folio delete`](/folio/cli/delete/) — remove rows by primary key.
+- [`folio materialize`](/folio/cli/materialize/) — fill `x-derived` fields.
+- [Edit permissions](/folio/sheet/editable-by/) — patterns and edge cases.

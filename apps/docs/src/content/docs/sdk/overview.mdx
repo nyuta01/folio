@@ -105,13 +105,13 @@ FolioError
 └── LockTimeoutError       # could not acquire .lock within 30 s
 ```
 
-See [Errors](/sdk/errors/) for which method raises which exception.
+See [Errors](/folio/sdk/errors/) for which method raises which exception.
 
 ## Threading and processes
 
 A single `Sheet` instance is **not** thread-safe (don't call mutating
 methods from two threads). Across processes, the `.lock` file serializes
-writers ([ADR-0006](/reference/adrs/)). Reads do not take the lock and
+writers ([ADR-0006](/folio/reference/adrs/)). Reads do not take the lock and
 may interleave with writes — readers always see a consistent atomic
 snapshot thanks to the temp-file-and-rename pattern.
 
@@ -131,8 +131,8 @@ for end-to-end patterns.
 
 ## See also
 
-- [`open_sheet`](/sdk/open-sheet/) — constructor details and edge cases.
-- [Sheet API](/sdk/sheet-api/) — every method with signatures and examples.
-- [AI client](/sdk/ai-client/) — Protocol, adapter, stub.
-- [HTTP transport](/sdk/http-transport/) — Protocol, adapter, stub.
-- [Errors](/sdk/errors/) — full exception reference.
+- [`open_sheet`](/folio/sdk/open-sheet/) — constructor details and edge cases.
+- [Sheet API](/folio/sdk/sheet-api/) — every method with signatures and examples.
+- [AI client](/folio/sdk/ai-client/) — Protocol, adapter, stub.
+- [HTTP transport](/folio/sdk/http-transport/) — Protocol, adapter, stub.
+- [Errors](/folio/sdk/errors/) — full exception reference.

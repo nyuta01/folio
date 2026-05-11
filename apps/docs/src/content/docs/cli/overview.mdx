@@ -20,17 +20,17 @@ positional argument.
 
 | Verb | What it does |
 |---|---|
-| [`folio validate`](/cli/validate/) | Validate `contract.yaml`, `records.jsonl`, and (optionally) `README.md` frontmatter. |
-| [`folio query`](/cli/query/) | Run a DuckDB SELECT against the sheet's `records` view. |
-| [`folio list`](/cli/list/) | List records as a paginated JSON envelope (or TOON). |
-| [`folio upsert`](/cli/upsert/) | Insert or update records by primary key. |
-| [`folio delete`](/cli/delete/) | Delete records by primary key id. |
-| [`folio materialize`](/cli/materialize/) | Run derivations. Returns the §10.6 envelope. |
-| [`folio status`](/cli/status/) | Per-target counts for derived fields. |
-| [`folio provenance`](/cli/provenance/) | Latest entry or full append-only history for one cell. |
-| [`folio serve`](/cli/serve/) | Start the Viewer (alias for `folio-viewer serve`). |
-| [`folio script`](/cli/script/) | Discover and run reusable scripts under `sheet/scripts/`. |
-| [`folio export`](/cli/export/) | Export the sheet (currently: Frictionless `datapackage.json`). |
+| [`folio validate`](/folio/cli/validate/) | Validate `contract.yaml`, `records.jsonl`, and (optionally) `README.md` frontmatter. |
+| [`folio query`](/folio/cli/query/) | Run a DuckDB SELECT against the sheet's `records` view. |
+| [`folio list`](/folio/cli/list/) | List records as a paginated JSON envelope (or TOON). |
+| [`folio upsert`](/folio/cli/upsert/) | Insert or update records by primary key. |
+| [`folio delete`](/folio/cli/delete/) | Delete records by primary key id. |
+| [`folio materialize`](/folio/cli/materialize/) | Run derivations. Returns the §10.6 envelope. |
+| [`folio status`](/folio/cli/status/) | Per-target counts for derived fields. |
+| [`folio provenance`](/folio/cli/provenance/) | Latest entry or full append-only history for one cell. |
+| [`folio serve`](/folio/cli/serve/) | Start the Viewer (alias for `folio-viewer serve`). |
+| [`folio script`](/folio/cli/script/) | Discover and run reusable scripts under `sheet/scripts/`. |
+| [`folio export`](/folio/cli/export/) | Export the sheet (currently: Frictionless `datapackage.json`). |
 
 ## Global behaviour
 
@@ -96,5 +96,5 @@ folio serve ./customers --port 3000 --actor agent:human
 ## Where to next
 
 - Per-verb pages from the sidebar (`validate`, `query`, …).
-- [Python SDK overview](/sdk/overview/) — every verb's underlying API.
-- [MCP overview](/mcp/overview/) — the same SDK exposed as MCP tools.
+- [Python SDK overview](/folio/sdk/overview/) — every verb's underlying API.
+- [MCP overview](/folio/mcp/overview/) — the same SDK exposed as MCP tools.

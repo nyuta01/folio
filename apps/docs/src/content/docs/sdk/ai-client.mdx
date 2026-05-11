@@ -5,7 +5,7 @@ description: AIClient Protocol, AnthropicClientAdapter, StubAIClient, and how to
 
 Folio's `ai` derivation kind never imports an LLM SDK directly. It calls
 through the **`AIClient` Protocol**, which decouples the spec from the
-provider ([ADR-0009](/reference/adrs/)). Two implementations ship in
+provider ([ADR-0009](/folio/reference/adrs/)). Two implementations ship in
 `folio._ai_kind`:
 
 - `AnthropicClientAdapter` — production. Uses the `anthropic` SDK.
@@ -46,7 +46,7 @@ Implementations must:
 - Honour `output="json"` by either passing structured-output hints to the
   model, or by parsing the model's text output as JSON before returning.
 - Set `cost_usd` to `None` for unknown models rather than guessing a
-  price ([ADR-0009](/reference/adrs/)).
+  price ([ADR-0009](/folio/reference/adrs/)).
 
 ## `AnthropicClientAdapter`
 
@@ -66,7 +66,7 @@ print(result.cost_usd)    # → 0.00003 (or None for unknown models)
 ```
 
 The adapter is the **only module** in `src/folio/` that imports
-`anthropic` ([ADR-0009](/reference/adrs/)). Drift-check enforces this
+`anthropic` ([ADR-0009](/folio/reference/adrs/)). Drift-check enforces this
 invariant on every `make verify`.
 
 ### Pricing

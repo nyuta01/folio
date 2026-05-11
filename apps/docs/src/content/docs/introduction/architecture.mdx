@@ -28,7 +28,7 @@ tarball.** Two specific things you might expect to be here are deliberately
 not:
 
 - **No cache files.** The cache lives at
-  `<user-cache>/folio/<sheet-id>/cache/`. See [ADR-0008](/reference/adrs/).
+  `<user-cache>/folio/<sheet-id>/cache/`. See [ADR-0008](/folio/reference/adrs/).
 - **No virtualenv.** When `scripts/requirements.txt` exists, Folio creates a
   venv at `<user-cache>/folio/<sheet-id>/runtime/venv/`. The sheet stays clean.
 
@@ -65,7 +65,7 @@ surfaces import the SDK and project it onto their transport:
 ## Single-writer semantics
 
 A sheet is single-writer through a `.lock` file (filelock, 30 s timeout, see
-[ADR-0006](/reference/adrs/)). All write operations — `upsert_records`,
+[ADR-0006](/folio/reference/adrs/)). All write operations — `upsert_records`,
 `delete_records`, `materialize` — acquire the lock before reading
 `records.jsonl`, write atomically (temp file + rename), then release.
 
@@ -94,7 +94,7 @@ most recently.
                                                        cache result
 ```
 
-Failures are reported per record × field on the [`§10.6 envelope`](/cli/materialize/),
+Failures are reported per record × field on the [`§10.6 envelope`](/folio/cli/materialize/),
 not raised — so a 5,000-row materialize doesn't abort on one bad row.
 
 ## Where things live (cheat sheet)

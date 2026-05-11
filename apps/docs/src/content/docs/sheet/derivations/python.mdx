@@ -120,7 +120,7 @@ When `scripts/requirements.txt` exists, Folio:
 2. installs the requirements (pip install -r),
 3. runs every Python script through `<venv>/bin/python`.
 
-The venv stays outside the sheet for portability ([ADR-0008](/reference/adrs/)).
+The venv stays outside the sheet for portability ([ADR-0008](/folio/reference/adrs/)).
 Bash scripts are not affected.
 
 ## Cache invariants
@@ -136,7 +136,7 @@ Edit the script → next materialize re-runs it.
 ## Errors
 
 Non-zero exit code, malformed `output: json` payload, or missing
-`output_schema` keys all show up on the [materialize envelope](/cli/materialize/)
+`output_schema` keys all show up on the [materialize envelope](/folio/cli/materialize/)
 as per-record failures, not exceptions:
 
 ```json
@@ -161,7 +161,7 @@ folio script run ./customers country_to_code --argument '{"country": "Japan"}'
 ```
 
 This lets humans poke the same scripts the materialize loop runs, without
-hand-crafting a Python invocation. See the [`script` CLI verb](/cli/script/).
+hand-crafting a Python invocation. See the [`script` CLI verb](/folio/cli/script/).
 
 ## When to choose `python`
 
@@ -169,7 +169,7 @@ hand-crafting a Python invocation. See the [`script` CLI verb](/cli/script/).
 - Aggregations that need code, not SQL.
 - Glue that calls a small library (e.g. `urllib`, `dateutil`).
 
-Reach for [`sql`](/sheet/derivations/sql/) when the transform is
-expressible as a SELECT against `records`. Reach for [`http`](/sheet/derivations/http/)
-when the source is over the network. Reach for [`ai`](/sheet/derivations/ai/)
+Reach for [`sql`](/folio/sheet/derivations/sql/) when the transform is
+expressible as a SELECT against `records`. Reach for [`http`](/folio/sheet/derivations/http/)
+when the source is over the network. Reach for [`ai`](/folio/sheet/derivations/ai/)
 when the answer is fundamentally fuzzy.

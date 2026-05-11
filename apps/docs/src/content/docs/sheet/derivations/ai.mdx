@@ -7,8 +7,8 @@ import KindBadge from "../../../../components/KindBadge.astro";
 
 <KindBadge kind="ai" /> uses an LLM to fill derived fields. Folio's
 implementation routes every call through an `AIClient` Protocol — the
-[`AnthropicClientAdapter`](/sdk/ai-client/) is the only module that imports
-the `anthropic` SDK ([ADR-0009](/reference/adrs/)), and a deterministic
+[`AnthropicClientAdapter`](/folio/sdk/ai-client/) is the only module that imports
+the `anthropic` SDK ([ADR-0009](/folio/reference/adrs/)), and a deterministic
 `StubAIClient` ships for offline tests and demos.
 
 ## Minimal example
@@ -106,13 +106,13 @@ fields that contain quotes or newlines.
 Every successful `ai` call appends `cost_usd` to its provenance line. Folio
 keeps a small `PRICE_TABLE_USD` in `_ai_kind.py` for known models; unknown
 models report `cost_usd: null` rather than fabricating a price
-([ADR-0009](/reference/adrs/)). The `total_cost` on the
-[`materialize` envelope](/cli/materialize/) is the sum of all known costs in
+([ADR-0009](/folio/reference/adrs/)). The `total_cost` on the
+[`materialize` envelope](/folio/cli/materialize/) is the sum of all known costs in
 the run.
 
 ## Running offline with the StubAIClient
 
-For tests and the offline materialize smoke, inject a [`StubAIClient`](/sdk/ai-client/):
+For tests and the offline materialize smoke, inject a [`StubAIClient`](/folio/sdk/ai-client/):
 
 ```python
 from folio import open_sheet
@@ -147,8 +147,8 @@ easy cases, with an `ai` fallback for the long tail.
 
 ## Where to next
 
-- [AIClient SDK reference](/sdk/ai-client/) — Protocol, adapter, stub.
-- [Custom AI provider](/sdk/ai-client/#writing-your-own-aiclient) —
+- [AIClient SDK reference](/folio/sdk/ai-client/) — Protocol, adapter, stub.
+- [Custom AI provider](/folio/sdk/ai-client/#writing-your-own-aiclient) —
   implement the Protocol against any model.
-- [provenance.jsonl](/sheet/provenance/) — what an `ai` provenance line
+- [provenance.jsonl](/folio/sheet/provenance/) — what an `ai` provenance line
   looks like, including `cost_usd` and `model`.

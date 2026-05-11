@@ -33,7 +33,7 @@ Each property on the contract can declare who is allowed to write it:
 ```
 
 Patterns are matched against the actor with [`fnmatch`](https://docs.python.org/3/library/fnmatch.html)
-([ADR-0007](/reference/adrs/)). `agent:ops:akiko` matches `agent:ops:*` and
+([ADR-0007](/folio/reference/adrs/)). `agent:ops:akiko` matches `agent:ops:*` and
 is allowed to write the field; `agent:enrichment` is rejected with
 `PermissionDeniedError` (HTTP 403 in the Viewer).
 
@@ -97,7 +97,7 @@ Field-by-field:
 | `at` | Folio | UTC ISO-8601, second precision. |
 | `input_hash` | Folio | `sha256:` over the canonical JSON of the inputs. Empty for `human`. |
 | `model` | the kind | `ai` only — the model id (e.g. `claude-sonnet-4-6`). |
-| `cost_usd` | the kind | `ai` only — cost in USD, or `null` for unknown models ([ADR-0009](/reference/adrs/)). |
+| `cost_usd` | the kind | `ai` only — cost in USD, or `null` for unknown models ([ADR-0009](/folio/reference/adrs/)). |
 
 ## A typical lifecycle
 

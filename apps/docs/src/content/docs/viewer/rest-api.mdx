@@ -110,11 +110,11 @@ Returns:
 {"rows":[{"country":"Japan","n":3}, ...], "count":2}
 ```
 
-SELECT-only ([ADR-0005](/reference/adrs/)). Anything else → `400 QueryError`.
+SELECT-only ([ADR-0005](/folio/reference/adrs/)). Anything else → `400 QueryError`.
 
 ### `GET /api/status?targets=country_code,industry_tag`
 
-Returns the `materialization_status` shape (see [`folio status`](/cli/status/)).
+Returns the `materialization_status` shape (see [`folio status`](/folio/cli/status/)).
 
 ### `POST /api/materialize` (CSRF)
 
@@ -136,7 +136,7 @@ Returns the §10.6 envelope:
 ```
 
 Publishes `materialize.start`, `materialize.end` (or
-`materialize.error`) frames on the [SSE event bus](/viewer/events/).
+`materialize.error`) frames on the [SSE event bus](/folio/viewer/events/).
 
 ### `GET /api/provenance`
 
@@ -152,7 +152,7 @@ Returns the matching `provenance.jsonl` lines as JSON.
 
 ### `GET /events`
 
-Server-Sent Events stream. See [Events](/viewer/events/) for the frame
+Server-Sent Events stream. See [Events](/folio/viewer/events/) for the frame
 format.
 
 ## Error envelope
@@ -189,5 +189,5 @@ same-origin.
 
 ## Rate limiting / auth
 
-Neither is built-in. The Viewer is local-only by design ([Overview](/viewer/overview/)).
+Neither is built-in. The Viewer is local-only by design ([Overview](/folio/viewer/overview/)).
 Front it with a reverse proxy if you need either.

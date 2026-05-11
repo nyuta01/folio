@@ -109,7 +109,7 @@ that has two bad rows still completes; you fix the bad rows, re-run, and the
 
 `total_cost` is the sum of `cost_usd` across successful `ai` calls. Other
 kinds always report `0.0`. Cost is null for unknown models — see
-[ADR-0009](/reference/adrs/) for why Folio refuses to invent prices.
+[ADR-0009](/folio/reference/adrs/) for why Folio refuses to invent prices.
 
 ## Where the cache lives
 
@@ -128,7 +128,7 @@ on disk is fine and `--force` is enough for one-off recomputes.
 
 ## Atomic vs. concurrent
 
-A sheet is single-writer (`.lock`, 30 s timeout — see [ADR-0006](/reference/adrs/)).
+A sheet is single-writer (`.lock`, 30 s timeout — see [ADR-0006](/folio/reference/adrs/)).
 A second `folio materialize` invocation against the same sheet will block until
 the first releases. Reads do not take the lock; they always see a consistent
 snapshot thanks to the temp-file-and-rename pattern.

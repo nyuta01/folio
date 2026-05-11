@@ -42,12 +42,12 @@ Every kind respects the same rules:
 
 | Kind | One-liner | Offline? | Doc |
 |---|---|---|---|
-| <KindBadge kind="ai" /> | Calls an LLM via `AIClient` (Anthropic SDK by default). | Stub-only | [ai](/sheet/derivations/ai/) |
-| <KindBadge kind="import" /> | Reads from a local CSV / JSONL / JSON file in the sheet. | Yes | [import](/sheet/derivations/import/) |
-| <KindBadge kind="python" /> | Runs `scripts/<name>.py` as a subprocess. | Yes | [python](/sheet/derivations/python/) |
-| <KindBadge kind="sql" /> | Evaluates a DuckDB SELECT-only expression against `records`. | Yes | [sql](/sheet/derivations/sql/) |
-| <KindBadge kind="http" /> | Calls a templated HTTP endpoint via `HTTPTransport`. | Stub-only | [http](/sheet/derivations/http/) |
-| <KindBadge kind="cross_sheet" /> | Joins to a sibling sheet 1:1 by primary key. | Yes | [cross_sheet](/sheet/derivations/cross-sheet/) |
+| <KindBadge kind="ai" /> | Calls an LLM via `AIClient` (Anthropic SDK by default). | Stub-only | [ai](/folio/sheet/derivations/ai/) |
+| <KindBadge kind="import" /> | Reads from a local CSV / JSONL / JSON file in the sheet. | Yes | [import](/folio/sheet/derivations/import/) |
+| <KindBadge kind="python" /> | Runs `scripts/<name>.py` as a subprocess. | Yes | [python](/folio/sheet/derivations/python/) |
+| <KindBadge kind="sql" /> | Evaluates a DuckDB SELECT-only expression against `records`. | Yes | [sql](/folio/sheet/derivations/sql/) |
+| <KindBadge kind="http" /> | Calls a templated HTTP endpoint via `HTTPTransport`. | Stub-only | [http](/folio/sheet/derivations/http/) |
+| <KindBadge kind="cross_sheet" /> | Joins to a sibling sheet 1:1 by primary key. | Yes | [cross_sheet](/folio/sheet/derivations/cross-sheet/) |
 
 </div>
 
@@ -138,8 +138,8 @@ fork or the calling project's code.
 
 ## Where to next
 
-- The six kind pages: [ai](/sheet/derivations/ai/), [import](/sheet/derivations/import/),
-  [python](/sheet/derivations/python/), [sql](/sheet/derivations/sql/),
-  [http](/sheet/derivations/http/), [cross_sheet](/sheet/derivations/cross-sheet/).
-- [Materialize lifecycle](/get-started/materialize-lifecycle/) — the loop that
+- The six kind pages: [ai](/folio/sheet/derivations/ai/), [import](/folio/sheet/derivations/import/),
+  [python](/folio/sheet/derivations/python/), [sql](/folio/sheet/derivations/sql/),
+  [http](/folio/sheet/derivations/http/), [cross_sheet](/folio/sheet/derivations/cross-sheet/).
+- [Materialize lifecycle](/folio/get-started/materialize-lifecycle/) — the loop that
   glues them all together.
