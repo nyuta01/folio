@@ -6,13 +6,17 @@ Every example runs **fully offline** — no `ANTHROPIC_API_KEY`
 required — by relying on the `python` and `cross_sheet`
 derivation kinds.
 
-| Sheet | Use Case | Derivation kinds |
-|---|---|---|
-| [`customers/`](customers) | 2.1 Customer Master Enrichment | `python` (country_code) + `cross_sheet` (current_revenue_usd) |
-| [`customer-revenue/`](customer-revenue) | (sidecar of customers) | — |
-| [`research-memory/`](research-memory) | 2.2 Structured Working Memory for Agents | `python` (domain) |
-| [`research-notes/`](research-notes) | 2.3 Semi-structured Research Data Accumulation | `python` (word_count) |
-| [`onboarding/`](onboarding) | 2.4 Operational Worklist for Business Processes | `python` (progress) |
+| Sheet | Use Case | Derivation kinds | Skills |
+|---|---|---|---|
+| [`customers/`](customers) | 2.1 Customer Master Enrichment | `python` (country_code) + `cross_sheet` (current_revenue_usd) | `refresh-country-codes` |
+| [`customer-revenue/`](customer-revenue) | (sidecar of customers) | — | `refresh-revenue` |
+| [`research-memory/`](research-memory) | 2.2 Structured Working Memory for Agents | `python` (domain) | `triage-candidates` |
+| [`research-notes/`](research-notes) | 2.3 Semi-structured Research Data Accumulation | `python` (word_count) | `weekly-digest` |
+| [`onboarding/`](onboarding) | 2.4 Operational Worklist for Business Processes | `python` (progress) | `advance-onboarding` |
+
+Every sheet ships at least one packaged operating procedure under
+`skills/*.md`. Run `folio skill list <sheet>` to discover them, or
+let an MCP client surface them as prompts.
 
 ## Quickstart
 

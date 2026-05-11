@@ -28,7 +28,8 @@ paths that escape the root are rejected.
 
 ## What gets exposed
 
-Nine tools, all wrappers over the SDK ([Tools reference](/folio/mcp/tools/)):
+**Nine SDK tools** — all wrappers over the Python SDK
+([Tools reference](/folio/mcp/tools/)):
 
 | Tool | SDK |
 |---|---|
@@ -44,6 +45,15 @@ Nine tools, all wrappers over the SDK ([Tools reference](/folio/mcp/tools/)):
 
 Each tool has a "when-to-use" docstring so the model picks the right one
 without further prompting.
+
+**Plus one prompt per skill** — for every `<sheet>/skills/<name>.md`
+discovered under the MCP root, Folio publishes an MCP prompt named
+`<sheet-id>:<skill-name>`. Standard `prompts/list` returns every
+skill across every sheet; `prompts/get` renders the markdown body
+with the skill's declared arguments substituted into `{name}`
+placeholders. See the
+[Sheet skills specification](/folio/sheet/skills/) for the file
+format.
 
 ## Path safety
 
@@ -99,6 +109,7 @@ toolbox.
 
 ## See also
 
-- [Tools](/folio/mcp/tools/) — the nine tools, with arguments and return shapes.
+- [Tools](/folio/mcp/tools/) — the nine SDK tools, with arguments and return shapes.
+- [Sheet skills](/folio/sheet/skills/) — how skills become MCP prompts.
 - [Deploy](/folio/mcp/deploy/) — Claude Desktop config, HTTP transport, security
   notes.

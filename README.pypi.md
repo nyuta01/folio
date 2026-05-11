@@ -10,6 +10,7 @@ my-sheet/
 ├── records.jsonl         # required — one JSON object per line
 ├── derivations/          # optional — derivation files (ai / python / sql / cross_sheet / import / http)
 ├── scripts/              # optional — reusable Python scripts
+├── skills/               # optional — packaged operating procedures (markdown + YAML frontmatter)
 ├── provenance.jsonl      # append-only audit log
 └── README.md             # optional, with typed frontmatter
 ```
@@ -18,8 +19,8 @@ my-sheet/
 
 | Surface | Command | Purpose |
 |---|---|---|
-| CLI | `folio` | validate, query, list, upsert, delete, materialize, status, provenance, serve, script, export |
-| MCP server | `folio-mcp` | FastMCP server exposing the SDK over stdio or HTTP — drop into Claude Desktop / Cursor / any MCP client |
+| CLI | `folio` | validate, query, list, count, upsert, delete, materialize, status, provenance, serve, script, skill, export |
+| MCP server | `folio-mcp` | FastMCP server exposing the SDK over stdio or HTTP — plus one MCP prompt per skill — drop into Claude Desktop / Cursor / any MCP client |
 | Viewer backend | `folio-viewer` | Local-only FastAPI server that powers the Folio Viewer desktop app and web UI |
 | Python SDK | `from folio import open_sheet` | Programmatic access to the same operations as the CLI |
 
@@ -78,9 +79,11 @@ hash, model + cost for `ai`). Re-runs are content-hashed and cached.
 
 - **Source & full documentation:** https://github.com/nyuta01/folio
 - **Specification:** [SPECIFICATION.md](https://github.com/nyuta01/folio/blob/main/SPECIFICATION.md) — the complete contract, formats, and semantics
-- **Examples:** four working sheets under
+- **Examples:** five working sheets under
   [`examples/`](https://github.com/nyuta01/folio/tree/main/examples/)
-  (customers, research-notes, research-memory, onboarding)
+  (customers + its customer-revenue sidecar, research-notes,
+  research-memory, onboarding) — each ships at least one
+  `skills/*.md` operating procedure
 - **Agent skills:** the
   [`folio-agent-skills`](https://www.npmjs.com/package/folio-agent-skills)
   npm package ships ready-to-install SKILL.md files for Claude / Cursor /

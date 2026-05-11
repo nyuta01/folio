@@ -5,8 +5,8 @@ description: List records as a paginated envelope. Supports JSON and TOON output
 
 ```text
 folio list <SHEET>
-  [--filter <where>] [--params <json-array>]
-  [--fields <a,b,c>]
+  [--filter <where>] [--param <value>]...
+  [--fields <name>]...
   [--limit <n>] [--cursor <opaque>]
   [--format json|toon]
 ```
@@ -54,16 +54,17 @@ columns out of the contract aren't typed.
 ## Filters
 
 `--filter` accepts a DuckDB WHERE clause. Use `?` placeholders for any
-user-supplied value and supply them via `--params`:
+user-supplied value and supply them with one `--param` per placeholder,
+in positional order:
 
 ```bash
 folio list ./customers \
   --filter "country = ? AND industry_name = ?" \
-  --params '["Japan", "Manufacturing"]'
+  --param Japan --param Manufacturing
 ```
 
-Folio auto-binds the parameters in order. The same SELECT-only rules from
-`folio query` apply to the filter — you can't use `--filter` to mutate.
+The same SELECT-only rules from `folio query` apply to the filter —
+you can't use `--filter` to mutate.
 
 ## TOON output
 

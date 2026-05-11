@@ -5,7 +5,7 @@ description: Discover and run reusable scripts under sheet/scripts/.
 
 ```text
 folio script list <SHEET>
-folio script run <SHEET> <NAME> [--argument <json>] [--actor <actor>]
+folio script run <SHEET> <NAME> [ARGS]... [--timeout <seconds>]
 ```
 
 `scripts/` is a sheet-scoped namespace for executable code. The `python`
@@ -30,29 +30,32 @@ A script is **anything** matching `[A-Za-z0-9_-]+\.(py|sh)` directly under
 ## run
 
 ```bash
-$ folio script run ./customers country_to_code \
-    --argument '{"country": "Japan"}' \
-    --actor agent:human
+$ folio script run ./customers country_to_code '{"country": "Japan"}'
 {
-  "name":"country_to_code",
-  "stdout":"JP\n",
-  "stderr":"",
-  "exit_code":0,
-  "duration_seconds":0.034
+  "stdout": "JP\n",
+  "stderr": "",
+  "exit_code": 0,
+  "duration_seconds": 0.034
 }
 ```
 
-Folio invokes the script the same way the [`python` derivation kind](/folio/sheet/derivations/python/)
-does:
+`folio script run` takes the script name plus zero or more positional
+arguments that are forwarded to the script after the sheet path.
+
+Folio invokes the script the same way the
+[`python` derivation kind](/folio/sheet/derivations/python/) does:
 
 ```text
-python scripts/<NAME>.py <sheet_absolute_path> '<--argument JSON>'
+python scripts/<NAME>.py <sheet_absolute_path> <ARGS...>
 ```
 
 (For `.sh` scripts the interpreter is `/bin/bash` instead of `python`.)
 
-The `--argument` value is passed as `argv[2]` literally; if your script
-expects JSON, pass JSON.
+The script convention is that `argv[2]` is a JSON-encoded inputs
+object. Both the materialize loop and `folio script run` follow that
+shape; pass JSON if your script expects JSON.
+
+`--timeout` caps the wall-clock budget for the script (default 60s).
 
 ## Why expose this on the CLI?
 

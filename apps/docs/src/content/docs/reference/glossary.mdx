@@ -86,8 +86,9 @@ The verb (and SDK method) that runs derivations. Returns the
 ## MCP
 
 The Model Context Protocol. `folio-mcp` exposes the SDK as nine MCP
-tools so any MCP-compatible runtime (Claude Desktop, IDE plugins,
-custom agent loops) can read and write Folio sheets.
+tools plus one MCP prompt per discovered skill, so any MCP-compatible
+runtime (Claude Desktop, IDE plugins, custom agent loops) can read and
+write Folio sheets.
 
 ## ODCS
 
@@ -125,6 +126,14 @@ the sheet ([ADR-0008](/folio/reference/adrs/)).
 
 One directory containing `contract.yaml`, `records.jsonl`, and optional
 extras. The unit of portability.
+
+## skill
+
+A packaged operating procedure for a sheet — a markdown file under
+`<sheet>/skills/<name>.md` with YAML frontmatter (`name`, `description`,
+`audience`, `arguments`, `tools`, `allowed_actors`) and a body using
+`{arg}` placeholders. Surfaces via `folio skill`, `Sheet.list_skills`,
+and MCP prompts named `<sheet-id>:<skill-name>`.
 
 ## sheet-id
 

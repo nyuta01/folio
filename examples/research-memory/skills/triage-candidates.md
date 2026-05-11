@@ -7,8 +7,7 @@ audience: agent
 arguments:
   - name: max_records
     description: Cap how many candidates to triage in one pass.
-                  Default is 10.
-    required: false
+    required: true
 tools:
   - list_records
   - upsert_records
@@ -30,7 +29,7 @@ for more than a week.
      FROM records
      WHERE status = 'candidate'
      ORDER BY id DESC
-     LIMIT 10
+     LIMIT {max_records}
    "
    ```
 2. For each row, decide:

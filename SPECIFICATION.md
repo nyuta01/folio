@@ -89,6 +89,8 @@ my-sheet/
 │                         # per-sheet venv outside the sheet
 ├── prompts/              # optional — markdown referenced by ai
 │   └── *.md              # derivations
+├── skills/               # optional — packaged operating procedures
+│   └── *.md              # surfaced via CLI / SDK / MCP prompts (§3.8)
 ├── README.md             # optional — typed YAML frontmatter (§3.6)
 └── .lock                 # filelock (30s timeout); Folio manages it
 ```
@@ -527,7 +529,37 @@ Optional. Markdown files referenced by `ai` derivations via
 derivation's resolved `prompt_body`; the SHA-256 of that body
 participates in `input_hash` (see §3.4.9).
 
-### 3.8 `.lock`
+### 3.8 `skills/`
+
+Optional. Packaged operating procedures — one markdown file per
+skill at `skills/<name>.md`. Each file is YAML frontmatter followed
+by a plain-markdown body. The body is prose; skills do NOT embed
+executable code (any side effect goes through derivations or SDK
+methods, which the skill *describes* rather than runs).
+
+Frontmatter:
+
+| Field | Required | Notes |
+|---|---|---|
+| `name` | yes | URL-safe `^[a-z][a-z0-9-]*$`. Must equal the file's basename. |
+| `description` | yes | One-line summary surfaced in CLI / MCP listings. |
+| `audience` | no | `agent` (default), `human`, or `both`. |
+| `arguments` | no | List of `{name, description?, required?}`. `name` matches `^[a-z][a-z0-9_]*$`. Substituted into the body via `{name}` placeholders. |
+| `tools` | no | Advisory allow-list of SDK method names (cross-checked against the live Sheet surface). |
+| `allowed_actors` | no | Advisory `fnmatch` patterns, same syntax as `x-editable-by`. |
+
+`folio validate` enforces basename / name agreement, declared
+argument placeholders, and tool-name validity. `Sheet.list_skills`,
+`Sheet.get_skill`, and `Sheet.render_skill` are the SDK surface;
+`folio skill list/show/validate` is the CLI surface. The MCP server
+publishes one prompt per skill as `<sheet-id>:<skill-name>` (see
+§7.3). `folio export claude-skills` emits one Claude Code-compatible
+`SKILL.md` directory per skill.
+
+The README frontmatter's optional `agent_skills:` field (see §3.6)
+acts as an advisory manifest cross-checked against this directory.
+
+### 3.9 `.lock`
 
 Single-writer lock managed by Folio (filelock, 30s timeout). All write
 operations acquire it; reads do not. Stale locks are reclaimed on the
@@ -667,7 +699,7 @@ Typer command tree, JSON to stdout. Verbs:
 | `provenance` | Print provenance for a record × field. |
 | `script` | Sub-app: `script list`, `script run <name>`. |
 | `skill` | Sub-app: `skill list`, `skill show <name>`, `skill validate`. Packaged operating procedures under `<sheet>/skills/`. |
-| `export` | Sub-app: `export datapackage` (Frictionless descriptor). |
+| `export` | Sub-app: `export datapackage` (Frictionless descriptor) and `export claude-skills` (Claude Code-compatible `SKILL.md` directories from `<sheet>/skills/`). |
 | `serve` | Run the local Viewer (delegates to `folio-viewer`). |
 
 All verbs accept `--actor <string>` where applicable; `--actor` is
@@ -703,7 +735,8 @@ path; reads do not take the lock.
 
 `list_skills` / `get_skill` / `render_skill` operate on packaged
 markdown files under `<sheet>/skills/` — short, named operating
-procedures the sheet carries for its agent / human users. See §11.
+procedures the sheet carries for its agent / human users. See §3.8
+for the wire format.
 
 ### 7.3 MCP (`folio-mcp`)
 

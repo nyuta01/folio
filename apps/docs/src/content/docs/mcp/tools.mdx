@@ -1,11 +1,20 @@
 ---
 title: MCP tools
-description: The nine tools exposed by folio-mcp, with arguments and result shapes.
+description: The nine SDK tools exposed by folio-mcp, plus one prompt per discovered skill.
 ---
+
+`folio-mcp` exposes **nine tools** plus **one prompt per skill**
+found under any sheet's `skills/` directory. Tools wrap Python SDK
+methods; prompts render packaged operating procedures.
 
 Every tool is a thin wrapper around a Python SDK method. Argument and
 return shapes follow the SDK; the docstrings below are surfaced to the
 model so it picks the right tool for the right situation.
+
+Skill prompts use the name `<sheet-id>:<skill-name>`. Standard
+`prompts/list` returns every skill across every sheet under the
+`--root`; `prompts/get` renders the markdown body with declared
+arguments substituted. See [Sheet skills](/folio/sheet/skills/).
 
 ## `get_contract`
 

@@ -1,7 +1,14 @@
 ---
 title: folio export
-description: Export a sheet for use by external tools. Currently — Frictionless datapackage.json.
+description: Export a sheet for use by external tools — Frictionless descriptor or Claude Code SKILL.md set.
 ---
+
+```text
+folio export datapackage   <SHEET> [--out <path>] [--stdout]
+folio export claude-skills <SHEET> [--out <dir>]
+```
+
+## datapackage
 
 ```text
 folio export datapackage <SHEET> [--out <path>] [--stdout]
@@ -108,10 +115,39 @@ frictionless validate ./customers/datapackage.json
 `frictionless` is not a Folio dependency — install it explicitly when you
 need it.
 
+## claude-skills
+
+```text
+folio export claude-skills <SHEET> [--out <dir>]
+```
+
+Emits one Claude Code-compatible `SKILL.md` directory per entry in
+`<SHEET>/skills/`. Default output dir is `.claude/skills/` (relative
+to the current working directory). The Claude frontmatter
+(`name`, `description`) is mapped 1:1; Folio-specific metadata
+(`audience`, `tools`, `allowed_actors`, `arguments`) drops to a
+"Constraints" section in the body.
+
+```bash
+$ folio export claude-skills ./examples/onboarding --out /tmp/claude
+wrote 1 SKILL.md file(s) under /tmp/claude/
+  /tmp/claude/example-onboarding__advance-onboarding/SKILL.md
+```
+
+The output is **derived, read-only**: re-run the export whenever
+you change a skill. The sheet's `skills/` directory remains the
+source of truth.
+
+This sub-command pairs with the
+[`folio-agent-skills`](https://www.npmjs.com/package/folio-agent-skills)
+npm package: the npm pack ships Folio's product-level skills, while
+`folio export claude-skills` projects a sheet's domain skills into
+the same Claude Code shape.
+
 ## Future formats
 
-`folio export` is namespaced by format (`folio export datapackage`,
-`folio export <whatever>`). Today only `datapackage` is shipped. The
+`folio export` is namespaced by format (`datapackage`, `claude-skills`,
+`<whatever>`). The
 [design doc §14.2](https://github.com/nyuta01/folio/blob/main/docs/design-docs/overview.md)
 mentions OpenAPI surfaces and dbt models as future candidates; neither is
 implemented.

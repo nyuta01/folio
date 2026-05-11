@@ -1,6 +1,6 @@
 ---
 title: Concepts
-description: Sheet, contract, records, derivations, provenance, actor — the vocabulary used everywhere else.
+description: Sheet, contract, records, derivations, skills, provenance, actor — the vocabulary used everywhere else.
 ---
 
 import KindBadge from "../../../components/KindBadge.astro";
@@ -18,6 +18,7 @@ my-sheet/
 ├── records.jsonl          # required, one JSON object per line
 ├── derivations/           # optional, derivation files
 ├── scripts/               # optional, reusable scripts
+├── skills/                # optional, packaged operating procedures
 ├── provenance.jsonl       # written by Folio
 └── README.md              # optional, with frontmatter
 ```
@@ -97,6 +98,30 @@ loop:
 
 You can plug in custom kinds. Each derivation declares an `input_hash` over
 its inputs, so the cache invalidates exactly when inputs change.
+
+## Skill
+
+A **skill** is a packaged operating procedure for the sheet — a markdown
+file under `<sheet>/skills/<name>.md` with YAML frontmatter declaring its
+audience, arguments, and the SDK tools it intends to call.
+
+```markdown
+---
+name: refresh-country-codes
+description: Re-derive country_code for any customer whose country changed.
+audience: [agent]
+arguments:
+  - name: country
+    required: false
+tools: [materialize, list_records, provenance]
+---
+
+Run `materialize` with `targets: ["country_code"]`…
+```
+
+Skills surface uniformly: `folio skill list/show/run`, `Sheet.list_skills`,
+and MCP prompts named `<sheet-id>:<skill-name>`. See the
+[Sheet skills specification](/folio/sheet/skills/).
 
 ## Provenance
 

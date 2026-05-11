@@ -84,6 +84,7 @@ export default defineConfig({
             { label: "validate", slug: "cli/validate" },
             { label: "query", slug: "cli/query" },
             { label: "list", slug: "cli/list" },
+            { label: "count", slug: "cli/count" },
             { label: "upsert", slug: "cli/upsert" },
             { label: "delete", slug: "cli/delete" },
             { label: "materialize", slug: "cli/materialize" },

@@ -8,6 +8,9 @@ arguments:
   - name: as_of
     description: ISO date for the snapshot tag, e.g. 2026-05-31.
     required: true
+tools:
+  - upsert_records
+  - materialize
 allowed_actors:
   - "human:finance:*"
   - "human:ops"

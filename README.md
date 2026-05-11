@@ -18,16 +18,17 @@ my-sheet/
 ├── records.jsonl         # required — one JSON object per line
 ├── derivations/          # optional — derivation files
 ├── scripts/              # optional — reusable scripts
+├── skills/               # optional — packaged operating procedures
 ├── provenance.jsonl      # append-only audit log
 └── README.md             # optional, with typed frontmatter
 ```
 
 ## Surfaces
 
-- **`folio`** — Python SDK + CLI (validate, query, list, upsert, delete,
-  materialize, status, provenance, serve, script, export).
-- **`folio-mcp`** — FastMCP server exposing the SDK as nine tools (stdio
-  or HTTP transport).
+- **`folio`** — Python SDK + CLI (validate, query, list, count, upsert,
+  delete, materialize, status, provenance, serve, script, skill, export).
+- **`folio-mcp`** — FastMCP server exposing the SDK as nine tools plus
+  one MCP prompt per discovered skill (stdio or HTTP transport).
 - **`folio-viewer`** — local-only FastAPI + React UI for human review.
 
 ## Documentation

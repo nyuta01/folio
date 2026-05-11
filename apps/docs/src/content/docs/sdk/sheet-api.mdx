@@ -222,6 +222,52 @@ class Frontmatter(BaseModel):
 
 `None` if there's no `README.md` or no frontmatter block.
 
+## Skills
+
+`Sheet.list_skills`, `Sheet.get_skill`, and `Sheet.render_skill` read
+the packaged operating procedures under `<sheet>/skills/<name>.md`.
+See the [Sheet skills specification](/folio/sheet/skills/) for the
+file format and validation rules.
+
+### `list_skills`
+
+```python
+sheet.list_skills() -> list[Skill]
+```
+
+Returns every parseable `skills/*.md` under the sheet, sorted by name.
+Each skill's `tools:` declaration is cross-checked against the live
+`Sheet` method surface; an unknown method raises `SkillError`.
+
+### `get_skill`
+
+```python
+sheet.get_skill(name: str) -> Skill | None
+```
+
+Returns the parsed `Skill`, or `None` if `skills/<name>.md` is absent.
+Raises `SkillError` if the file exists but is malformed.
+
+### `render_skill`
+
+```python
+sheet.render_skill(name: str, args: dict[str, Any] | None = None) -> str
+```
+
+Renders the skill's markdown body with `{arg}` placeholders
+substituted from `args`. Raises `SkillError` for missing required
+arguments or missing skill files.
+
+```python
+sheet = open_sheet("./customers", actor="agent:ops")
+skills = sheet.list_skills()                            # list[Skill]
+greet  = sheet.get_skill("refresh-country-codes")       # Skill | None
+body   = sheet.render_skill("refresh-country-codes")    # str
+```
+
+The `Skill` class is a pydantic model with `name`, `description`,
+`audience`, `arguments`, `tools`, `allowed_actors`, and `body`.
+
 ## Properties
 
 ```python

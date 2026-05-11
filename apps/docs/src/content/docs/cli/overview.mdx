@@ -1,6 +1,6 @@
 ---
 title: CLI overview
-description: The folio command — a Typer wrapper over the Python SDK with twelve verbs.
+description: The folio command — a Typer wrapper over the Python SDK.
 ---
 
 `folio` is the primary command-line interface. It is a thin wrapper over
@@ -16,13 +16,14 @@ folio <verb> [SHEET] [OPTIONS]
 `SHEET` is a path to a sheet directory. Most verbs take it as the first
 positional argument.
 
-## All twelve verbs
+## Verbs
 
 | Verb | What it does |
 |---|---|
 | [`folio validate`](/folio/cli/validate/) | Validate `contract.yaml`, `records.jsonl`, and (optionally) `README.md` frontmatter. |
 | [`folio query`](/folio/cli/query/) | Run a DuckDB SELECT against the sheet's `records` view. |
 | [`folio list`](/folio/cli/list/) | List records as a paginated JSON envelope (or TOON). |
+| [`folio count`](/folio/cli/count/) | Count records, optionally with a WHERE-clause filter. |
 | [`folio upsert`](/folio/cli/upsert/) | Insert or update records by primary key. |
 | [`folio delete`](/folio/cli/delete/) | Delete records by primary key id. |
 | [`folio materialize`](/folio/cli/materialize/) | Run derivations. Returns the §10.6 envelope. |
@@ -30,7 +31,8 @@ positional argument.
 | [`folio provenance`](/folio/cli/provenance/) | Latest entry or full append-only history for one cell. |
 | [`folio serve`](/folio/cli/serve/) | Start the Viewer (alias for `folio-viewer serve`). |
 | [`folio script`](/folio/cli/script/) | Discover and run reusable scripts under `sheet/scripts/`. |
-| [`folio export`](/folio/cli/export/) | Export the sheet (currently: Frictionless `datapackage.json`). |
+| [`folio skill`](/folio/cli/skill/) | List, render, and validate packaged procedures under `sheet/skills/`. |
+| [`folio export`](/folio/cli/export/) | Export the sheet — `datapackage` (Frictionless descriptor) or `claude-skills` (Claude Code-compatible `SKILL.md` set). |
 
 ## Global behaviour
 
@@ -84,9 +86,13 @@ folio materialize ./customers --actor agent:demo
 folio status ./customers
 folio provenance ./customers cust_001 country_code --history
 
-# Run a reusable script
+# Run a reusable script (args are positional, passed to the script after the sheet path)
 folio script list ./customers
-folio script run ./customers country_to_code --argument '{"country":"Japan"}'
+folio script run ./customers country_to_code '{"country":"Japan"}'
+
+# Discover and render a packaged operating procedure
+folio skill list ./customers
+folio skill show ./customers refresh-country-codes
 
 # Export, serve
 folio export datapackage ./customers --stdout > customers.datapackage.json

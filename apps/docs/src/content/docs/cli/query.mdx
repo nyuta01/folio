@@ -4,7 +4,7 @@ description: Run a DuckDB SELECT against the sheet's records view. Read-only.
 ---
 
 ```text
-folio query <SHEET> <SQL> [--params <json-array>]
+folio query <SHEET> <SQL> [--param <value>]...
 ```
 
 Executes `SQL` against a DuckDB view named `records` whose rows are
@@ -19,10 +19,10 @@ folio query ./customers \
   "SELECT country, COUNT(*) AS n FROM records GROUP BY 1 ORDER BY n DESC"
 # [{"country":"United States","n":12}, ...]
 
-# Parameterized
+# Parameterized — repeat --param once per ? placeholder, in order
 folio query ./customers \
   "SELECT id FROM records WHERE country = ?" \
-  --params '["Japan"]'
+  --param Japan
 
 # Aggregation
 folio query ./customers \

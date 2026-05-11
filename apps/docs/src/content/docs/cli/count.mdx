@@ -1,0 +1,40 @@
+---
+title: folio count
+description: Count records in a sheet, optionally with a WHERE-clause filter.
+---
+
+```text
+folio count <SHEET> [--filter <where>] [--param <value>]...
+```
+
+Returns a single integer to stdout. Use it as a quick sanity check or
+in shell pipelines.
+
+## Examples
+
+```bash
+# Total record count
+$ folio count ./customers
+7
+
+# Filter with the same `--filter` + `--param` shape `folio list` uses
+$ folio count ./customers --filter "country = ?" --param Japan
+3
+
+# Multiple parameters: repeat --param in positional order to match ?s
+$ folio count ./customers --filter "country = ? AND industry_name = ?" \
+                          --param Japan --param Manufacturing
+1
+```
+
+## Filtering
+
+`--filter` is a DuckDB `WHERE` clause that runs against the `records`
+view. Use `?` placeholders + `--param` (one per placeholder, in
+order). The same as [`folio list`](/folio/cli/list/) — no separate
+expression language.
+
+## See also
+
+- [`folio list`](/folio/cli/list/) — return the matching records, not just the count.
+- [`folio query`](/folio/cli/query/) — arbitrary `SELECT` for richer aggregates.
