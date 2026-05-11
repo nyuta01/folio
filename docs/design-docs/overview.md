@@ -497,7 +497,7 @@ An append-only file auto-generated when derivations run. No need to write to it 
 
 ```jsonl
 {"record_id":"cust_001","field":"industry_tag","source":"ai","actor":"agent:enrichment-bot","at":"2026-05-09T10:00:00Z","input_hash":"sha256:abc...","model":"<model_id>","cost_usd":0.0008}
-{"record_id":"cust_002","field":"industry_tag","source":"human_override","actor":"yuta@example.com","at":"2026-05-09T11:00:00Z"}
+{"record_id":"cust_002","field":"industry_tag","source":"human_override","actor":"alice@example.com","at":"2026-05-09T11:00:00Z"}
 ```
 
 | Field | Required? | Description |
@@ -531,7 +531,7 @@ Example:
 ```yaml
 x-editable-by:
   - "agent:*"          # any agent
-  - "human:yuta"       # specific human
+  - "human:alice"       # specific human
 ```
 
 This keeps the permission model minimal while leaving room for extension. Real auth/authz is built by the implementation.
@@ -1130,7 +1130,7 @@ $ folio query ./customers "SELECT industry_tag, COUNT(*) AS n FROM records GROUP
 [{"industry_tag":"Manufacturing","n":1},{"industry_tag":"Software","n":1},{"industry_tag":"Agriculture","n":1}]
 
 # 5. Human override
-$ folio upsert ./customers --file - --actor "human:yuta" <<EOF
+$ folio upsert ./customers --file - --actor "human:alice" <<EOF
 {"id":"cust_003","industry_tag":"AgTech"}
 EOF
 1 updated
@@ -1139,7 +1139,7 @@ EOF
 $ folio provenance ./customers cust_003 industry_tag --history
 [
   {"source":"ai","actor":"agent:enrichment-bot","at":"2026-05-09T10:05:00Z",...},
-  {"source":"human_override","actor":"human:yuta","at":"2026-05-09T11:00:00Z",...}
+  {"source":"human_override","actor":"human:alice","at":"2026-05-09T11:00:00Z",...}
 ]
 ```
 

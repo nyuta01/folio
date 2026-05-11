@@ -79,7 +79,7 @@ $ folio count ./minimal-sheet
 $ folio query ./minimal-sheet "SELECT id, name FROM records"
 [{"id":"item_001","name":"first"}]
 
-$ folio upsert ./minimal-sheet --file - --actor "human:yuta" <<EOF
+$ folio upsert ./minimal-sheet --file - --actor "human:alice" <<EOF
 {"id":"item_002","name":"second"}
 EOF
 1 upserted

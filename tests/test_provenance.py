@@ -97,7 +97,7 @@ def test_latest_returns_most_recent_entry(sheet: Path) -> None:
         _entry(
             at="2026-05-09T11:00:00Z",
             source="human_override",
-            actor="human:yuta",
+            actor="human:alice",
             input_hash=None,
         ),
     )
@@ -105,7 +105,7 @@ def test_latest_returns_most_recent_entry(sheet: Path) -> None:
     latest = latest_provenance(sheet, "cust_001", "industry_tag")
     assert latest is not None
     assert latest["source"] == "human_override"
-    assert latest["actor"] == "human:yuta"
+    assert latest["actor"] == "human:alice"
 
 
 def test_latest_returns_none_when_field_unseen(sheet: Path) -> None:
@@ -121,7 +121,7 @@ def test_field_history_returns_all_entries_in_order(sheet: Path) -> None:
         _entry(
             at="2026-05-09T11:00:00Z",
             source="human_override",
-            actor="human:yuta",
+            actor="human:alice",
         ),
     )
     append_provenance(

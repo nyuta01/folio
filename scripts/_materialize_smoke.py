@@ -136,7 +136,7 @@ def main() -> int:
             # 5. human override
             sheet.upsert_records(
                 [{"id": "cust_003", "industry_tag": "AgTech"}],
-                actor="human:yuta",
+                actor="human:alice",
             )
 
             from folio._provenance import append_provenance
@@ -147,7 +147,7 @@ def main() -> int:
                     "record_id": "cust_003",
                     "field": "industry_tag",
                     "source": "human_override",
-                    "actor": "human:yuta",
+                    "actor": "human:alice",
                     "at": "2026-05-09T11:00:00Z",
                 },
             )

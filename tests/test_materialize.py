@@ -209,7 +209,7 @@ def test_materialize_ai_force_recomputes_even_with_human_override(
             "record_id": "cust_001",
             "field": "industry_tag",
             "source": "human_override",
-            "actor": "human:yuta",
+            "actor": "human:alice",
             "at": "2099-01-01T00:00:00Z",
         },
     )
@@ -285,7 +285,7 @@ def test_materialization_status_counts_sources(
             "record_id": "cust_001",
             "field": "industry_tag",
             "source": "human_override",
-            "actor": "human:yuta",
+            "actor": "human:alice",
             "at": "2099-01-01T00:00:00Z",
         },
     )
@@ -314,7 +314,7 @@ def test_provenance_history_returns_all_entries(
             "record_id": "cust_001",
             "field": "industry_tag",
             "source": "human_override",
-            "actor": "human:yuta",
+            "actor": "human:alice",
             "at": "2099-01-01T00:00:00Z",
         },
     )

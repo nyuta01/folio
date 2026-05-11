@@ -209,7 +209,7 @@ def test_upsert_actor_argument_overrides_instance(minimal_sheet: Path) -> None:
     sheet = open_sheet(minimal_sheet, actor="agent:default")
     sheet.upsert_records(
         [{"id": "x", "title": "X"}],
-        actor="human:yuta",
+        actor="human:alice",
     )
     assert sheet.get_record("x") is not None
 
@@ -257,7 +257,7 @@ def test_editable_by_allows_matching_actor(restricted_sheet: Path) -> None:
 
 
 def test_editable_by_rejects_non_matching_actor(restricted_sheet: Path) -> None:
-    sheet = open_sheet(restricted_sheet, actor="human:yuta")
+    sheet = open_sheet(restricted_sheet, actor="human:alice")
     with pytest.raises(PermissionDeniedError, match="cannot edit field 'tag'"):
         sheet.upsert_records([{"id": "a", "tag": "no"}])
 
@@ -265,7 +265,7 @@ def test_editable_by_rejects_non_matching_actor(restricted_sheet: Path) -> None:
 def test_editable_by_ignores_fields_without_restriction(
     restricted_sheet: Path,
 ) -> None:
-    sheet = open_sheet(restricted_sheet, actor="human:yuta")
+    sheet = open_sheet(restricted_sheet, actor="human:alice")
     # 'notes' has no x-editable-by, so any actor may edit it.
     sheet.upsert_records([{"id": "a", "notes": "free"}])
     assert sheet.get_record("a")["notes"] == "free"
@@ -275,7 +275,7 @@ def test_editable_by_ignores_fields_without_restriction(
 
 
 def test_delete_records(populated_sheet: Path) -> None:
-    sheet = open_sheet(populated_sheet, actor="human:yuta")
+    sheet = open_sheet(populated_sheet, actor="human:alice")
     result = sheet.delete_records(["a", "c"])
     assert result == {"deleted": 2, "remaining": 1}
     rows = sheet.query("SELECT id FROM records")

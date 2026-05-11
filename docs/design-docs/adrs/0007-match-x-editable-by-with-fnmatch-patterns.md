@@ -10,7 +10,7 @@
 The Folio specification keeps the permission model deliberately small.
 `x-editable-by` is **optional**: without it, anyone can edit; with it,
 "interpretation is up to the implementation (pattern-match against actor
-strings)" (§9.3). The design overview shows `agent:*` and `human:yuta`
+strings)" (§9.3). The design overview shows `agent:*` and `human:alice`
 as illustrative patterns. Actor strings themselves are free-form (§9.2).
 
 The reference implementation must commit to a concrete pattern dialect

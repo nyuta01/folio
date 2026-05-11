@@ -195,14 +195,14 @@ $ folio query ./customers \
  {"industry_tag": "Agriculture", "n": 1}]
 
 $ echo '{"id": "cust_003", "industry_tag": "AgTech"}' \
-    | folio upsert ./customers --file - --actor "human:yuta"
+    | folio upsert ./customers --file - --actor "human:alice"
 {"inserted": 0, "updated": 1, "total": 3}
 
 $ folio provenance ./customers cust_003 industry_tag --history
 [
   {"source": "ai", "actor": "agent:enrichment-bot",
    "at": "2026-05-09T10:05:00Z", "input_hash": "sha256:...", ...},
-  {"source": "human_override", "actor": "human:yuta",
+  {"source": "human_override", "actor": "human:alice",
    "at": "2026-05-09T11:00:00Z", ...}
 ]
 ```
