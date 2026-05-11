@@ -138,6 +138,14 @@ body {
   padding-inline: 0.75rem;
 }
 
+/* Inline code in table cells must not break mid-identifier (e.g.
+   `folio_mcp.cli:main` was wrapping to `…cli:m` + `ain`). Force the
+   token to stay atomic and let the table scroll instead. */
+.sl-markdown-content td code,
+.sl-markdown-content th code {
+  white-space: nowrap;
+}
+
 .sl-markdown-content thead th {
   background: var(--folio-surface-muted);
   font-weight: 500;
