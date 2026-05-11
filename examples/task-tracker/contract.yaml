@@ -34,6 +34,12 @@ schema:
         logicalType: string
         required: true
         description: One-line summary read by the agent during pick-next.
+        # `x-editable-by` is what the Viewer uses to decide which cells
+        # show inline-edit affordances. The SDK / CLI permit any actor
+        # whose pattern is listed; the Viewer hides the edit UI for
+        # cells without a matching pattern. Open here so the example
+        # works out of the box for both agent and human actors.
+        x-editable-by: ["agent:*", "human:*"]
 
       - name: epic
         logicalType: string
@@ -41,6 +47,7 @@ schema:
         description: |
           Coarse grouping (e.g. "api-v2", "billing-redesign"). Used for
           stand-up rollups and per-epic progress queries.
+        x-editable-by: ["agent:*", "human:*"]
 
       # ---- workflow state -------------------------------------------------
       - name: status
@@ -55,12 +62,14 @@ schema:
             - in_review   : work done, awaiting human PR approval
             - done        : merged / shipped / closed
             - cancelled   : will not be done
+        x-editable-by: ["agent:*", "human:*"]
 
       - name: priority
         logicalType: string
         required: true
         description: One of - P0 (drop-everything), P1 (this sprint),
           P2 (this quarter), P3 (someday).
+        x-editable-by: ["agent:*", "human:*"]
 
       - name: owner
         logicalType: string
@@ -70,12 +79,14 @@ schema:
             - agent  : an AI coding agent (Claude Code / Cursor / Codex)
             - human  : a specific human contributor
             - shared : agent drafts, human reviews and lands
+        x-editable-by: ["agent:*", "human:*"]
 
       - name: assignee
         logicalType: string
         description: |
           Free-text actor string. For agent-owned tasks use the
           actor that will appear in provenance (e.g. "agent:execute").
+        x-editable-by: ["agent:*", "human:*"]
 
       # ---- structural metadata --------------------------------------------
       - name: depends
@@ -83,12 +94,14 @@ schema:
         description: |
           Array of other task ids that must reach `status=done` before
           this row can leave `pending`. Drives the `is_blocked` derivation.
+        x-editable-by: ["agent:*", "human:*"]
 
       - name: plan_url
         logicalType: string
         description: |
           Path (in this repo) or URL pointing to the per-task plan
           markdown. Written by the `plan-task` skill before execution.
+        x-editable-by: ["agent:*", "human:*"]
 
       - name: paths
         logicalType: array
@@ -96,6 +109,7 @@ schema:
           Files the task will touch (or has touched). Drives the
           `path_count` derivation and tells the human reviewer where
           to look during code review.
+        x-editable-by: ["agent:*", "human:*"]
 
       - name: verification
         logicalType: array
@@ -105,18 +119,25 @@ schema:
           `verification_count` derivation surfaces the length so
           standups can flag work that landed without sufficient
           gating.
+        x-editable-by: ["agent:*", "human:*"]
 
       - name: notes
         logicalType: string
         description: Free-form context, links, decisions.
+        x-editable-by: ["agent:*", "human:*"]
 
       - name: effort_estimate_hours
         logicalType: number
         description: |
           Rough estimate set by the human or the planning agent. Used
           for capacity planning, not for blocking work.
+        x-editable-by: ["agent:*", "human:*"]
 
       # ---- timestamps -----------------------------------------------------
+      # Left non-editable in the Viewer on purpose - timestamps should
+      # come from the writer (`folio upsert` sends `updated_at`/`closed_at`
+      # alongside the field that actually changed). Drop the
+      # `x-editable-by` if you want to override stamps by hand in the UI.
       - name: created_at
         logicalType: timestamp
         required: true
