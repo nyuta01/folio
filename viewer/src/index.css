@@ -814,6 +814,27 @@ a.cell-link {
   overflow-y: auto;
   min-height: 0;
 }
+/* Subtle slide+fade when the panel navigates between the schema list
+   and a field detail view. Quiet on purpose - 6px of lateral motion,
+   short duration, OS reduced-motion is respected. */
+.rp-view {
+  animation-duration: 140ms;
+  animation-timing-function: cubic-bezier(0.2, 0.6, 0.2, 1);
+  animation-fill-mode: both;
+}
+.rp-view-enter-right { animation-name: rpEnterRight; }
+.rp-view-enter-left  { animation-name: rpEnterLeft; }
+@keyframes rpEnterRight {
+  from { opacity: 0; transform: translateX(6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@keyframes rpEnterLeft {
+  from { opacity: 0; transform: translateX(-6px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rp-view { animation: none; }
+}
 .rp-pad { padding: 12px 14px; }
 .rp-tabbody {
   display: flex;

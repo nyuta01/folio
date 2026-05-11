@@ -116,36 +116,54 @@ export function RightPanel({
             </button>
           </div>
           <div className="rp-body">
-            {onSchema && !inFieldView && (
-              <SchemaTab
-                contract={contract}
-                records={records}
-                derivations={derivations}
-                selectedField={inspectorField}
-                onPickField={(name) => {
-                  setInspectorField(name);
-                  if (activeTab !== "schema") setActiveTab("schema");
-                }}
-                onAddField={onAddField}
-              />
-            )}
-            {onSchema && inFieldView && (
-              <InspectorTab
-                fieldName={inspectorField}
-                contract={contract}
-                records={records}
-                derivations={derivations}
-                onUpdateField={onUpdateField}
-                onDeleteField={onDeleteField}
-              />
-            )}
-            {normalisedTab === "activity" && (
-              <ActivityTab
-                activity={activity}
-                agentOnline={agentOnline}
-                onSimulate={onSimulate}
-              />
-            )}
+            {/* `key` forces a remount on transition so the entering
+                view replays its CSS slide-in. A subtle 6px translate
+                + fade tells the eye "moved laterally" without making
+                the animation a feature. */}
+            <div
+              className={cls(
+                "rp-view",
+                inFieldView ? "rp-view-enter-right" : "rp-view-enter-left",
+              )}
+              key={
+                normalisedTab === "activity"
+                  ? "activity"
+                  : inFieldView
+                  ? `detail:${inspectorField}`
+                  : "list"
+              }
+            >
+              {onSchema && !inFieldView && (
+                <SchemaTab
+                  contract={contract}
+                  records={records}
+                  derivations={derivations}
+                  selectedField={inspectorField}
+                  onPickField={(name) => {
+                    setInspectorField(name);
+                    if (activeTab !== "schema") setActiveTab("schema");
+                  }}
+                  onAddField={onAddField}
+                />
+              )}
+              {onSchema && inFieldView && (
+                <InspectorTab
+                  fieldName={inspectorField}
+                  contract={contract}
+                  records={records}
+                  derivations={derivations}
+                  onUpdateField={onUpdateField}
+                  onDeleteField={onDeleteField}
+                />
+              )}
+              {normalisedTab === "activity" && (
+                <ActivityTab
+                  activity={activity}
+                  agentOnline={agentOnline}
+                  onSimulate={onSimulate}
+                />
+              )}
+            </div>
           </div>
         </div>
       )}
