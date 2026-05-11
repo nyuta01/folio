@@ -92,20 +92,53 @@ server.run(transport="stdio")
 That's the same code the offline MCP smoke test uses — so the in-process
 test path matches the production path.
 
-## Comparison with the CLI
+## When to use `folio-mcp` vs the CLI
+
+Folio's CLI and MCP server are **two channels into the same SDK** — both
+go through `Sheet.*` and write the same `provenance.jsonl`, so picking
+one over the other is a question of *integration cost*, not of
+capability.
 
 | Aspect | `folio` CLI | `folio-mcp` |
 |---|---|---|
-| Transport | shell stdin/stdout (one verb at a time) | MCP (stdio or HTTP) |
-| Caller | humans, scripts | MCP-compatible agents |
+| Transport | shell stdin/stdout, one verb at a time | MCP (stdio or HTTP) |
+| Caller | humans, scripts, agents that can shell out | MCP-compatible runtimes |
 | Actor | `--actor` per call | `--actor` server-default + per-call override |
-| Output | JSON | Structured MCP results |
-| Stateful | no | session-scoped (one client per stdio process) |
+| Output | JSON on stdout | Structured MCP results |
+| Stateful | no — one subprocess per call | session-scoped — one process per client |
+| Discoverability | the agent has to know verb / flag names | tools + per-skill prompts auto-surface via `tools/list` and `prompts/list` |
 
-If you're reaching for the CLI from an agent loop, you almost certainly
-want MCP instead. It avoids subprocess overhead, gives the model
-structured types per tool, and integrates with the rest of the agent's
-toolbox.
+### Reach for `folio` CLI when…
+
+- The agent runs on the same machine as the sheet and can shell out
+  (Claude Code, Cursor, Cline, Codex, Windsurf, Aider, Copilot, Gemini —
+  basically every coding agent today). Install the
+  [`folio-agent-skills`](https://www.npmjs.com/package/folio-agent-skills)
+  pack with `npx skills add nyuta01/folio` and the agent picks up
+  `SKILL.md` files that tell it which CLI verbs to invoke. This is the
+  **de-facto path for local agent work** — no daemon to keep running,
+  every action is auditable from shell history, and the loop matches
+  the documented examples.
+- Shell scripts, CI jobs, and ad-hoc human use.
+
+### Reach for `folio-mcp` when…
+
+- The agent is **remote** or runs in a sandbox without shell access to
+  the sheet — `--transport http` lets it talk to Folio over the network.
+- You're embedding Folio inside an **MCP-native runtime** that has no
+  shell tool but speaks MCP natively (Claude Desktop's built-in MCP
+  surface, MCP-only IDE plugins, custom orchestrators built on the
+  MCP SDK).
+- You're calling Folio from **another service** (a backend that
+  exposes Folio reads to its own users, an evals harness, etc.) and
+  want typed tool results instead of stdout parsing.
+- The same long-lived session reads/writes the sheet thousands of
+  times — process-startup cost per CLI call adds up.
+
+For most coding-agent workflows on a developer laptop, the CLI +
+skills.sh path is faster to set up and easier to debug. MCP is the
+right tool when shell access isn't available or the call volume
+makes subprocess startup the bottleneck.
 
 ## See also
 

@@ -20,27 +20,36 @@ own sheets.
 ## The loop in one diagram
 
 ```text
-     ┌───────────────────────────────────────────────────────────┐
-     │                                                           │
-     ▼                                                           │
-┌──────────┐   MCP/CLI    ┌────────────┐   reads/writes   ┌──────┴───────┐
-│ AI agent │ ───────────▶ │  folio-mcp │ ───────────────▶ │ sheet on disk│
-│ (Claude  │              │ (or `folio │                  │  contract +  │
-│  Code …) │              │   skill`)  │   records.jsonl  │  records +   │
-└──────────┘              └────────────┘   provenance.jsonl│  provenance  │
-                                                          └──────┬───────┘
-                                                                 │
-                                                                 ▼
-                                                          ┌─────────────┐
-                                                          │ folio-viewer│
-                                                          │  (human     │
-                                                          │   reviews)  │
-                                                          └─────────────┘
-                                                                 │
-                                                                 ▼
-                                                          tar czf sheet.tgz
-                                                          (ship to anyone)
+┌──────────────┐                            ┌─────────────────┐
+│   AI agent   │   Bash tool, `folio …`     │  sheet on disk  │
+│ (Claude Code,│ ─────────────────────────▶ │  contract +     │
+│  Cursor, …)  │     (default path)         │  records +      │
+│              │                            │  provenance     │
+│              │   MCP (when remote / no    │                 │
+│              │    shell / MCP-native      │                 │
+│              │    runtime)                │                 │
+│              │ ──folio-mcp serve ───────▶ │                 │
+└──────────────┘                            └────────┬────────┘
+                                                     │
+                                                     ▼
+                                            ┌─────────────────┐
+                                            │  folio-viewer   │
+                                            │  (human reviews,│
+                                            │   inline edits, │
+                                            │   audits hist.) │
+                                            └────────┬────────┘
+                                                     │
+                                                     ▼
+                                            tar czf sheet.tgz
+                                            (ship to anyone)
 ```
+
+Two ways the agent reaches Folio. **The default is the top arrow**:
+the agent uses its built-in Bash tool, runs `folio` verbs, and
+`folio-agent-skills` (via `skills.sh`) provides the `SKILL.md` files
+that tell it which verbs to call. The MCP path is the second arrow
+and is the right call when the agent has no shell access, runs in an
+MCP-native runtime, or talks to Folio across a network.
 
 Three guarantees Folio gives you make this work:
 
@@ -54,43 +63,68 @@ Three guarantees Folio gives you make this work:
 
 ## 1. Connect an agent to the sheet
 
-Pick one of the two transports.
+For an agent running locally on the developer's machine, the canonical
+path is **CLI + `skills.sh`**. Reach for MCP only when shell access
+isn't available (see the recap at the end of this section).
 
-### Option A — Claude Desktop / Code / Cursor (stdio MCP)
+### Default — `folio` CLI + skills.sh (Claude Code / Cursor / Cline / Codex / …)
 
-Add `folio-mcp` to the client's MCP config. The full snippet is in
-[Deploy folio-mcp](/folio/mcp/deploy/); the minimum is:
+The agent already has a `Bash` tool. Install the
+[`folio-agent-skills`](https://www.npmjs.com/package/folio-agent-skills)
+pack and the agent picks up `SKILL.md` files that describe which CLI
+verbs to invoke for each task:
 
-```json
-{
-  "mcpServers": {
-    "folio": {
-      "command": "folio-mcp",
-      "args": [
-        "serve",
-        "--root", "/absolute/path/to/sheets",
-        "--actor", "agent:research-triage"
-      ]
-    }
-  }
-}
+```bash
+# Project-scoped install (recommended for Folio work)
+npx skills add nyuta01/folio
+
+# Or pick a single skill
+npx skills add nyuta01/folio --skill folio-quickstart
 ```
 
-Restart the client. The agent now sees the [nine MCP tools](/folio/mcp/tools/)
-plus one prompt per discovered skill under any sheet's `skills/` dir.
-
-### Option B — agent shells out to the CLI
-
-If you're driving an agent in your own loop (LangChain, an internal
-runtime, etc.), it can call the `folio` CLI directly. Every write verb
-takes `--actor`:
+`skills.sh` symlinks the files into your runtime's discovery path
+(`.claude/skills/`, `.cursor/skills/`, etc., across 18+ agents). From
+that point on the agent — Claude Code, Cursor, Cline, Codex,
+Windsurf, Aider, Copilot, Gemini, … — discovers the skill, reads it,
+and shells out to `folio` directly:
 
 ```bash
 folio upsert ./research-memory --actor agent:research-triage --file findings.jsonl
 folio materialize ./research-memory --actor agent:research-triage
+folio provenance ./research-memory f_001 status
 ```
 
-CLI and MCP go through the same SDK, so the audit trail is identical.
+Every write carries `--actor agent:*`, which Folio records in
+`provenance.jsonl`. No daemon, no extra configuration — and you can
+re-run any command from your own shell to reproduce what the agent
+did. See [`folio-agent-skills`](https://github.com/nyuta01/folio/tree/main/skills)
+for the bundled product-knowledge skills (`folio-quickstart`,
+`add-derivation-ai`, `add-derivation-cross-sheet`,
+`debug-failed-materialize`).
+
+Per-sheet skills under `<sheet>/skills/` (e.g. the
+`research-memory:triage-candidates` example) are the same idea at
+sheet scope — `folio skill list <sheet>` / `folio skill show <sheet>
+<name>` surface them at the CLI, and the agent invokes the steps via
+the same Bash tool.
+
+### When MCP earns its keep
+
+Use `folio-mcp` instead when one of these is true:
+
+- The agent is **remote** or runs in a sandbox without shell access —
+  `folio-mcp serve --transport http --bind 0.0.0.0 --port 3001` puts
+  Folio behind an MCP/HTTP endpoint.
+- The agent runs in an **MCP-native runtime** with no shell tool
+  (Claude Desktop's built-in MCP surface, custom orchestrators built
+  directly on the MCP SDK).
+- The same long-lived agent session performs **thousands of writes**
+  and the subprocess-startup cost per CLI call becomes the bottleneck.
+- You're exposing Folio to **another service** as a structured-tool API
+  rather than scraping stdout.
+
+If you're connecting Claude Desktop specifically, see [Deploy
+folio-mcp](/folio/mcp/deploy/) for the JSON config snippet.
 
 ## 2. Let the agent run a packaged skill
 
@@ -109,9 +143,16 @@ The skill walks the agent through: pull pending candidates → decide
 verify/reject/hold → upsert the updates as `agent:research-triage` →
 re-check provenance to confirm the write landed.
 
-When invoked through MCP, the same skill body comes back as a prompt
-named `research-memory:triage-candidates`. The agent sees it via
-standard `prompts/list` and renders it via `prompts/get`.
+Per-sheet skills are sibling to the product-knowledge skills in
+[`folio-agent-skills`](https://www.npmjs.com/package/folio-agent-skills):
+the npm package teaches the agent how to *use Folio*, the per-sheet
+skills teach the agent how to *operate a specific dataset*. Both are
+plain markdown that the agent reads and follows.
+
+If you're going the MCP route instead, the same per-sheet skill body
+also surfaces as a prompt named `<sheet-id>:<skill-name>` (here
+`research-memory:triage-candidates`) via the standard `prompts/list`
++ `prompts/get` MCP methods.
 
 ## 3. The writes go through provenance
 

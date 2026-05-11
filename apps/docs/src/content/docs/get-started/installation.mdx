@@ -89,6 +89,35 @@ the user supplies:
 - **MCP HTTP transport.** `folio-mcp serve --transport http` does not
   require anything beyond the `fastmcp` dependency that ships in the wheel.
 
+## Let your AI coding agent drive Folio
+
+If you use Claude Code, Cursor, Cline, Codex, Windsurf, Aider, Copilot,
+Gemini, or any other agent in the [`skills.sh`](https://skills.sh)
+ecosystem (18+ runtimes today), one extra command installs the Folio
+skill pack so the agent knows how to operate Folio sheets via the CLI:
+
+```bash
+# Project-scoped install in your repo (recommended for Folio work)
+npx skills add nyuta01/folio
+```
+
+This drops `SKILL.md` files into your runtime's discovery path
+(`.claude/skills/`, `.cursor/skills/`, etc.). The agent then picks
+them up automatically and uses its built-in Bash tool to invoke
+`folio` verbs — no daemon, no MCP server, every action visible in
+your shell history. See [AI agent operates, human
+verifies](/folio/guides/agent-operated-sheet/) for the end-to-end
+recipe.
+
+The bundled skills today: `folio-quickstart`, `add-derivation-ai`,
+`add-derivation-cross-sheet`, `debug-failed-materialize`. The
+[npm package](https://www.npmjs.com/package/folio-agent-skills) is
+also TanStack Intent compatible.
+
+> Reach for `folio-mcp` instead when the agent is remote, sandboxed
+> without shell access, or runs in an MCP-native runtime — see [MCP
+> overview](/folio/mcp/overview/) for the trade-off table.
+
 ## Confirm the install in 30 seconds
 
 The fastest way to prove the install worked is to scaffold a fresh
