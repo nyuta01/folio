@@ -724,6 +724,13 @@ FastMCP server exposing the SDK as tools so MCP-compatible runtimes
 | `materialization_status` | `Sheet.materialization_status` |
 | `provenance` | `Sheet.provenance` |
 
+In addition to tools, the MCP server publishes one **prompt** per
+skill discovered under each sheet's `skills/` directory. Prompt
+names use the form `<sheet-id>:<skill-name>` to avoid collisions
+when one server hosts multiple sheets. Arguments declared on a skill
+are surfaced as the prompt's argument schema; `prompts/get` returns
+the rendered markdown body with substitutions filled in.
+
 ### 7.4 Viewer (`folio-viewer`)
 
 FastAPI + React, **`127.0.0.1` only** by default. REST routes mirror

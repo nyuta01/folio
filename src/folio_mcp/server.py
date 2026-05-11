@@ -15,7 +15,8 @@ from fastmcp import FastMCP
 
 from folio import open_sheet
 from folio._ai_kind import AIClient
-from folio.exceptions import FolioError, SheetError
+from folio._skill import Skill, load_skills
+from folio.exceptions import FolioError, SheetError, SkillError
 
 
 def build_server(
@@ -187,7 +188,93 @@ def build_server(
             history=history,
         )
 
+    # ------------------------------------------------------------------
+    # Per-sheet skills surfaced as MCP prompts.
+    #
+    # Each `<root>/<sheet>/skills/<skill>.md` becomes a prompt named
+    # `<sheet-id>:<skill-name>`. Prompt arguments are the skill's
+    # declared `arguments`; `prompts/get` renders the markdown body
+    # with substitutions filled in.
+    _register_skills_as_prompts(mcp, root_path)
+
     return mcp
+
+
+def _register_skills_as_prompts(mcp: FastMCP, root_path: Path) -> None:
+    """Walk every sheet under ``root_path`` and register its skills as prompts.
+
+    Skip silently if a sheet has no ``skills/`` directory. If a skill
+    file is malformed, the SkillError is logged-and-skipped so one
+    broken skill does not bring down the whole server.
+    """
+    import logging
+
+    log = logging.getLogger("folio_mcp.skills")
+
+    for sheet_dir in sorted(root_path.iterdir()):
+        if not sheet_dir.is_dir():
+            continue
+        if not (sheet_dir / "contract.yaml").is_file():
+            continue
+        try:
+            sheet = open_sheet(sheet_dir)
+        except FolioError as exc:
+            log.warning("MCP: skipping %s — %s", sheet_dir.name, exc)
+            continue
+        try:
+            skills = load_skills(sheet_dir)
+        except SkillError as exc:
+            log.warning("MCP: skipping skills under %s — %s", sheet_dir.name, exc)
+            continue
+
+        for skill in skills:
+            _register_one_skill_prompt(mcp, sheet.contract.id, skill)
+
+
+def _register_one_skill_prompt(mcp: FastMCP, sheet_id: str, skill: Skill) -> None:
+    """Register a single skill as ``<sheet-id>:<skill-name>``."""
+    prompt_name = f"{sheet_id}:{skill.name}"
+
+    declared_required = [a for a in skill.arguments if a.required]
+    declared_optional = [a for a in skill.arguments if not a.required]
+
+    def renderer(**kwargs: str) -> str:
+        return skill.render(kwargs)
+
+    # FastMCP reads the function signature to surface argument names to
+    # MCP clients. Build a synthetic signature so the prompt advertises
+    # the same arguments the skill declares.
+    import inspect
+
+    parameters = [
+        inspect.Parameter(
+            a.name,
+            inspect.Parameter.KEYWORD_ONLY,
+            annotation=str,
+        )
+        for a in declared_required
+    ] + [
+        inspect.Parameter(
+            a.name,
+            inspect.Parameter.KEYWORD_ONLY,
+            default="",
+            annotation=str,
+        )
+        for a in declared_optional
+    ]
+    renderer.__signature__ = inspect.Signature(  # type: ignore[attr-defined]
+        parameters=parameters,
+        return_annotation=str,
+    )
+    renderer.__name__ = prompt_name.replace(":", "_").replace("-", "_")
+    renderer.__doc__ = skill.description
+    # pydantic's typing.get_type_hints() reads __annotations__, not the
+    # __signature__ we just attached. Mirror the parameter annotations
+    # so the introspection that FastMCP performs sees the right types.
+    renderer.__annotations__ = {a.name: str for a in skill.arguments}
+    renderer.__annotations__["return"] = str
+
+    mcp.prompt(name=prompt_name, description=skill.description)(renderer)
 
 
 __all__ = ["build_server"]

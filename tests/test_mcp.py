@@ -304,3 +304,102 @@ def test_missing_root_raises_at_build_time(tmp_path: Path) -> None:
 
     with pytest.raises(SheetError, match="MCP root must be a directory"):
         build_server(root=tmp_path / "nope")
+
+
+# --- skills surfaced as MCP prompts ---------------------------------------
+
+
+def _skill_root(tmp_path: Path) -> Path:
+    """Build an MCP root with two sheets, each carrying one skill."""
+    root = tmp_path / "skill-mcp-root"
+    root.mkdir()
+    for sheet_id, skill_name, body in (
+        (
+            "books",
+            "summarize",
+            "Summarize {title} in {n_sentences} sentences.\n",
+        ),
+        (
+            "people",
+            "ping",
+            "Ping the people sheet.\n",
+        ),
+    ):
+        sheet = root / sheet_id
+        sheet.mkdir()
+        (sheet / "contract.yaml").write_text(
+            textwrap.dedent(
+                f"""
+                apiVersion: v3.0.0
+                kind: DataContract
+                id: {sheet_id}
+                name: {sheet_id}
+                version: 1.0.0
+                description: test sheet
+                schema:
+                  - name: items
+                    physicalType: jsonl
+                    properties:
+                      - name: id
+                        logicalType: string
+                        primaryKey: true
+                        required: true
+                """
+            ).strip(),
+            encoding="utf-8",
+        )
+        (sheet / "records.jsonl").write_text('{"id": "a"}\n')
+        (sheet / "skills").mkdir()
+        args_block = ""
+        if "{title}" in body:
+            args_block = (
+                "arguments:\n"
+                "  - name: title\n"
+                "    required: true\n"
+                "  - name: n_sentences\n"
+            )
+        (sheet / "skills" / f"{skill_name}.md").write_text(
+            f"---\nname: {skill_name}\ndescription: test\n{args_block}---\n{body}",
+            encoding="utf-8",
+        )
+    return root
+
+
+def test_skills_registered_as_prompts(tmp_path: Path) -> None:
+    server = build_server(root=_skill_root(tmp_path))
+    prompts = asyncio.run(server._list_prompts())
+    names = {p.name for p in prompts}
+    assert "books:summarize" in names
+    assert "people:ping" in names
+
+
+def test_skill_prompt_arguments_surface(tmp_path: Path) -> None:
+    server = build_server(root=_skill_root(tmp_path))
+    summarize = asyncio.run(server.get_prompt("books:summarize"))
+    assert summarize is not None
+    arg_names = {a.name for a in (summarize.arguments or [])}
+    assert arg_names == {"title", "n_sentences"}
+
+
+def test_skill_prompt_renders_with_substitution(tmp_path: Path) -> None:
+    server = build_server(root=_skill_root(tmp_path))
+    summarize = asyncio.run(server.get_prompt("books:summarize"))
+    result = asyncio.run(
+        summarize.render({"title": "Moby Dick", "n_sentences": "3"})
+    )
+    text = result.messages[0].content.text
+    assert "Summarize Moby Dick in 3 sentences." in text
+
+
+def test_malformed_skill_does_not_break_server(tmp_path: Path) -> None:
+    root = _skill_root(tmp_path)
+    # Corrupt one of the skills to ensure the server still loads the other.
+    (root / "books" / "skills" / "summarize.md").write_text(
+        "no frontmatter here", encoding="utf-8"
+    )
+    server = build_server(root=root)
+    prompts = asyncio.run(server._list_prompts())
+    names = {p.name for p in prompts}
+    # The other sheet's skill should still register.
+    assert "people:ping" in names
+    assert "books:summarize" not in names
