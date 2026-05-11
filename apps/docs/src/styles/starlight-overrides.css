@@ -130,7 +130,12 @@ body {
   border: 1px solid var(--folio-border);
   border-radius: 8px;
   border-spacing: 0;
-  overflow: hidden;
+  /* Let Starlight keep `display: block; overflow: auto` so wide tables
+     scroll horizontally instead of getting clipped. */
+}
+
+.sl-markdown-content :is(th, td):not(:where(.not-content *)) {
+  padding-inline: 0.75rem;
 }
 
 .sl-markdown-content thead th {
@@ -201,10 +206,13 @@ header.header {
 .kind-badge[data-kind="cross_sheet"] { color: var(--kind-cross_sheet); }
 .kind-badge[data-kind="human"] { color: var(--kind-human); }
 
-/* ---------- Hero / FeatureGrid ---------- */
+/* ---------- Hero / FeatureGrid ----------
+   Targets Starlight's built-in splash hero (rendered when `hero:` is set
+   in frontmatter) so we get a card-style hero without a duplicate title. */
 
-.folio-hero {
-  margin: 1rem 0 2.5rem;
+:root[data-has-hero] .hero {
+  display: block;
+  margin: 1.5rem 0 2.5rem;
   padding: 2rem 1.75rem;
   background:
     radial-gradient(ellipse at top right, rgba(196, 92, 44, 0.08), transparent 60%),
@@ -213,63 +221,66 @@ header.header {
   border-radius: 12px;
 }
 
-.folio-hero h1 {
-  margin: 0 0 0.5rem !important;
-  font-size: 2.25rem !important;
-  line-height: 1.1 !important;
-  letter-spacing: -0.02em;
-  font-weight: 700;
+:root[data-has-hero] .hero > .stack {
+  text-align: start;
+  align-items: flex-start;
+  gap: 1.25rem;
 }
 
-.folio-hero p.tagline {
+:root[data-has-hero] .hero > .stack > .copy {
+  align-items: flex-start;
+  text-align: start;
+  gap: 0.75rem;
+}
+
+:root[data-has-hero] .hero h1 {
+  margin: 0;
+  font-size: 2.25rem;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+  color: var(--folio-ink);
+}
+
+:root[data-has-hero] .hero .tagline {
   font-size: 1.05rem;
   color: var(--folio-ink-muted);
   max-width: 38rem;
-  margin: 0 0 1.5rem;
 }
 
-.folio-hero .actions {
-  display: flex;
+:root[data-has-hero] .hero .actions {
   gap: 0.6rem;
+  justify-content: flex-start;
   flex-wrap: wrap;
 }
 
-.folio-hero .btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  border-radius: 6px;
-  padding: 0.5rem 0.95rem;
+:root[data-has-hero] .hero .sl-link-button {
   font-size: 0.9rem;
-  font-weight: 500;
-  border: 1px solid var(--folio-border-strong);
-  background: var(--folio-surface);
-  color: var(--folio-ink);
-  text-decoration: none;
-  transition: background 0.12s, border-color 0.12s;
+  padding: 0.5rem 0.95rem;
+  border-radius: 6px;
 }
 
-.folio-hero .btn:hover {
-  background: var(--folio-surface-muted);
-  border-color: var(--folio-ink-muted);
-}
-
-.folio-hero .btn-primary {
+:root[data-has-hero] .hero .sl-link-button.primary {
   background: var(--folio-accent);
   border-color: var(--folio-accent);
   color: #faf9f5;
 }
 
-.folio-hero .btn-primary:hover {
+:root[data-has-hero] .hero .sl-link-button.primary:hover {
   background: var(--folio-accent-hover);
   border-color: var(--folio-accent-hover);
   color: #faf9f5;
 }
 
-.folio-hero .btn .mono {
-  font-family: var(--folio-mono);
-  font-size: 0.82em;
-  opacity: 0.9;
+:root[data-has-hero] .hero .sl-link-button.secondary {
+  background: var(--folio-surface);
+  border-color: var(--folio-border-strong);
+  color: var(--folio-ink);
+}
+
+:root[data-has-hero] .hero .sl-link-button.secondary:hover {
+  background: var(--folio-surface-muted);
+  border-color: var(--folio-ink-muted);
 }
 
 /* feature grid */
