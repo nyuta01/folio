@@ -20,6 +20,7 @@ positional argument.
 
 | Verb | What it does |
 |---|---|
+| [`folio init`](/folio/cli/init/) | Scaffold a new sheet directory with starter `contract.yaml` / `records.jsonl` / `README.md` / `skills/getting-started.md`. |
 | [`folio validate`](/folio/cli/validate/) | Validate `contract.yaml`, `records.jsonl`, and (optionally) `README.md` frontmatter. |
 | [`folio query`](/folio/cli/query/) | Run a DuckDB SELECT against the sheet's `records` view. |
 | [`folio list`](/folio/cli/list/) | List records as a paginated JSON envelope (or TOON). |
@@ -70,6 +71,10 @@ folio materialize --help
 ## Examples
 
 ```bash
+# Bootstrap a new sheet
+folio init --name my-sheet
+folio validate ./my-sheet
+
 # Validate, list, query
 folio validate ./customers
 folio list ./customers --limit 10

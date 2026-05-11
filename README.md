@@ -25,8 +25,9 @@ my-sheet/
 
 ## Surfaces
 
-- **`folio`** — Python SDK + CLI (validate, query, list, count, upsert,
-  delete, materialize, status, provenance, serve, script, skill, export).
+- **`folio`** — Python SDK + CLI (init, validate, query, list, count,
+  upsert, delete, materialize, status, provenance, serve, script,
+  skill, export).
 - **`folio-mcp`** — FastMCP server exposing the SDK as nine tools plus
   one MCP prompt per discovered skill (stdio or HTTP transport).
 - **`folio-viewer`** — local-only FastAPI + React UI for human review.

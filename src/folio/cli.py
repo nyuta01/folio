@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import functools
 import json
+import re
 import sys
+import textwrap
 from pathlib import Path
 from typing import Any, Callable, Optional, Sequence
 
@@ -489,6 +491,144 @@ def skill_validate(
     width = max(len(skill.name) for skill in skills)
     for skill in skills:
         typer.echo(f"  ok  {skill.name:<{width}}  {skill.description}")
+
+
+_SHEET_NAME_RE = re.compile(r"^[a-z][a-z0-9-]*$")
+
+
+def _render_contract(sheet_id: str) -> str:
+    return textwrap.dedent(
+        f"""\
+        apiVersion: v3.0.0
+        kind: DataContract
+        id: {sheet_id}
+        name: {sheet_id}
+        version: 1.0.0
+        description: A new Folio sheet. Replace this with what the sheet captures.
+        schema:
+          - name: items
+            physicalType: jsonl
+            properties:
+              - name: id
+                logicalType: string
+                primaryKey: true
+                required: true
+                description: Stable identifier.
+              - name: title
+                logicalType: string
+                required: true
+                description: A short label.
+                x-editable-by:
+                  - agent:human
+        """
+    )
+
+
+def _render_readme(sheet_id: str) -> str:
+    return textwrap.dedent(
+        f"""\
+        ---
+        purpose: A new Folio sheet — replace this with what the sheet captures.
+        default_actor: agent:human
+        ---
+
+        # {sheet_id}
+
+        Describe what this sheet captures and who maintains it.
+
+        ## Quickstart
+
+        ```bash
+        folio validate ./{sheet_id}
+        folio upsert ./{sheet_id} --records - <<'EOF'
+        {{"id":"rec_001","title":"first record"}}
+        EOF
+        folio list ./{sheet_id}
+        ```
+        """
+    )
+
+
+def _render_starter_skill() -> str:
+    return textwrap.dedent(
+        """\
+        ---
+        name: getting-started
+        description: Starter skill — replace with your sheet's operating procedure.
+        audience: agent
+        ---
+
+        # Getting started
+
+        Replace this body with the steps an agent should take when working on
+        this sheet. Skills are markdown files under `skills/<name>.md`; they
+        surface as `folio skill show <name>`, as MCP prompts named
+        `<sheet-id>:<skill-name>`, and (optionally) as Claude Skills via
+        `folio export claude-skills`.
+        """
+    )
+
+
+@app.command(help="Create a new Folio sheet directory with starter files.")
+@_handle_folio_errors
+def init(
+    name: str = typer.Option(
+        ...,
+        "--name",
+        "-n",
+        help="Sheet name (used as both the directory and contract.id; "
+        "lowercase letters / digits / hyphens, starting with a letter).",
+    ),
+    path: Path = typer.Option(
+        Path("."),
+        "--path",
+        file_okay=False,
+        dir_okay=True,
+        resolve_path=True,
+        help="Parent directory in which to create <name>/ (defaults to cwd).",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Write into <name>/ even if it already exists and is non-empty.",
+    ),
+) -> None:
+    if not _SHEET_NAME_RE.fullmatch(name):
+        raise FolioError(
+            f"invalid --name {name!r}: must match {_SHEET_NAME_RE.pattern} "
+            "(lowercase letters, digits, hyphens; start with a letter)"
+        )
+
+    target = path / name
+    if target.exists():
+        if target.is_file():
+            raise FolioError(f"{target} exists but is a file, not a directory")
+        if any(target.iterdir()) and not force:
+            raise FolioError(
+                f"{target} already exists and is not empty; pass --force to overwrite"
+            )
+
+    target.mkdir(parents=True, exist_ok=True)
+    (target / "contract.yaml").write_text(_render_contract(name), encoding="utf-8")
+    (target / "records.jsonl").write_text("", encoding="utf-8")
+    (target / "README.md").write_text(_render_readme(name), encoding="utf-8")
+    skills_dir = target / "skills"
+    skills_dir.mkdir(exist_ok=True)
+    (skills_dir / "getting-started.md").write_text(
+        _render_starter_skill(), encoding="utf-8"
+    )
+
+    # Confirm the scaffold parses cleanly — surfaces ContractError /
+    # ReadmeError / SkillError early instead of letting the user discover
+    # it on their first `folio validate`.
+    sheet_obj = open_sheet(target)
+    sheet_obj.get_contract()
+    sheet_obj.list_skills()
+
+    typer.echo(f"Created sheet '{name}' at {target}")
+    typer.echo("Next:")
+    typer.echo(f"  folio validate {target}")
+    typer.echo(f"  folio skill list {target}")
 
 
 @app.command(

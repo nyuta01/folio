@@ -688,6 +688,7 @@ Typer command tree, JSON to stdout. Verbs:
 
 | Verb | One-liner |
 |---|---|
+| `init` | Scaffold a new sheet directory with starter `contract.yaml` / `records.jsonl` / `README.md` / `skills/getting-started.md`. |
 | `validate` | Validate `contract.yaml`, `records.jsonl`, and README frontmatter. |
 | `query` | Execute DuckDB SQL against the sheet's records view. |
 | `list` | List records as a JSON envelope (records may be `json` or `toon`). |

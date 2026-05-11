@@ -257,3 +257,70 @@ def test_delete_by_comma_list(runner: CliRunner, populated_sheet: Path) -> None:
     assert result.exit_code == 0, result.stderr
     body = json.loads(result.stdout)
     assert body == {"deleted": 2, "remaining": 1}
+
+
+# --- init ------------------------------------------------------------------
+
+
+def test_init_scaffolds_a_valid_sheet(runner: CliRunner, tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["init", "--name", "demo-sheet", "--path", str(tmp_path)],
+    )
+    assert result.exit_code == 0, result.stderr
+    target = tmp_path / "demo-sheet"
+    assert (target / "contract.yaml").is_file()
+    assert (target / "records.jsonl").is_file()
+    assert (target / "records.jsonl").read_text() == ""
+    assert (target / "README.md").is_file()
+    assert (target / "skills" / "getting-started.md").is_file()
+
+    # The freshly-scaffolded sheet must pass `folio validate`.
+    validated = runner.invoke(app, ["validate", str(target)])
+    assert validated.exit_code == 0, validated.stderr
+    assert "contract.yaml is valid: demo-sheet" in validated.stdout
+
+    listed = runner.invoke(app, ["skill", "list", str(target)])
+    assert listed.exit_code == 0, listed.stderr
+    payload = json.loads(listed.stdout)
+    assert payload[0]["name"] == "getting-started"
+
+
+def test_init_rejects_invalid_name(runner: CliRunner, tmp_path: Path) -> None:
+    result = runner.invoke(
+        app,
+        ["init", "--name", "Demo Sheet", "--path", str(tmp_path)],
+    )
+    assert result.exit_code != 0
+    assert "invalid --name" in result.stderr
+
+
+def test_init_refuses_existing_non_empty_dir(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    target = tmp_path / "demo"
+    target.mkdir()
+    (target / "already.txt").write_text("preexisting", encoding="utf-8")
+
+    result = runner.invoke(
+        app, ["init", "--name", "demo", "--path", str(tmp_path)]
+    )
+    assert result.exit_code != 0
+    assert "already exists and is not empty" in result.stderr
+    assert (target / "already.txt").read_text() == "preexisting"
+
+
+def test_init_force_writes_into_non_empty_dir(
+    runner: CliRunner, tmp_path: Path
+) -> None:
+    target = tmp_path / "demo"
+    target.mkdir()
+    (target / "stray.txt").write_text("kept", encoding="utf-8")
+
+    result = runner.invoke(
+        app,
+        ["init", "--name", "demo", "--path", str(tmp_path), "--force"],
+    )
+    assert result.exit_code == 0, result.stderr
+    assert (target / "contract.yaml").is_file()
+    assert (target / "stray.txt").read_text() == "kept"

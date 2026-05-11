@@ -81,6 +81,7 @@ export default defineConfig({
           label: "CLI",
           items: [
             { label: "Overview", slug: "cli/overview" },
+            { label: "init", slug: "cli/init" },
             { label: "validate", slug: "cli/validate" },
             { label: "query", slug: "cli/query" },
             { label: "list", slug: "cli/list" },

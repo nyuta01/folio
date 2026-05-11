@@ -1,0 +1,62 @@
+---
+title: folio init
+description: Scaffold a new Folio sheet directory with starter contract / records / README / skill.
+---
+
+```text
+folio init --name <NAME> [--path DIR] [--force]
+```
+
+Bootstraps a new sheet under `<path>/<name>/` with the minimum files
+Folio needs, plus a starter `skills/getting-started.md` so the
+discovery loop is obvious from day one.
+
+After writing the files, `init` opens the new sheet, parses the
+contract, and lists skills — so a malformed scaffold fails *here*
+instead of on the user's first `folio validate`.
+
+## Options
+
+| Flag | Purpose |
+|---|---|
+| `--name`, `-n` | **Required.** Sheet name. Used as both the directory name and `contract.id`. Must match `^[a-z][a-z0-9-]*$`. |
+| `--path` | Parent directory in which to create `<name>/`. Defaults to the current directory. |
+| `--force` | Write into `<path>/<name>/` even if it already exists and is non-empty. Existing files are kept; the scaffold writes alongside them. |
+
+## What gets scaffolded
+
+```text
+<name>/
+├── contract.yaml          # ODCS subset: id, version, one PK field + one editable field
+├── records.jsonl          # empty
+├── README.md              # with `purpose` / `default_actor` frontmatter
+└── skills/
+    └── getting-started.md # placeholder operating procedure
+```
+
+The contract declares two properties — a primary-key `id` and a
+human-editable `title` — so `folio upsert` works immediately without
+edits to the contract.
+
+## Example
+
+```bash
+$ folio init --name my-sheet
+Created sheet 'my-sheet' at /Users/you/my-sheet
+Next:
+  folio validate /Users/you/my-sheet
+  folio skill list /Users/you/my-sheet
+
+$ folio validate ./my-sheet
+contract.yaml is valid: my-sheet v1.0.0 (2 fields)
+records.jsonl is readable (0 records)
+README.md frontmatter is valid (purpose: A new Folio sheet ..., default_actor: agent:human)
+```
+
+## Exit semantics
+
+- `0` — scaffold written and self-validated.
+- `1` — `--name` doesn't match `^[a-z][a-z0-9-]*$`, the target directory
+  exists as a file, or the target is a non-empty directory and `--force`
+  was not passed. The error is printed to stderr; nothing on disk is
+  changed.
