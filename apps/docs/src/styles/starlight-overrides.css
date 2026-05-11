@@ -146,6 +146,16 @@ body {
   text-wrap: pretty;
 }
 
+/* Override Starlight's `:is(th:first-child, td:first-child)` rule, which
+   has higher specificity than the rule above and zeroes out the leading
+   padding — that's why cell content hugged the left table border. */
+.sl-markdown-content :is(th:first-child, td:first-child) {
+  padding-inline-start: 0.75rem;
+}
+.sl-markdown-content :is(th:last-child, td:last-child) {
+  padding-inline-end: 0.75rem;
+}
+
 /* Inline code in table cells must not break mid-identifier (e.g.
    `folio_mcp.cli:main` was wrapping to `…cli:m` + `ain`). Force the
    token to stay atomic. */
