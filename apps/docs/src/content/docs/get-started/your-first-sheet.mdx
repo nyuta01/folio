@@ -8,6 +8,12 @@ import KindBadge from "../../../components/KindBadge.astro";
 This walkthrough builds a tiny customers sheet from scratch. Nothing here
 needs an API key.
 
+Already done the [Quickstart](/folio/get-started/quickstart/)? This page
+is the deeper version: instead of accepting `folio init`'s placeholder
+contract, you author the real customer schema by hand and add a
+derivation. The two pages don't conflict — they just sit at different
+points on the convenience/understanding curve.
+
 ## 1. Create the directory
 
 ```bash
@@ -15,11 +21,10 @@ mkdir -p customers/derivations customers/scripts
 cd customers
 ```
 
-In a hurry? `folio init --name customers` scaffolds a runnable sheet
-(starter `contract.yaml` / `records.jsonl` / `README.md` / one skill)
-and the rest of this page is then about replacing the stubs with the
-real customer schema. See [`folio init`](/folio/cli/init/) for the
-full output.
+Prefer to start from a runnable scaffold? `folio init --name customers`
+writes `contract.yaml` / `records.jsonl` / `README.md` / a starter
+skill in one step. The rest of this page then becomes "swap the stub
+contract for the customer schema below."
 
 ## 2. Write the contract
 

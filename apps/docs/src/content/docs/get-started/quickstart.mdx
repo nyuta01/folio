@@ -1,0 +1,156 @@
+---
+title: Quickstart with `folio init`
+description: Scaffold a runnable Folio sheet in one command, add a record, and inspect what you got.
+---
+
+import KindBadge from "../../../components/KindBadge.astro";
+
+`folio init` writes the minimum files Folio needs and then opens the
+sheet to validate it. By the time you see "Created sheet …" on stdout,
+you have a working sheet on disk that the rest of the CLI can read,
+write, and derive against.
+
+The page after this — [Your first sheet](/folio/get-started/your-first-sheet/)
+— walks through writing a real contract by hand. Use the path that
+matches what you're trying to learn:
+
+| Path | Use it when |
+|---|---|
+| **Quickstart (this page)** | You want to feel the loop before learning the parts. Five minutes. |
+| Your first sheet | You're authoring a real contract and want to understand every field. |
+
+## 1. Scaffold
+
+```bash
+$ folio init --name my-sheet
+Created sheet 'my-sheet' at /Users/you/my-sheet
+Next:
+  folio validate /Users/you/my-sheet
+  folio skill list /Users/you/my-sheet
+```
+
+The `--name` argument doubles as the directory name *and* the
+`contract.id`, so the value must match `^[a-z][a-z0-9-]*$`. Pass
+`--path DIR` to scaffold into a parent other than the current
+directory; pass `--force` to write alongside files that already exist.
+
+### What you got
+
+```text
+my-sheet/
+├── contract.yaml          # id, version, primary-key `id`, editable `title`
+├── records.jsonl          # empty
+├── README.md              # `purpose` + `default_actor` frontmatter
+└── skills/
+    └── getting-started.md # placeholder operating procedure
+```
+
+`init` re-opens the scaffold and parses every file before exiting —
+so a broken template fails *here* rather than on your first
+`folio validate`. Three quick reads will show you everything in it:
+
+```bash
+$ cat my-sheet/contract.yaml
+apiVersion: v3.0.0
+kind: DataContract
+id: my-sheet
+name: my-sheet
+version: 1.0.0
+description: A new Folio sheet. Replace this with what the sheet captures.
+schema:
+  - name: items
+    physicalType: jsonl
+    properties:
+      - name: id
+        logicalType: string
+        primaryKey: true
+        required: true
+        description: Stable identifier.
+      - name: title
+        logicalType: string
+        required: true
+        description: A short label.
+        x-editable-by:
+          - agent:human
+```
+
+```bash
+$ cat my-sheet/README.md
+---
+purpose: A new Folio sheet — replace this with what the sheet captures.
+default_actor: agent:human
+---
+
+# my-sheet
+…
+```
+
+```bash
+$ folio skill list ./my-sheet
+[{"name":"getting-started","description":"Starter skill — replace with your sheet's operating procedure.",
+  "audience":"agent","arguments":[],"tools":null,"allowed_actors":null}]
+```
+
+## 2. Validate the scaffold
+
+```bash
+$ folio validate ./my-sheet
+contract.yaml is valid: my-sheet v1.0.0 (2 fields)
+records.jsonl is readable (0 records)
+README.md frontmatter is valid (purpose: A new Folio sheet …, default_actor: agent:human)
+```
+
+This is the same check `folio init` already ran internally, but you'll
+run it every time you edit the contract — make it muscle memory.
+
+## 3. Add a record
+
+The starter contract has two fields: a primary key `id` and a
+human-editable `title`. Insert one row through the CLI:
+
+```bash
+$ echo '{"id":"rec_001","title":"first record"}' \
+  | folio upsert ./my-sheet --file - --actor agent:human
+{"inserted":1,"updated":0,"total":1}
+```
+
+`--actor` is required on every write — Folio records it in the
+provenance log so you can answer "who wrote this?" later.
+
+## 4. List and query
+
+```bash
+$ folio list ./my-sheet
+{"records":[{"id":"rec_001","title":"first record"}],"format":"json","limit":50,"next_cursor":null}
+
+$ folio query ./my-sheet "SELECT COUNT(*) AS n FROM records"
+[{"n":1}]
+```
+
+## 5. Inspect provenance
+
+```bash
+$ folio provenance ./my-sheet rec_001 title
+{"record_id":"rec_001","field":"title","source":"human",
+ "actor":"agent:human","at":"2026-05-11T11:32:00Z","input_hash":""}
+```
+
+`source: "human"` says the value came from a write (not a derivation).
+The empty `input_hash` is the convention for human writes — derivations
+fill it with a SHA-256 over their canonical inputs.
+
+## Where to go next
+
+You now have the minimum loop down: scaffold → write → query → audit.
+
+- [**Your first sheet**](/folio/get-started/your-first-sheet/) replaces
+  the placeholder schema with a real customers contract and adds a
+  <KindBadge kind="python" /> derivation. This is where you learn the
+  contract format properly.
+- [**Materialize lifecycle**](/folio/get-started/materialize-lifecycle/)
+  covers how the derivation cache decides when to rerun.
+- [**Editing and provenance**](/folio/get-started/editing-and-provenance/)
+  goes deeper on the `source` / `actor` / `input_hash` columns and how
+  `respect_human_override` protects manual edits from being clobbered.
+- [`folio init` reference](/folio/cli/init/) — every flag the verb
+  accepts, plus the validation rules it runs after scaffolding.

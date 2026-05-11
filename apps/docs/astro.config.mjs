@@ -92,6 +92,7 @@ export default defineConfig({
           label: "Get started",
           items: [
             { label: "Installation", slug: "get-started/installation" },
+            { label: "Quickstart with folio init", slug: "get-started/quickstart" },
             { label: "Your first sheet", slug: "get-started/your-first-sheet" },
             { label: "Materialize lifecycle", slug: "get-started/materialize-lifecycle" },
             { label: "Editing and provenance", slug: "get-started/editing-and-provenance" },

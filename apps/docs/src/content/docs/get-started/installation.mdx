@@ -89,7 +89,23 @@ the user supplies:
 - **MCP HTTP transport.** `folio-mcp serve --transport http` does not
   require anything beyond the `fastmcp` dependency that ships in the wheel.
 
-## Confirm the install with a real sheet
+## Confirm the install in 30 seconds
+
+The fastest way to prove the install worked is to scaffold a fresh
+sheet with [`folio init`](/folio/cli/init/) and validate it:
+
+```bash
+folio init --name hello-folio
+folio validate ./hello-folio
+folio skill list ./hello-folio
+```
+
+Three commands, zero downloads — if all three exit `0` the install is
+healthy. Continue to the [Quickstart](/folio/get-started/quickstart/)
+to add records and see provenance, or read on for the longer
+"check against the bundled examples" route.
+
+## Confirm with the bundled examples
 
 The repository ships [`examples/`](https://github.com/nyuta01/folio/tree/main/examples)
 with five sheets covering the four canonical use cases. Once installed:
