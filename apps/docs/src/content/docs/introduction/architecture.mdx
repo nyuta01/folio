@@ -103,8 +103,8 @@ not raised — so a 5,000-row materialize doesn't abort on one bad row.
 |---|---|---|
 | Contract, records, derivations, scripts | inside the sheet | the sheet is the system of record |
 | Provenance | inside the sheet | tamper-evident; ships with the data |
-| Cache (per derivation × input_hash) | `<user-cache>/folio/<sheet-id>/cache/` | not deterministic; recoverable; ADR-0008 |
-| Per-sheet runtime venv | `<user-cache>/folio/<sheet-id>/runtime/` | environment-dependent; ADR-0008 |
+| Cache (per derivation × input_hash) | `<user-cache>/folio/<sheet-id>/cache/` | not deterministic; recoverable; [ADR‑0008](/folio/reference/adrs/) |
+| Per-sheet runtime venv | `<user-cache>/folio/<sheet-id>/runtime/` | environment-dependent; [ADR‑0008](/folio/reference/adrs/) |
 | Lock | inside the sheet (`.lock`) | tied to the writer; cleared between processes |
 
 If you can't redo it, it's in the sheet. If you can recompute it, it's not.

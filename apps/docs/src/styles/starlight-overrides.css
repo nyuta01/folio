@@ -126,23 +126,30 @@ body {
 
 /* ---------- tables ---------- */
 
+/* Restore real table layout. Starlight's default `display: block` made
+   columns size in flow-layout order, which produced uneven widths and
+   awkward mid-row wrapping. `display: table` lets the browser distribute
+   columns proportionally to their content. */
 .sl-markdown-content table {
+  display: table;
+  width: 100%;
+  table-layout: auto;
   border: 1px solid var(--folio-border);
   border-radius: 8px;
   border-spacing: 0;
-  /* Let Starlight keep `display: block; overflow: auto` so wide tables
-     scroll horizontally instead of getting clipped. */
+  overflow: hidden; /* keep rounded corners; prose tables won't exceed width */
 }
 
 .sl-markdown-content :is(th, td):not(:where(.not-content *)) {
   padding-inline: 0.75rem;
+  vertical-align: top;
+  text-wrap: pretty;
 }
 
 /* Inline code in table cells must not break mid-identifier (e.g.
    `folio_mcp.cli:main` was wrapping to `…cli:m` + `ain`). Force the
-   token to stay atomic and let the table scroll instead. */
-.sl-markdown-content td code,
-.sl-markdown-content th code {
+   token to stay atomic. */
+.sl-markdown-content :is(td, th) code {
   white-space: nowrap;
 }
 
