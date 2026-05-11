@@ -790,6 +790,7 @@ Server-Sent Events (`text/event-stream`).
 | GET | `/api/status` | Materialization counts per derived field. |
 | POST | `/api/materialize` | Materialize derived fields (full or targeted). |
 | GET | `/api/provenance` | Provenance for a record × field (`?record_id=...&field=...&history=...`). |
+| GET | `/api/export/{fmt}` | Download the sheet. `fmt ∈ {json, csv, tsv, xlsx, zip}` — JSON/CSV/TSV/XLSX render `records.jsonl` (CSV/TSV with UTF-8 BOM, XLSX is a stdlib-only minimal OOXML workbook); ZIP bundles the entire sheet directory minus dotfiles, caches, and `.lock` files. |
 | GET | `/events` | Server-Sent Events stream of materialize lifecycle frames. |
 
 The renderer is a static React build; in production it is served as
