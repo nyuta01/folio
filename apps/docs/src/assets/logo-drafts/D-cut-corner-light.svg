@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28">
+  <!-- Variant D: bold minimalist — the whole tile IS the sheet, top-right corner cleanly cut -->
+  <path d="M5 2 L19 2 L26 9 L26 24 a2 2 0 0 1 -2 2 L4 26 a2 2 0 0 1 -2 -2 L2 5 a2 2 0 0 1 2 -2 a2 2 0 0 1 1 -1 Z"
+        fill="#c45c2c"/>
+  <path d="M19 2 L19 9 L26 9 Z" fill="#a04e23"/>
+</svg>

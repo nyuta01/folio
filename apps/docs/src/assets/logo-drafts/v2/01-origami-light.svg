@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28">
+  <!-- V2-01 Origami: a folded crane-like silhouette, two-tone clay. -->
+  <rect width="28" height="28" rx="5" fill="#faf9f5"/>
+  <!-- main body triangle -->
+  <path d="M5 20 L14 5 L23 20 Z" fill="#c45c2c"/>
+  <!-- folded wing (darker) -->
+  <path d="M14 5 L23 20 L14 14 Z" fill="#a04e23"/>
+  <!-- thin fold crease (cream) -->
+  <path d="M14 5 L14 14" stroke="#faf9f5" stroke-width="0.7" stroke-linecap="round"/>
+</svg>

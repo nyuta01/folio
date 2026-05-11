@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28">
+  <!-- V2-02 Stacked: three offset rounded rects (cards), two-tone depth. -->
+  <rect width="28" height="28" rx="5" fill="#faf9f5"/>
+  <rect x="4"  y="11" width="14" height="11" rx="2" fill="#e08a5d"/>
+  <rect x="7"  y="8"  width="14" height="11" rx="2" fill="#c45c2c"/>
+  <rect x="10" y="5"  width="14" height="11" rx="2" fill="#a04e23"/>
+</svg>

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28" width="28" height="28">
+  <!-- Variant B: clay background, cream page floating on top, fold as lighter triangle -->
+  <rect width="28" height="28" rx="5" fill="#c45c2c"/>
+  <path d="M8 6 L18 6 L22 10 L22 22 L8 22 Z" fill="#faf9f5"/>
+  <path d="M18 6 L18 10 L22 10 Z" fill="#fbeee5"/>
+  <path d="M18 6 L18 10 L22 10" fill="none" stroke="#c45c2c" stroke-width="0.8" stroke-linejoin="round"/>
+</svg>

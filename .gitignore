@@ -29,6 +29,11 @@ apps/docs/.astro/
 apps/desktop/out/
 apps/desktop/dist/
 
+# `apps/desktop/build/` holds icon source assets for electron-builder.
+# The generic `build/` pattern above (Python) would otherwise sweep it.
+!apps/desktop/build/
+!apps/desktop/build/**
+
 # Logs
 *.log
 npm-debug.log*

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <!-- Folio desktop app icon — Pair design at 1024×1024. -->
+  <rect width="1024" height="1024" rx="180" fill="#c45c2c"/>
+  <rect x="200" y="360" width="480" height="480" rx="78" fill="#fbeee5"/>
+  <rect x="360" y="200" width="480" height="480" rx="78" fill="#faf9f5"/>
+</svg>
