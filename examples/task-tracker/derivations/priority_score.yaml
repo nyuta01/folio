@@ -1,0 +1,4 @@
+targets: [priority_score]
+inputs: [priority]
+kind: python
+script: priority_score

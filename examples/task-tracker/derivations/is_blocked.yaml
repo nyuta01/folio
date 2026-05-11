@@ -1,0 +1,16 @@
+targets: [is_blocked]
+inputs: [depends]
+kind: sql
+expression: |
+  -- The single `?` is bound to this row's `depends` value (a JSON array
+  -- per the contract's logicalType=array). `json_each` unnests it; for
+  -- each element we look up the referenced record and ask whether it is
+  -- still open.
+  SELECT
+    EXISTS (
+      SELECT 1
+        FROM json_each(?) AS dep
+        JOIN records r
+          ON r.id = json_extract_string(dep.value, '$')
+       WHERE r.status != 'done'
+    ) AS blocked

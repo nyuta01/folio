@@ -1,0 +1,4 @@
+targets: [path_count]
+inputs: [paths]
+kind: python
+script: count_array

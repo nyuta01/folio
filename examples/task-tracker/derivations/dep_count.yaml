@@ -1,0 +1,4 @@
+targets: [dep_count]
+inputs: [depends]
+kind: python
+script: count_array

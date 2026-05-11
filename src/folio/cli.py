@@ -518,8 +518,10 @@ def _render_contract(sheet_id: str) -> str:
                 logicalType: string
                 required: true
                 description: A short label.
-                x-editable-by:
-                  - agent:human
+                # Open by default so both `agent:human:*` and `agent:*` actors
+                # can write while you're prototyping. Tighten with
+                # `x-editable-by:` once you know which actors should own
+                # which fields.
         """
     )
 

@@ -1,0 +1,4 @@
+targets: [verification_count]
+inputs: [verification]
+kind: python
+script: count_array
