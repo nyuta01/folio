@@ -72,7 +72,9 @@ Desktop pipeline takes ~10–15 minutes (Electron download dominates).
 4. **Edit the auto-generated release notes** to highlight notable
    changes; the GitHub-generated changelog is a starting point, not
    the final copy.
-5. Flip the Release from **Draft** to **Published**.
+5. Flip the Release from **Draft** to **Published**. This automatically
+   triggers the `Publish to PyPI (OIDC)` job (~30 s). Once it's green,
+   `uv tool install folio-kit` will pick up the new version.
 
 If a smoke fails, **delete the draft Release** (not the tag) and fix
 forward by tagging `vX.Y.Z+1` or `vX.Y.Z-rc.2`. We do not edit
@@ -123,8 +125,6 @@ re-upload unless the artwork changes.
 
 ## Out of scope (today)
 
-- Automated PyPI publishing (planned via OIDC trusted publishing —
-  tracked separately).
 - macOS notarization and Windows Authenticode signing (planned;
   artifacts ship unsigned for now and macOS users see the gatekeeper
   warning on first launch).
