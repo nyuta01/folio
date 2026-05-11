@@ -165,6 +165,7 @@ Unknown attributes inside a schema entry are **rejected** (`extra="forbid"`).
 | `description` | string \| null | no | Free-form. |
 | `required` | boolean | no | Default `false`. Enforced on `upsert_records`. |
 | `primaryKey` | boolean | no | Default `false`. **Exactly one** property must be `true`. Composite keys not supported. |
+| `enum` | array of strings \| null | no | Closed list of allowed values. When set, `upsert_records` rejects writes whose value is not in the list, and the Viewer renders a dropdown instead of a free-text input. Strings only; duplicates are rejected at load time. |
 | `x-derived` | boolean | no | Default `false`. When `true`, requires `x-inputs` and a matching derivation. |
 | `x-inputs` | array of strings | conditional | Required when `x-derived: true`. Must reference declared properties. |
 | `x-editable-by` | array of strings \| null | no | Default `null` ⇒ field is not human-editable. `fnmatch` patterns matched against the actor on every direct write. |

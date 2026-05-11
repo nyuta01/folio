@@ -45,9 +45,35 @@ class Property(BaseModel):
     primary_key: bool = Field(default=False, alias="primaryKey")
     required: bool = False
     description: str | None = None
+    # Closed list of allowed values for this property. Matches the
+    # ODCS / JSON-Schema `enum` keyword. Folio uses it as a UI hint
+    # (the Viewer renders a `<select>` instead of free text) and as a
+    # validation hint — write-time rejection lives in
+    # Sheet._validate_required_fields so values like "P5" don't sneak
+    # past the contract.
+    enum: list[str] | None = None
     derived: bool = Field(default=False, alias="x-derived")
     inputs: list[str] = Field(default_factory=list, alias="x-inputs")
     editable_by: list[str] | None = Field(default=None, alias="x-editable-by")
+
+    @model_validator(mode="after")
+    def _validate_enum(self) -> "Property":
+        if self.enum is None:
+            return self
+        if not self.enum:
+            raise ValueError(f"property {self.name!r}: enum must be non-empty")
+        seen: set[str] = set()
+        for value in self.enum:
+            if not isinstance(value, str):
+                raise ValueError(
+                    f"property {self.name!r}: enum values must be strings"
+                )
+            if value in seen:
+                raise ValueError(
+                    f"property {self.name!r}: duplicate enum value {value!r}"
+                )
+            seen.add(value)
+        return self
 
 
 class Schema(BaseModel):

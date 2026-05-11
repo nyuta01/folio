@@ -54,31 +54,29 @@ schema:
         logicalType: string
         required: true
         description: |
-          One of:
-            - pending     : in backlog, not yet started
-            - planning    : agent (or human) is writing the plan
-            - in_progress : agent is executing the plan
-            - blocked     : externally blocked (waiting on someone)
-            - in_review   : work done, awaiting human PR approval
-            - done        : merged / shipped / closed
-            - cancelled   : will not be done
+          The workflow state. `pending` rows wait in the backlog;
+          `planning` rows are getting a plan written; `in_progress`
+          rows are actively being executed; `blocked` rows are stuck
+          on an external dependency; `in_review` rows have a PR open;
+          `done` and `cancelled` are terminal.
+        enum: [pending, planning, in_progress, blocked, in_review, done, cancelled]
         x-editable-by: ["agent:*", "human:*"]
 
       - name: priority
         logicalType: string
         required: true
-        description: One of - P0 (drop-everything), P1 (this sprint),
-          P2 (this quarter), P3 (someday).
+        description: P0 (drop-everything) ... P3 (someday).
+        enum: [P0, P1, P2, P3]
         x-editable-by: ["agent:*", "human:*"]
 
       - name: owner
         logicalType: string
         required: true
         description: |
-          Who is expected to do the work:
-            - agent  : an AI coding agent (Claude Code / Cursor / Codex)
-            - human  : a specific human contributor
-            - shared : agent drafts, human reviews and lands
+          Who is expected to do the work. `agent` - an AI coding agent
+          drives the task. `human` - a named contributor. `shared` -
+          agent drafts, human reviews and lands.
+        enum: [agent, human, shared]
         x-editable-by: ["agent:*", "human:*"]
 
       - name: assignee

@@ -957,11 +957,17 @@ class Sheet:
 
     def _validate_required_fields(self, record: dict[str, Any]) -> None:
         for prop in self.main_schema.properties:
-            if not prop.required or prop.derived:
+            value = record.get(prop.name)
+            if value is None:
+                if prop.required and not prop.derived:
+                    raise OperationError(
+                        f"required field {prop.name!r} is missing or null"
+                    )
                 continue
-            if record.get(prop.name) is None:
+            if prop.enum is not None and value not in prop.enum:
                 raise OperationError(
-                    f"required field {prop.name!r} is missing or null"
+                    f"field {prop.name!r} value {value!r} is not in "
+                    f"the declared enum {prop.enum}"
                 )
 
     def _check_editable_by(self, record: dict[str, Any], actor: str) -> None:

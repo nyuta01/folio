@@ -297,6 +297,32 @@ function CellEditor({ value, field, onCommit, onCancel, onError }: CellEditorPro
     }
   };
 
+  // Contract declares an explicit enum → render the closed list as a
+  // dropdown regardless of the underlying logicalType (strings are the
+  // common case; integers can be enumerated too).
+  if (field.enum && field.enum.length > 0) {
+    return (
+      <select
+        ref={selectRef}
+        className="cell-input mono"
+        value={v}
+        onChange={(e) => {
+          setV(e.target.value);
+          commit(e.target.value, "none");
+        }}
+        onBlur={() => commit(v, "none")}
+        onKeyDown={handleKey}
+      >
+        {!field.required && <option value=""></option>}
+        {field.enum.map((opt) => (
+          <option key={opt} value={opt}>
+            {opt}
+          </option>
+        ))}
+      </select>
+    );
+  }
+
   if (logicalType === "boolean") {
     return (
       <select

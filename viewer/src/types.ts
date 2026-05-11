@@ -14,6 +14,7 @@ export interface ContractProperty {
   description?: string;
   primaryKey?: boolean;
   required?: boolean;
+  enum?: string[];
   ["x-derived"]?: boolean;
   ["x-inputs"]?: string[];
   ["x-editable-by"]?: string[];
