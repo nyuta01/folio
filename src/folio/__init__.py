@@ -23,6 +23,7 @@ from .derivation import (
     load_derivations,
     topological_sort,
 )
+from ._skill import Skill, SkillArgument, load_skills, validate_skills_manifest
 from .exceptions import (
     ContractError,
     FolioError,
@@ -32,6 +33,7 @@ from .exceptions import (
     QueryError,
     RecordsError,
     SheetError,
+    SkillError,
 )
 from .readme import Frontmatter, ReadmeError, load_readme_metadata, parse_frontmatter
 from .scripts import ScriptError, ScriptResult, discover_scripts
@@ -60,15 +62,20 @@ __all__ = [
     "ScriptResult",
     "Sheet",
     "SheetError",
+    "Skill",
+    "SkillArgument",
+    "SkillError",
     "detect_cycles",
     "discover_scripts",
     "load_contract",
     "load_derivation",
     "load_derivations",
     "load_readme_metadata",
+    "load_skills",
     "open_sheet",
     "parse_frontmatter",
     "topological_sort",
+    "validate_skills_manifest",
 ]
 
 __version__ = "0.1.0"

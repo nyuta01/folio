@@ -693,9 +693,16 @@ Entry point: `Sheet(path)`. Public methods:
 | `update_property` | `(name, *, actor, new_name=None, logical_type=None, description=None, required=None, editable_by=None) -> Contract` |
 | `delete_property` | `(name, *, actor) -> Contract` |
 | `run_script` | `(name, args=None, timeout_seconds=60.0) -> ScriptResult` |
+| `list_skills` | `() -> list[Skill]` |
+| `get_skill` | `(name) -> Skill \| None` |
+| `render_skill` | `(name, args=None) -> str` |
 
 All writes acquire the sheet `.lock` and use the temp-file-rename
 path; reads do not take the lock.
+
+`list_skills` / `get_skill` / `render_skill` operate on packaged
+markdown files under `<sheet>/skills/` — short, named operating
+procedures the sheet carries for its agent / human users. See §11.
 
 ### 7.3 MCP (`folio-mcp`)
 
@@ -767,6 +774,7 @@ public surface. Every one extends `FolioError`.
 | `PermissionDeniedError` | An actor does not match `x-editable-by` for a written field. Subclass of `OperationError`. |
 | `LockTimeoutError` | The 30-second lock acquisition timed out. |
 | `DerivationError` | A derivation file is malformed, depends cyclically, or fails to execute outside of a per-cell failure (which is reported on the envelope instead). |
+| `SkillError` | A `skills/<name>.md` file is malformed (missing frontmatter, basename / name mismatch, undeclared argument placeholder, unknown tool name in the cross-checked allow-list, etc.). |
 
 The Viewer maps each exception to an HTTP status code (400 for
 contract / records / operation / query; 403 for permission-denied;

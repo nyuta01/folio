@@ -33,3 +33,7 @@ class PermissionDeniedError(OperationError):
 
 class LockTimeoutError(FolioError):
     """Raised when the ``.lock`` file cannot be acquired within the timeout."""
+
+
+class SkillError(FolioError):
+    """Raised when a ``skills/<name>.md`` file is malformed or fails validation."""

@@ -22,6 +22,7 @@ from . import (
     _provenance,
     _query,
     _records,
+    _skill,
     _toon,
     readme as _readme_mod,
     scripts as _scripts_mod,
@@ -59,9 +60,23 @@ from .exceptions import (
     OperationError,
     PermissionDeniedError,
     SheetError,
+    SkillError,
 )
 
 DEFAULT_LIST_LIMIT = 50
+
+
+def _sdk_method_names() -> set[str]:
+    """The set of SDK method names a skill's ``tools`` field may reference.
+
+    Computed from the live :class:`Sheet` surface so adding a new SDK method
+    automatically widens what skills can declare without further changes.
+    """
+    return {
+        name
+        for name, member in vars(Sheet).items()
+        if callable(member) and not name.startswith("_")
+    }
 
 
 @dataclass
@@ -881,6 +896,42 @@ class Sheet:
         if history:
             return _provenance.field_history(self.path, record_id, field)
         return _provenance.latest_provenance(self.path, record_id, field)
+
+    # --- operation: skills ----------------------------------------------
+
+    def list_skills(self) -> list[_skill.Skill]:
+        """Return every parseable ``skills/*.md`` under the sheet, sorted by name.
+
+        ``tools`` declarations on each skill are cross-checked against the
+        Sheet's actual SDK method names. A skill that references an unknown
+        method raises :class:`SkillError`.
+        """
+        return _skill.load_skills(self.path, sdk_method_names=_sdk_method_names())
+
+    def get_skill(self, name: str) -> _skill.Skill | None:
+        """Return ``skills/<name>.md`` parsed, or ``None`` if missing.
+
+        Raises :class:`SkillError` if the file exists but is malformed.
+        """
+        path = self.path / "skills" / f"{name}.md"
+        if not path.is_file():
+            return None
+        return _skill.Skill.from_path(path)
+
+    def render_skill(
+        self,
+        name: str,
+        args: dict[str, Any] | None = None,
+    ) -> str:
+        """Render ``skills/<name>.md``'s body with ``{arg}`` placeholders filled.
+
+        Raises :class:`SkillError` if the skill is missing, malformed, or a
+        required argument was not supplied.
+        """
+        skill = self.get_skill(name)
+        if skill is None:
+            raise SkillError(f"skill {name!r} not found under {self.path}/skills/")
+        return skill.render(args)
 
     # --- internal helpers -----------------------------------------------
 
