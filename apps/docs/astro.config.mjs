@@ -23,6 +23,50 @@ export default defineConfig({
         replacesTitle: false,
       },
       favicon: "/favicon.svg",
+      head: [
+        // Apple home-screen icon when the docs are pinned on iOS.
+        {
+          tag: "link",
+          attrs: {
+            rel: "apple-touch-icon",
+            sizes: "180x180",
+            href: BASE + "/apple-touch-icon.png",
+          },
+        },
+        // Open Graph card for Twitter, Slack, Discord, LinkedIn, etc.
+        {
+          tag: "meta",
+          attrs: { property: "og:type", content: "website" },
+        },
+        {
+          tag: "meta",
+          attrs: {
+            property: "og:image",
+            content: SITE + BASE + "/og-image.png",
+          },
+        },
+        {
+          tag: "meta",
+          attrs: { property: "og:image:width", content: "1200" },
+        },
+        {
+          tag: "meta",
+          attrs: { property: "og:image:height", content: "630" },
+        },
+        // Twitter / X surfaces a card preview when og:image is present and
+        // twitter:card is declared. summary_large_image gives the wide layout.
+        {
+          tag: "meta",
+          attrs: { name: "twitter:card", content: "summary_large_image" },
+        },
+        {
+          tag: "meta",
+          attrs: {
+            name: "twitter:image",
+            content: SITE + BASE + "/og-image.png",
+          },
+        },
+      ],
       social: {
         github: "https://github.com/nyuta01/folio",
       },

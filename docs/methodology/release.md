@@ -108,6 +108,19 @@ If a published release ships a critical bug:
 - **Pages deploy fails.** Independent of releases. Re-run
   `release-docs.yml` from the Actions UI.
 
+## One-time setup: GitHub social preview
+
+The OG card at `apps/docs/public/og-image.png` is what surfaces when
+the **docs URL** is shared (Twitter, Slack, Discord, LinkedIn). The
+**repo URL** uses a separate image that has to be uploaded by hand:
+
+1. Open `https://github.com/nyuta01/folio/settings`.
+2. Scroll to **Social preview**.
+3. Upload `apps/docs/public/og-image.png` (1200×630 PNG).
+
+This is a manual one-time step; subsequent commits do not need to
+re-upload unless the artwork changes.
+
 ## Out of scope (today)
 
 - Automated PyPI publishing (planned via OIDC trusted publishing —

@@ -1,10 +1,16 @@
-# Folio
+<p align="center">
+  <img src="https://raw.githubusercontent.com/nyuta01/folio/main/apps/desktop/build/icon-128.png" alt="Folio" width="96" height="96" />
+</p>
 
-[![PyPI](https://img.shields.io/pypi/v/folio-kit?label=folio-kit)](https://pypi.org/project/folio-kit/)
-[![npm](https://img.shields.io/npm/v/folio-agent-skills?label=folio-agent-skills)](https://www.npmjs.com/package/folio-agent-skills)
-[![Python](https://img.shields.io/pypi/pyversions/folio-kit)](https://pypi.org/project/folio-kit/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![verify](https://img.shields.io/github/actions/workflow/status/nyuta01/folio/verify.yml?branch=main&label=verify)](https://github.com/nyuta01/folio/actions/workflows/verify.yml)
+<h1 align="center">Folio</h1>
+
+<p align="center">
+<a href="https://pypi.org/project/folio-kit/"><img alt="PyPI" src="https://img.shields.io/pypi/v/folio-kit?label=folio-kit"></a>
+<a href="https://www.npmjs.com/package/folio-agent-skills"><img alt="npm" src="https://img.shields.io/npm/v/folio-agent-skills?label=folio-agent-skills"></a>
+<a href="https://pypi.org/project/folio-kit/"><img alt="Python" src="https://img.shields.io/pypi/pyversions/folio-kit"></a>
+<a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg"></a>
+<a href="https://github.com/nyuta01/folio/actions/workflows/verify.yml"><img alt="verify" src="https://img.shields.io/github/actions/workflow/status/nyuta01/folio/verify.yml?branch=main&label=verify"></a>
+</p>
 
 Portable, AI-native data sheets.
 

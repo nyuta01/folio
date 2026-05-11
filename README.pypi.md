@@ -1,4 +1,8 @@
-# folio-kit
+<p align="center">
+  <img src="https://raw.githubusercontent.com/nyuta01/folio/main/apps/desktop/build/icon-128.png" alt="Folio" width="96" height="96" />
+</p>
+
+<h1 align="center">folio-kit</h1>
 
 Portable, AI-native data sheets. The Python distribution ships three
 console scripts and a Python SDK for reading and writing typed data

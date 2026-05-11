@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/nyuta01/folio/main/apps/desktop/build/icon-128.png" alt="Folio" width="96" height="96" />
+</p>
+
 # Folio Agent Skills
 
 A distributable pack of `SKILL.md` files that teach AI coding agents

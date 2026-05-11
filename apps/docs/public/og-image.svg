@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630">
+  <!-- Folio social/OG card. Cream surface + Pair logo + wordmark + tagline. -->
+  <rect width="1200" height="630" fill="#faf9f5"/>
+
+  <!-- Pair logo on the left, sized to ~360px. -->
+  <g transform="translate(120, 145) scale(11.25)">
+    <rect width="32" height="32" rx="6" fill="#c45c2c"/>
+    <rect x="6"  y="11" width="15" height="15" rx="2.5" fill="#fbeee5"/>
+    <rect x="11" y="6"  width="15" height="15" rx="2.5" fill="#faf9f5"/>
+  </g>
+
+  <!-- Wordmark + tagline column. -->
+  <g font-family="Inter, -apple-system, system-ui, sans-serif" fill="#1c1c1c">
+    <text x="560" y="295" font-size="120" font-weight="700" letter-spacing="-3">Folio</text>
+    <text x="560" y="360" font-size="34" font-weight="500" fill="#3c3c3c">Portable, AI-native data sheets.</text>
+    <text x="560" y="410" font-size="24" font-weight="400" fill="#6c6c6c">A directory humans and AI agents share.</text>
+  </g>
+
+  <!-- Footer hint. -->
+  <text x="560" y="525" font-family="JetBrains Mono, ui-monospace, monospace" font-size="22" fill="#8a8a8a">github.com/nyuta01/folio</text>
+</svg>
