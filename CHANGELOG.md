@@ -15,6 +15,47 @@ npm package.
 
 — Nothing yet.
 
+## [0.1.7] — 2026-05-11
+
+### Added
+
+- **Per-sheet skills** — a sheet can ship packaged operating
+  procedures as markdown files under `<sheet>/skills/<name>.md`.
+  Each file is a short YAML-frontmatter + prose document
+  (`name`, `description`, optional `audience`, `arguments`,
+  `tools`, `allowed_actors`); the body is plain markdown with
+  `{arg}` placeholder substitution. Skills travel with the sheet
+  tarball, so a `tar`-extracted sheet brings its operating manual
+  along.
+- **`Skill` model + SDK**: `folio.Skill`, `folio.SkillArgument`,
+  `folio.SkillError`, `folio.load_skills`,
+  `folio.validate_skills_manifest`, `folio.export_claude_skills`.
+  `Sheet.list_skills()`, `Sheet.get_skill(name)`,
+  `Sheet.render_skill(name, args)` on every opened sheet.
+- **`folio skill` CLI sub-app**: `folio skill list <sheet>`,
+  `folio skill show <sheet> <name> [--arg name=value]`,
+  `folio skill validate <sheet>`.
+- **MCP prompts**: the Folio MCP server now registers one prompt
+  per discovered skill under each sheet, named
+  `<sheet-id>:<skill-name>`. Skill arguments surface as prompt
+  argument schemas; `prompts/get` renders the markdown body with
+  substitutions.
+- **`folio export claude-skills`**: bridge that emits one
+  `SKILL.md` directory per skill in the layout Claude Code expects,
+  for projects that want skills surfaced inside Claude Desktop /
+  Claude Code as well as MCP.
+- **Five example skills** — one per `examples/` sheet
+  (`fill-missing-industries`, `refresh-revenue`,
+  `advance-onboarding`, `triage-candidates`, `weekly-digest`).
+- **Docs**: new `sheet/skills/` and `cli/skill/` pages on the docs
+  site.
+
+### Changed
+
+- `Sheet.contract.id` is now used as the MCP prompt namespace
+  prefix to avoid skill-name collisions when one server hosts
+  multiple sheets.
+
 ## [0.1.6] — 2026-05-11
 
 Pre-public-release audit fixes. No behavioural changes; the wheel
@@ -166,7 +207,8 @@ install `folio-kit>=0.1.5`.
   Python SDK, FastMCP server, viewer backend, and the macOS / Windows /
   Linux Electron viewer app.
 
-[Unreleased]: https://github.com/nyuta01/folio/compare/v0.1.6...HEAD
+[Unreleased]: https://github.com/nyuta01/folio/compare/v0.1.7...HEAD
+[0.1.7]: https://github.com/nyuta01/folio/releases/tag/v0.1.7
 [0.1.6]: https://github.com/nyuta01/folio/releases/tag/v0.1.6
 [0.1.5]: https://github.com/nyuta01/folio/releases/tag/v0.1.5
 [0.1.4]: https://pypi.org/project/folio-kit/0.1.4/
