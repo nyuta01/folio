@@ -127,6 +127,129 @@ function stringifyForEdit(value: unknown, logicalType: ContractProperty["logical
   return String(value);
 }
 
+interface TagInputEditorProps {
+  initial: unknown;
+  onCommit: (value: string[], move?: CommitMove) => void;
+  onCancel: () => void;
+}
+
+// Inline tag/chip editor for `logicalType: array`. Each existing item
+// shows as a chip with an × remove button; the trailing text input
+// accepts new items (Enter or comma to add, Backspace on empty to peel
+// the last chip off, Escape to cancel the whole edit).
+function TagInputEditor({ initial, onCommit, onCancel }: TagInputEditorProps) {
+  const initialTags = (() => {
+    if (Array.isArray(initial)) return initial.map((x) => String(x));
+    if (typeof initial === "string") {
+      try {
+        const parsed = JSON.parse(initial);
+        if (Array.isArray(parsed)) return parsed.map((x) => String(x));
+      } catch {}
+    }
+    return [];
+  })();
+  const [tags, setTags] = useState<string[]>(initialTags);
+  const [draft, setDraft] = useState<string>("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const flushDraft = (raw: string) => {
+    // Split on commas so users can paste comma-separated lists.
+    const parts = raw
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (!parts.length) return tags;
+    const next = [...tags, ...parts];
+    setTags(next);
+    setDraft("");
+    return next;
+  };
+
+  const removeAt = (i: number) => {
+    setTags((cur) => cur.filter((_, j) => j !== i));
+    inputRef.current?.focus();
+  };
+
+  const commit = (move: CommitMove) => {
+    const next = draft.trim() ? flushDraft(draft) : tags;
+    onCommit(next, move);
+  };
+
+  return (
+    <div
+      className="tag-input"
+      // Commit when focus leaves the whole container, not just the inner input
+      // (which would fire when the user clicks a chip's × button).
+      onBlur={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+          commit("none");
+        }
+      }}
+    >
+      {tags.map((tag, i) => (
+        <span key={`${tag}-${i}`} className="tag tag-chip">
+          {tag}
+          <button
+            type="button"
+            className="tag-chip-x"
+            tabIndex={-1}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => removeAt(i)}
+            title="remove"
+          >
+            ×
+          </button>
+        </span>
+      ))}
+      <input
+        ref={inputRef}
+        className="tag-input-field mono"
+        value={draft}
+        placeholder={tags.length ? "" : "add item, press Enter"}
+        onChange={(e) => {
+          const v = e.target.value;
+          // Comma typed → commit the segment as a tag.
+          if (v.endsWith(",")) {
+            flushDraft(v);
+            return;
+          }
+          setDraft(v);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            if (draft.trim()) {
+              flushDraft(draft);
+              return;
+            }
+            // Enter on empty input → commit the whole array.
+            commit(e.shiftKey ? "up" : "down");
+            return;
+          }
+          if (e.key === "Tab") {
+            e.preventDefault();
+            commit(e.shiftKey ? "left" : "right");
+            return;
+          }
+          if (e.key === "Escape") {
+            e.preventDefault();
+            onCancel();
+            return;
+          }
+          if (e.key === "Backspace" && draft === "" && tags.length > 0) {
+            e.preventDefault();
+            removeAt(tags.length - 1);
+            return;
+          }
+        }}
+      />
+    </div>
+  );
+}
+
 function CellEditor({ value, field, onCommit, onCancel, onError }: CellEditorProps) {
   const logicalType = field.logicalType;
   const [v, setV] = useState<string>(() => stringifyForEdit(value, logicalType));
@@ -195,14 +318,24 @@ function CellEditor({ value, field, onCommit, onCancel, onError }: CellEditorPro
     );
   }
 
-  if (logicalType === "array" || logicalType === "object") {
+  if (logicalType === "array") {
+    return (
+      <TagInputEditor
+        initial={value}
+        onCommit={(arr, move) => onCommit(arr, move)}
+        onCancel={onCancel}
+      />
+    );
+  }
+
+  if (logicalType === "object") {
     return (
       <textarea
         ref={textareaRef}
         className="cell-input mono cell-input-multi"
         rows={2}
         value={v}
-        placeholder={logicalType === "array" ? '["a","b"]' : '{"k":"v"}'}
+        placeholder='{"k":"v"}'
         onChange={(e) => setV(e.target.value)}
         onBlur={() => commit(v, "none")}
         onKeyDown={handleKey}
