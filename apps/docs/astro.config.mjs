@@ -174,6 +174,7 @@ export default defineConfig({
         {
           label: "Guides",
           items: [
+            { label: "AI agent operates, human verifies", slug: "guides/agent-operated-sheet" },
             { label: "Customer master enrichment", slug: "guides/customer-master" },
             { label: "Working memory for agents", slug: "guides/working-memory" },
             { label: "Research notes", slug: "guides/research-notes" },

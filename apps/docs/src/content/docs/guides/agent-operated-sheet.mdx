@@ -1,0 +1,218 @@
+---
+title: AI agent operates, human verifies
+description: End-to-end recipe — an MCP-connected agent writes a sheet, provenance records who did what, a human reviews in the Viewer, and the sheet ships as a single tar.
+---
+
+import KindBadge from "../../../components/KindBadge.astro";
+
+One of Folio's stated goals is to **delegate sheet operations to an
+AI coding agent (Claude Code, Cursor, Codex, Claude Desktop, …) and
+make it easy for a human to verify the result and share the sheet**.
+The mechanics for this exist today; this page wires them together
+into a single recipe so you can see the loop end-to-end on a real
+example sheet.
+
+The recipe uses [`examples/research-memory`](https://github.com/nyuta01/folio/tree/main/examples/research-memory)
+because it ships an [agent-audience skill](https://github.com/nyuta01/folio/blob/main/examples/research-memory/skills/triage-candidates.md)
+that already exercises the loop. Adapt the principles to any of your
+own sheets.
+
+## The loop in one diagram
+
+```text
+     ┌───────────────────────────────────────────────────────────┐
+     │                                                           │
+     ▼                                                           │
+┌──────────┐   MCP/CLI    ┌────────────┐   reads/writes   ┌──────┴───────┐
+│ AI agent │ ───────────▶ │  folio-mcp │ ───────────────▶ │ sheet on disk│
+│ (Claude  │              │ (or `folio │                  │  contract +  │
+│  Code …) │              │   skill`)  │   records.jsonl  │  records +   │
+└──────────┘              └────────────┘   provenance.jsonl│  provenance  │
+                                                          └──────┬───────┘
+                                                                 │
+                                                                 ▼
+                                                          ┌─────────────┐
+                                                          │ folio-viewer│
+                                                          │  (human     │
+                                                          │   reviews)  │
+                                                          └─────────────┘
+                                                                 │
+                                                                 ▼
+                                                          tar czf sheet.tgz
+                                                          (ship to anyone)
+```
+
+Three guarantees Folio gives you make this work:
+
+1. **Every write records its actor.** `agent:enrichment`, `human:alice` —
+   whatever string the writer presented to Folio is in `provenance.jsonl`.
+2. **Derivations record their inputs.** The `input_hash` lets a reviewer
+   re-derive the exact value the agent saw, or audit when it last changed.
+3. **The sheet is portable.** Cache and runtime live outside the directory
+   ([ADR‑0008](/folio/reference/adrs/)), so `tar czf sheet.tgz my-sheet/`
+   is a complete copy — no environment, no DB.
+
+## 1. Connect an agent to the sheet
+
+Pick one of the two transports.
+
+### Option A — Claude Desktop / Code / Cursor (stdio MCP)
+
+Add `folio-mcp` to the client's MCP config. The full snippet is in
+[Deploy folio-mcp](/folio/mcp/deploy/); the minimum is:
+
+```json
+{
+  "mcpServers": {
+    "folio": {
+      "command": "folio-mcp",
+      "args": [
+        "serve",
+        "--root", "/absolute/path/to/sheets",
+        "--actor", "agent:research-triage"
+      ]
+    }
+  }
+}
+```
+
+Restart the client. The agent now sees the [nine MCP tools](/folio/mcp/tools/)
+plus one prompt per discovered skill under any sheet's `skills/` dir.
+
+### Option B — agent shells out to the CLI
+
+If you're driving an agent in your own loop (LangChain, an internal
+runtime, etc.), it can call the `folio` CLI directly. Every write verb
+takes `--actor`:
+
+```bash
+folio upsert ./research-memory --actor agent:research-triage --file findings.jsonl
+folio materialize ./research-memory --actor agent:research-triage
+```
+
+CLI and MCP go through the same SDK, so the audit trail is identical.
+
+## 2. Let the agent run a packaged skill
+
+A **skill** is the agent's operating procedure — a markdown file
+under `<sheet>/skills/<name>.md` with YAML frontmatter declaring
+its audience and which SDK methods it intends to use. See
+[Sheet skills](/folio/sheet/skills/) for the file format.
+
+The bundled triage skill is a good example:
+
+```bash
+$ folio skill show ./examples/research-memory triage-candidates
+```
+
+The skill walks the agent through: pull pending candidates → decide
+verify/reject/hold → upsert the updates as `agent:research-triage` →
+re-check provenance to confirm the write landed.
+
+When invoked through MCP, the same skill body comes back as a prompt
+named `research-memory:triage-candidates`. The agent sees it via
+standard `prompts/list` and renders it via `prompts/get`.
+
+## 3. The writes go through provenance
+
+Every write the agent performs appends one line to `provenance.jsonl`:
+
+```jsonl
+{"record_id":"f_001","field":"status","source":"human",
+ "actor":"agent:research-triage","at":"2026-05-11T12:00:00Z",
+ "input_hash":""}
+```
+
+`source: "human"` because the value came from a write (the
+[provenance source](/folio/sheet/provenance/) field reflects *how*
+the value was produced, not *who* did it — the actor is recorded
+separately).
+
+Derivation outputs look different:
+
+```jsonl
+{"record_id":"f_001","field":"domain","source":"python",
+ "actor":"agent:research-triage","at":"2026-05-11T12:00:05Z",
+ "input_hash":"sha256:ce82…"}
+```
+
+The non-empty `input_hash` lets a reviewer re-derive the value
+deterministically: feed the same `url` to the same script, get the
+same `domain`.
+
+## 4. Human opens the Viewer to verify
+
+```bash
+folio serve ./research-memory --port 3000 --actor human:alice
+# → http://127.0.0.1:3000/
+```
+
+What the human sees:
+
+- **Records grid** — every row the agent wrote, with cell-level
+  provenance dots (<KindBadge kind="python"/> for derived,
+  <KindBadge kind="human"/> for written).
+- **History timeline** — click a cell, see the append-only history:
+  agent wrote → who → when → from what input hash.
+- **Inline edit** — if the human disagrees, edit the cell. The Viewer
+  writes a new provenance line with `source: "human"` and
+  `actor: human:alice`. Subsequent agent `materialize` runs will
+  **respect** that override (`respect_human_override` defaults to
+  `true`; see [Materialize lifecycle](/folio/get-started/materialize-lifecycle/)).
+
+The human's edits and the agent's writes coexist on the same audit log;
+nobody can silently overwrite anyone else.
+
+## 5. Ship the sheet
+
+Folio sheets are designed to travel:
+
+```bash
+tar czf research-memory-$(date +%Y%m%d).tgz research-memory/
+```
+
+The recipient untars, runs `folio validate`, and gets the same
+provenance history the human reviewer saw — no DB, no environment,
+no vendor lock-in.
+
+For machine-readable interop (BI tools, dbt, data warehouses), Folio
+ships a Frictionless Data Package export:
+
+```bash
+folio export datapackage ./research-memory --stdout > datapackage.json
+```
+
+## What is and isn't validated today
+
+| Step | Status |
+|---|---|
+| Agent writes via MCP using `agent:*` actor | ✓ covered by `tests/test_mcp.py` |
+| Materialize records `actor`, `input_hash`, `model`, `cost_usd` | ✓ covered by `tests/test_provenance.py` |
+| `respect_human_override` blocks agent rewrites of human-edited cells | ✓ same test file |
+| Skills surface as MCP prompts | ✓ covered by `tests/test_mcp.py` (`prompts/list`, `prompts/get`) |
+| Sheet stays portable (cache + runtime outside the dir) | ✓ enforced by [ADR‑0008](/folio/reference/adrs/) |
+| End-to-end "agent runs skill → human opens Viewer" smoke | Currently the offline `scripts/_mcp_smoke.py` validates the agent side; the human-Viewer side is not automated. Track as a known gap. |
+
+## Adapt to your own sheet
+
+The pattern generalises:
+
+1. Author a contract that declares which fields are agent-derived
+   (`x-derived`) versus human-editable (`x-editable-by`).
+2. Add at least one skill under `skills/` with `audience: agent`
+   and explicit `tools:`. Skills are how the agent learns what's
+   safe to do.
+3. Run `folio serve` whenever you want to inspect what the agent did.
+4. Tar the sheet to share it.
+
+If you're brand-new, start with [Quickstart with `folio init`](/folio/get-started/quickstart/)
+to scaffold a runnable sheet, then come back here when you want to
+hand the loop over to an agent.
+
+## See also
+
+- [MCP server overview](/folio/mcp/overview/) — what `folio-mcp` exposes.
+- [Deploy folio-mcp](/folio/mcp/deploy/) — full Claude Desktop / HTTP-transport configs.
+- [Sheet skills](/folio/sheet/skills/) — frontmatter spec for `skills/*.md`.
+- [Editing and provenance](/folio/get-started/editing-and-provenance/) — what the audit log records and how `respect_human_override` works.
+- [Working memory for agents guide](/folio/guides/working-memory/) — the use case this recipe is built on top of.
