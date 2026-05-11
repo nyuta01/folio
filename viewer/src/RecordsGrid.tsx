@@ -397,14 +397,104 @@ interface CellValueProps {
   value: unknown;
   field: ContractProperty;
 }
+
+const NUMBER_FMT = new Intl.NumberFormat(undefined, { maximumFractionDigits: 6 });
+
 function CellValue({ value, field }: CellValueProps) {
   if (value == null) return <span className="null mono">∅ null</span>;
+
+  // Booleans: visual tone instead of bare "true"/"false" text.
+  if (field.logicalType === "boolean") {
+    if (value === true) return <span className="pill" data-tone="ok">✓ true</span>;
+    if (value === false) return <span className="pill" data-tone="warn">✗ false</span>;
+    return <span className="ellipsis">{String(value)}</span>;
+  }
+
+  // Numbers: right-align + locale grouping. Integers render without
+  // decimals; numbers keep significant precision up to 6 digits.
+  if (field.logicalType === "integer" || field.logicalType === "number") {
+    const n = typeof value === "number" ? value : Number(value);
+    if (Number.isFinite(n)) {
+      return <span className="mono num">{NUMBER_FMT.format(n)}</span>;
+    }
+    return <span className="ellipsis">{String(value)}</span>;
+  }
+
+  // Arrays: render each item as a compact inline chip; cap at 3 visible
+  // and roll the rest into a "+N" badge so wide rows don't shove other
+  // columns offscreen. Empty arrays read as a single muted `[]` glyph.
+  if (field.logicalType === "array") {
+    const items = Array.isArray(value)
+      ? value
+      : (() => {
+          try {
+            const parsed = JSON.parse(String(value));
+            return Array.isArray(parsed) ? parsed : null;
+          } catch {
+            return null;
+          }
+        })();
+    if (items === null) return <span className="ellipsis">{String(value)}</span>;
+    if (items.length === 0)
+      return <span className="null mono small">[ ]</span>;
+    const visible = items.slice(0, 3);
+    const remainder = items.length - visible.length;
+    return (
+      <span className="chip-row">
+        {visible.map((item, i) => (
+          <span key={i} className="tag tag-cell">{String(item)}</span>
+        ))}
+        {remainder > 0 && (
+          <span className="tag tag-cell muted">+{remainder}</span>
+        )}
+      </span>
+    );
+  }
+
+  // Objects: compact one-line JSON so the cell stays readable;
+  // truncate with ellipsis when wider than the column.
+  if (field.logicalType === "object") {
+    let compact: string;
+    try {
+      compact =
+        typeof value === "string"
+          ? value
+          : JSON.stringify(value);
+    } catch {
+      compact = String(value);
+    }
+    return <span className="mono ellipsis">{compact}</span>;
+  }
+
+  // Enum: render the constrained value as a pill so it scans
+  // visually like the closed choice it is.
+  if (field.enum && field.enum.length > 0 && typeof value === "string") {
+    return <span className="tag">{value}</span>;
+  }
+
   const v = String(value);
   if (field.logicalType === "timestamp") {
     return <span className="mono small">{v.replace("T", " ").replace("Z", " Z")}</span>;
   }
   if (field.primaryKey) return <span className="mono">{v}</span>;
+  // URL-looking values: clickable, opens in a new tab. Matches the
+  // colour treatment the cell used to have, just upgraded to a real
+  // anchor.
   if (field.name.includes("url") || /^https?:\/\//.test(v)) {
+    const href = /^https?:\/\//.test(v) ? v : undefined;
+    if (href) {
+      return (
+        <a
+          className="mono ellipsis url cell-link"
+          href={href}
+          target="_blank"
+          rel="noreferrer"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {v}
+        </a>
+      );
+    }
     return <span className="mono ellipsis url">{v}</span>;
   }
   if (field.logicalType === "string" && field["x-derived"]) {
@@ -485,6 +575,8 @@ function Cell({
     );
   }
 
+  const isNumeric =
+    field.logicalType === "integer" || field.logicalType === "number";
   return (
     <td
       className={cls(
@@ -495,6 +587,7 @@ function Cell({
         pulsing && "td-pulse",
         value == null && "td-null",
         isPK && "td-pk",
+        isNumeric && "td-num",
         focused && "td-focused",
       )}
       onMouseEnter={handleEnter}

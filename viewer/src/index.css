@@ -655,6 +655,47 @@ textarea.cell-input-multi {
   font-size: 12px;
   padding: 1px 2px;
 }
+/* Display side ---------------------------------------------------------- */
+/* Right-align numeric cells - thousand-grouped digits compare quickly
+   when they share a column edge. */
+.td.td-num {
+  text-align: right;
+}
+.td.td-num .td-inner {
+  justify-content: flex-end;
+}
+/* Tabular-figures-friendly mono for numbers. */
+.num {
+  font-variant-numeric: tabular-nums;
+}
+/* Array cell: a single row of compact tags, ellipsised by parent. */
+.chip-row {
+  display: inline-flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  align-items: center;
+  overflow: hidden;
+  max-width: 100%;
+}
+.tag.tag-cell {
+  padding: 0 6px;
+  font-size: 10px;
+  line-height: 16px;
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tag.tag-cell.muted {
+  background: transparent;
+  border-style: dashed;
+  color: var(--ink-2);
+}
+/* Real anchor for url-typed cells. */
+a.cell-link {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
 .cell-prov-dot {
   width: 5px;
   height: 5px;
