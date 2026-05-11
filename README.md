@@ -1,5 +1,11 @@
 # Folio
 
+[![PyPI](https://img.shields.io/pypi/v/folio-kit?label=folio-kit)](https://pypi.org/project/folio-kit/)
+[![npm](https://img.shields.io/npm/v/folio-agent-skills?label=folio-agent-skills)](https://www.npmjs.com/package/folio-agent-skills)
+[![Python](https://img.shields.io/pypi/pyversions/folio-kit)](https://pypi.org/project/folio-kit/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![verify](https://img.shields.io/github/actions/workflow/status/nyuta01/folio/verify.yml?branch=main&label=verify)](https://github.com/nyuta01/folio/actions/workflows/verify.yml)
+
 Portable, AI-native data sheets.
 
 A **sheet** is a directory of plain files that AI agents read and write as
