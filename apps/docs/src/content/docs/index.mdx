@@ -55,18 +55,19 @@ No databases. No vendor lock-in.
   },
 ]} />
 
-## Three commands to a working sheet
+## From zero to a working sheet
 
 ```bash
 # 1. Install (uv-managed Python toolchain)
 uv tool install folio-kit       # → installs the `folio` command
 
-# 2. Validate the spec
-folio validate ./my-sheet
+# 2. Scaffold a new sheet
+folio init --name my-sheet      # → ./my-sheet/{contract.yaml, records.jsonl, README.md, skills/}
 
-# 3. Run derivations and inspect provenance
+# 3. Validate the spec, then run derivations and inspect provenance
+folio validate ./my-sheet
 folio materialize ./my-sheet --actor agent:demo
-folio provenance ./my-sheet rec_001 industry_tag
+folio provenance ./my-sheet rec_001 country_code
 ```
 
 A complete walkthrough lives in [Your first sheet](/folio/get-started/your-first-sheet/).
@@ -80,6 +81,7 @@ my-sheet/                ← portable directory (tar this)
 ├── derivations/         Optional. One YAML file per derivation.
 │   └── industry.yaml
 ├── scripts/             Optional. Reusable Python/bash helpers.
+├── skills/              Optional. Packaged operating procedures.
 ├── provenance.jsonl     Append-only audit trail.
 └── README.md            Optional, with typed frontmatter.
 
@@ -97,7 +99,7 @@ sheet-id and live in the user cache, never inside the sheet itself.
   {
     tag: "CLI",
     title: "folio",
-    body: "Validate, query, list, upsert, materialize, status, provenance, serve, export.",
+    body: "init, validate, query, list, count, upsert, delete, materialize, status, provenance, serve, script, skill, export.",
     href: "/folio/cli/overview/",
   },
   {
@@ -109,7 +111,7 @@ sheet-id and live in the user cache, never inside the sheet itself.
   {
     tag: "MCP",
     title: "folio-mcp",
-    body: "FastMCP server exposing the SDK as nine tools. Stdio or HTTP transport.",
+    body: "FastMCP server exposing the SDK as nine tools, plus one MCP prompt per skill. Stdio or HTTP transport.",
     href: "/folio/mcp/overview/",
   },
   {
