@@ -11,11 +11,15 @@ scope for Phase 5 (deferred to Phase 7).
 from __future__ import annotations
 
 import asyncio
+import csv as csv_module
+import io
 import json
+import re
 import secrets
+import zipfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Iterable
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -422,6 +426,58 @@ def build_app(
             },
         )
 
+    # --- export -----------------------------------------------------------
+
+    @app.get("/api/export/{fmt}")
+    def export_sheet(fmt: str) -> Response:
+        """Download the sheet's data (json/csv/xlsx) or the whole sheet
+        directory (zip). Implemented in pure stdlib so packaged installs
+        don't need an extra dependency just to emit a spreadsheet."""
+        fmt_lower = fmt.lower()
+        sheet = _open()
+        base = _safe_filename(sheet.contract.id or settings.sheet_path.name)
+
+        if fmt_lower == "json":
+            records = _read_all_records(settings.sheet_path)
+            body = json.dumps(records, ensure_ascii=False, indent=2)
+            return _download_response(
+                body.encode("utf-8"),
+                f"{base}.json",
+                "application/json; charset=utf-8",
+            )
+        if fmt_lower in {"csv", "tsv"}:
+            records = _read_all_records(settings.sheet_path)
+            columns = [p.name for p in sheet.contract.main_schema.properties]
+            body = _records_to_csv(
+                records, columns, sep="\t" if fmt_lower == "tsv" else ","
+            )
+            # UTF-8 BOM so Excel auto-detects encoding for non-ASCII data.
+            return _download_response(
+                b"\xef\xbb\xbf" + body.encode("utf-8"),
+                f"{base}.{fmt_lower}",
+                f"text/{fmt_lower}; charset=utf-8",
+            )
+        if fmt_lower == "xlsx":
+            records = _read_all_records(settings.sheet_path)
+            columns = [p.name for p in sheet.contract.main_schema.properties]
+            body = _records_to_xlsx(records, columns, sheet_name="records")
+            return _download_response(
+                body,
+                f"{base}.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            )
+        if fmt_lower == "zip":
+            body = _sheet_dir_to_zip(settings.sheet_path)
+            return _download_response(
+                body,
+                f"{base}.zip",
+                "application/zip",
+            )
+        raise HTTPException(
+            status_code=400,
+            detail=f"unsupported export format: {fmt!r} (expected json, csv, xlsx, or zip)",
+        )
+
     # --- static frontend -------------------------------------------------
 
     if settings.static_dir is not None and settings.static_dir.is_dir():
@@ -432,6 +488,205 @@ def build_app(
         )
 
     return app
+
+
+# --- export helpers ------------------------------------------------------
+
+
+_SAFE_RE = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def _safe_filename(stem: str) -> str:
+    """Reduce a sheet id to a safe ASCII filename stem."""
+    cleaned = _SAFE_RE.sub("-", stem).strip("-")
+    return cleaned or "sheet"
+
+
+def _download_response(body: bytes, filename: str, media_type: str) -> Response:
+    return Response(
+        content=body,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _read_all_records(sheet_path: Path) -> list[dict[str, Any]]:
+    """Read records.jsonl directly so we bypass the SDK's paginated
+    list_records (default limit 50) and reliably get every row."""
+    records_path = sheet_path / "records.jsonl"
+    if not records_path.is_file():
+        return []
+    out: list[dict[str, Any]] = []
+    with records_path.open("r", encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if not line:
+                continue
+            out.append(json.loads(line))
+    return out
+
+
+def _records_to_csv(
+    records: list[dict[str, Any]], columns: list[str], sep: str = ","
+) -> str:
+    """Render records as CSV/TSV. Complex values (lists, dicts) are
+    JSON-stringified so the file round-trips through Excel without
+    Python's `repr` quoting them awkwardly."""
+    out = io.StringIO()
+    writer = csv_module.writer(out, delimiter=sep, lineterminator="\n")
+    writer.writerow(columns)
+    for rec in records:
+        row = []
+        for col in columns:
+            v = rec.get(col)
+            if v is None:
+                row.append("")
+            elif isinstance(v, bool):
+                row.append("TRUE" if v else "FALSE")
+            elif isinstance(v, (dict, list)):
+                row.append(json.dumps(v, ensure_ascii=False))
+            else:
+                row.append(str(v))
+        writer.writerow(row)
+    return out.getvalue()
+
+
+def _xlsx_col_letter(n: int) -> str:
+    """0-indexed column → A, B, …, Z, AA, AB, …"""
+    s = ""
+    while True:
+        s = chr(ord("A") + n % 26) + s
+        n = n // 26 - 1
+        if n < 0:
+            return s
+
+
+def _xml_escape(s: str) -> str:
+    return (
+        s.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&apos;")
+    )
+
+
+def _records_to_xlsx(
+    records: list[dict[str, Any]],
+    columns: list[str],
+    sheet_name: str = "records",
+) -> bytes:
+    """Render records as a minimal .xlsx workbook using stdlib zipfile
+    + handwritten OOXML. Avoids pulling in openpyxl just to emit one
+    flat sheet. Limits us to inline strings / numbers / booleans, which
+    is exactly what Folio records carry — complex types JSON-stringify."""
+    safe_sheet_name = (sheet_name or "records").replace(":", "_").replace("/", "_")[:31]
+    rows_xml: list[str] = []
+    # Header row
+    header_cells = "".join(
+        f'<c r="{_xlsx_col_letter(i)}1" t="inlineStr"><is><t xml:space="preserve">{_xml_escape(name)}</t></is></c>'
+        for i, name in enumerate(columns)
+    )
+    rows_xml.append(f'<row r="1">{header_cells}</row>')
+    # Data rows
+    for ridx, rec in enumerate(records, start=2):
+        cells: list[str] = []
+        for cidx, col in enumerate(columns):
+            v = rec.get(col)
+            ref = f"{_xlsx_col_letter(cidx)}{ridx}"
+            if v is None:
+                continue
+            if isinstance(v, bool):
+                cells.append(f'<c r="{ref}" t="b"><v>{1 if v else 0}</v></c>')
+            elif isinstance(v, (int, float)) and not isinstance(v, bool):
+                cells.append(f'<c r="{ref}"><v>{v}</v></c>')
+            else:
+                if isinstance(v, (dict, list)):
+                    text = json.dumps(v, ensure_ascii=False)
+                else:
+                    text = str(v)
+                cells.append(
+                    f'<c r="{ref}" t="inlineStr"><is><t xml:space="preserve">{_xml_escape(text)}</t></is></c>'
+                )
+        rows_xml.append(f'<row r="{ridx}">{"".join(cells)}</row>')
+
+    sheet_xml = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+        f'<sheetData>{"".join(rows_xml)}</sheetData>'
+        "</worksheet>"
+    )
+    content_types = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'
+        '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'
+        '<Default Extension="xml" ContentType="application/xml"/>'
+        '<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>'
+        '<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'
+        "</Types>"
+    )
+    root_rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>'
+        "</Relationships>"
+    )
+    workbook = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+        'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+        f'<sheets><sheet name="{_xml_escape(safe_sheet_name)}" sheetId="1" r:id="rId1"/></sheets>'
+        "</workbook>"
+    )
+    workbook_rels = (
+        '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
+        '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+        '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>'
+        "</Relationships>"
+    )
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("[Content_Types].xml", content_types)
+        zf.writestr("_rels/.rels", root_rels)
+        zf.writestr("xl/workbook.xml", workbook)
+        zf.writestr("xl/_rels/workbook.xml.rels", workbook_rels)
+        zf.writestr("xl/worksheets/sheet1.xml", sheet_xml)
+    return buf.getvalue()
+
+
+def _zip_skip_path(rel: Path) -> bool:
+    """Decide whether a file should be excluded from the sheet zip.
+    Drops the usual VCS / cache / lock noise so the archive is just
+    the sheet content a recipient would want."""
+    parts = rel.parts
+    if any(p.startswith(".") for p in parts):
+        return True
+    if "__pycache__" in parts:
+        return True
+    if "node_modules" in parts:
+        return True
+    if rel.suffix == ".lock":
+        return True
+    if rel.suffix == ".pyc":
+        return True
+    return False
+
+
+def _sheet_dir_to_zip(sheet_path: Path) -> bytes:
+    """Bundle the entire sheet directory into a zip archive."""
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        root_name = sheet_path.name or "sheet"
+        files: Iterable[Path] = sorted(sheet_path.rglob("*"))
+        for path in files:
+            if not path.is_file():
+                continue
+            rel = path.relative_to(sheet_path)
+            if _zip_skip_path(rel):
+                continue
+            zf.write(path, arcname=f"{root_name}/{rel.as_posix()}")
+    return buf.getvalue()
 
 
 __all__ = [

@@ -27,6 +27,11 @@ try {
         ipcRenderer.on("agents:chunk", wrap);
         return () => ipcRenderer.off("agents:chunk", wrap);
       },
+      onEvent: (handler) => {
+        const wrap = (_e, payload) => handler(payload);
+        ipcRenderer.on("agents:event", wrap);
+        return () => ipcRenderer.off("agents:event", wrap);
+      },
       onEnd: (handler) => {
         const wrap = (_e, payload) => handler(payload);
         ipcRenderer.on("agents:end", wrap);

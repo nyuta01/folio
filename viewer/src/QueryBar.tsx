@@ -186,6 +186,7 @@ export function QueryBar({
               <Icons.Filter size={10} /> WHERE active
             </span>
           )}
+          <ExportMenu />
           <button
             className="toolbtn primary small"
             onClick={onMaterialize}
@@ -1125,4 +1126,84 @@ function downloadCsv(
   a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/** Top-toolbar dropdown: download the whole sheet as JSON / CSV /
+ * Excel / a zip of the directory. Everything is built by the FastAPI
+ * backend under `/api/export/{fmt}` — that way the browser doesn't
+ * need to load 100KB+ of spreadsheet libs, and the "zip" option can
+ * include subdirectories (skills/, scripts/, …) the renderer doesn't
+ * have in memory. */
+function ExportMenu() {
+  const [open, setOpen] = useState(false);
+  const wrapRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("mousedown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousedown", onDown);
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const download = (fmt: "json" | "csv" | "xlsx" | "zip") => {
+    // Same-origin GET with Content-Disposition: attachment — the
+    // browser routes it through its download manager without
+    // navigating away. An <a download> click is the most portable
+    // trigger across Electron and standalone browser viewers.
+    const a = document.createElement("a");
+    a.href = `/api/export/${fmt}`;
+    a.rel = "noopener";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setOpen(false);
+  };
+
+  const options: Array<{
+    key: "json" | "csv" | "xlsx" | "zip";
+    label: string;
+    sub: string;
+  }> = [
+    { key: "json", label: "JSON", sub: "records as a JSON array" },
+    { key: "csv", label: "CSV", sub: "records, Excel-friendly (UTF-8 BOM)" },
+    { key: "xlsx", label: "Excel (.xlsx)", sub: "records as a workbook" },
+    { key: "zip", label: "ZIP", sub: "entire sheet directory" },
+  ];
+
+  return (
+    <div className="export-menu-wrap" ref={wrapRef}>
+      <button
+        className="toolbtn small"
+        onClick={() => setOpen((v) => !v)}
+        title="Export this sheet"
+      >
+        <Icons.Download size={11} /> Export
+      </button>
+      {open && (
+        <ul className="export-menu" role="menu">
+          {options.map((o) => (
+            <li key={o.key}>
+              <button
+                role="menuitem"
+                className="export-menu-item"
+                onClick={() => download(o.key)}
+              >
+                <span className="export-menu-label">{o.label}</span>
+                <span className="export-menu-sub muted small">{o.sub}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }

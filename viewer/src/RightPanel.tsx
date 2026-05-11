@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { Icons } from "./Icons";
 import { FieldBadge, TypeChip } from "./RecordsGrid";
 import {
@@ -11,7 +13,20 @@ import type {
   Contract,
   ProvenanceEntry,
 } from "./types";
-import type { AgentAvailability } from "./folio-bridge";
+import type { AgentAvailability, AgentEvent } from "./folio-bridge";
+
+const RP_WIDTH_STORAGE_KEY = "folio:rp-width";
+const RP_WIDTH_DEFAULT = 360;
+const RP_WIDTH_MIN = 280;
+const RP_WIDTH_MAX = 900;
+
+function clampRpWidth(px: number): number {
+  return Math.max(RP_WIDTH_MIN, Math.min(RP_WIDTH_MAX, Math.round(px)));
+}
+
+function applyRpWidth(px: number): void {
+  document.documentElement.style.setProperty("--rp-width", `${px}px`);
+}
 
 const cls = (...xs: Array<string | false | null | undefined>) =>
   xs.filter(Boolean).join(" ");
@@ -59,6 +74,11 @@ interface RightPanelProps {
     changes: UpdatePropertyInput,
   ) => Promise<string | null>;
   onDeleteField: (name: string) => Promise<void>;
+  /** Called when a chat-agent turn ends. Lets the host refetch
+   * records/contract from disk so writes the agent made via the
+   * `folio` CLI (which bypass our in-process write API) show up in
+   * the grid immediately. */
+  onAgentDone?: () => void;
 }
 
 export function RightPanel({
@@ -77,6 +97,7 @@ export function RightPanel({
   onAddField,
   onUpdateField,
   onDeleteField,
+  onAgentDone,
 }: RightPanelProps) {
   // Legacy `inspector` value funnels back into `schema` so the rail
   // never shows a third tab.
@@ -85,8 +106,81 @@ export function RightPanel({
   const onSchema = normalisedTab === "schema";
   const inFieldView = onSchema && inspectorField !== null;
 
+  // Hydrate the persisted panel width on mount. We write the value into
+  // a CSS variable that `.body` reads, so resizing doesn't re-render
+  // any React tree during the drag.
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(RP_WIDTH_STORAGE_KEY);
+      const px = raw ? Number.parseInt(raw, 10) : NaN;
+      if (Number.isFinite(px)) applyRpWidth(clampRpWidth(px));
+      else applyRpWidth(RP_WIDTH_DEFAULT);
+    } catch {
+      applyRpWidth(RP_WIDTH_DEFAULT);
+    }
+  }, []);
+
+  const dragRef = useRef<{ startX: number; startWidth: number } | null>(null);
+  const beginResize = (e: React.MouseEvent) => {
+    if (collapsed) return;
+    e.preventDefault();
+    const startWidth =
+      Number.parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue(
+          "--rp-width",
+        ),
+      ) || RP_WIDTH_DEFAULT;
+    dragRef.current = { startX: e.clientX, startWidth };
+    document.body.classList.add("rp-resizing");
+    const onMove = (ev: MouseEvent) => {
+      if (!dragRef.current) return;
+      // Drag-left grows the panel — it sits on the right edge of the
+      // viewport, so deltaX inverts.
+      const delta = dragRef.current.startX - ev.clientX;
+      const next = clampRpWidth(dragRef.current.startWidth + delta);
+      applyRpWidth(next);
+    };
+    const onUp = () => {
+      const finalPx =
+        Number.parseFloat(
+          getComputedStyle(document.documentElement).getPropertyValue(
+            "--rp-width",
+          ),
+        ) || RP_WIDTH_DEFAULT;
+      try {
+        localStorage.setItem(RP_WIDTH_STORAGE_KEY, String(Math.round(finalPx)));
+      } catch {
+        /* storage full — ignore */
+      }
+      dragRef.current = null;
+      document.body.classList.remove("rp-resizing");
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
   return (
     <aside className={cls("rp", collapsed && "collapsed")}>
+      {!collapsed && (
+        <div
+          className="rp-resizer"
+          onMouseDown={beginResize}
+          onDoubleClick={() => {
+            applyRpWidth(RP_WIDTH_DEFAULT);
+            try {
+              localStorage.setItem(
+                RP_WIDTH_STORAGE_KEY,
+                String(RP_WIDTH_DEFAULT),
+              );
+            } catch {
+              /* ignore */
+            }
+          }}
+          title="Drag to resize · double-click to reset"
+        />
+      )}
       {!collapsed && (
         <div className="rp-content">
           <div className="rp-content-head">
@@ -165,7 +259,7 @@ export function RightPanel({
                   onSimulate={onSimulate}
                 />
               )}
-              {normalisedTab === "chat" && <ChatTab />}
+              {normalisedTab === "chat" && <ChatTab onAgentDone={onAgentDone} />}
             </div>
           </div>
         </div>
@@ -891,68 +985,405 @@ function FieldHistorySection({
 // a "Desktop only" message.
 // ───────────────────────────────────────────────────────────────────────────
 
+type ChatBlock =
+  | { kind: "text"; text: string }
+  | { kind: "thinking"; text: string; done: boolean }
+  | {
+      kind: "tool_use";
+      toolUseId: string;
+      name: string;
+      input: string;
+      result?: string;
+      isError?: boolean;
+    };
+
 type ChatTurn =
   | { role: "user"; text: string }
-  | { role: "agent"; text: string; sessionId: string; stderr?: string; done: boolean; error?: string | null; exitCode?: number | null };
+  | {
+      role: "agent";
+      /** Electron-side spawn id, used to route streaming events. */
+      runId: string;
+      blocks: ChatBlock[];
+      stderr?: string;
+      done: boolean;
+      error?: string | null;
+      exitCode?: number | null;
+    };
 
-function ChatTab() {
-  const bridge = (typeof window !== "undefined" && window.folioBridge?.agents) || null;
-  const [agents, setAgents] = useState<AgentAvailability[]>([]);
+interface ChatSession {
+  /** UUID. Also passed to claude as --session-id so each conversation
+   * gets its own on-disk store and we can resume specifically. */
+  id: string;
+  title: string;
+  turns: ChatTurn[];
+  createdAt: number;
+  updatedAt: number;
+}
+
+const CHAT_STORAGE_PREFIX = "folio:chat:";
+
+function makeChatUUID(): string {
+  if (
+    typeof crypto !== "undefined" &&
+    typeof crypto.randomUUID === "function"
+  ) {
+    return crypto.randomUUID();
+  }
+  // Fallback shape-only UUID for older renderer envs.
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+  });
+}
+
+function makeNewChatSession(title = "New chat"): ChatSession {
+  const now = Date.now();
+  return {
+    id: makeChatUUID(),
+    title,
+    turns: [],
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+/** Render one ChatSession to a stand-alone Markdown document. The
+ * output is plain GFM so it pastes cleanly into docs, PR descriptions,
+ * notebooks, etc. Thinking blocks live inside `<details>` so they're
+ * collapsed by default in renderers that support it (GitHub does). */
+function sessionToMarkdown(session: ChatSession, agentLabel: string): string {
+  const fmt = (ms: number) => new Date(ms).toISOString();
+  const lines: string[] = [];
+  lines.push(`# ${session.title}`);
+  lines.push("");
+  lines.push(
+    `_Agent: **${agentLabel}** · Created: ${fmt(session.createdAt)} · Updated: ${fmt(session.updatedAt)} · Session id: \`${session.id}\`_`,
+  );
+  lines.push("");
+  for (const turn of session.turns) {
+    if (turn.role === "user") {
+      lines.push("## 🧑 You");
+      lines.push("");
+      lines.push(turn.text);
+      lines.push("");
+      continue;
+    }
+    lines.push(`## 🤖 ${agentLabel}`);
+    lines.push("");
+    for (const b of turn.blocks) {
+      if (b.kind === "text") {
+        lines.push(b.text);
+        lines.push("");
+      } else if (b.kind === "thinking") {
+        lines.push("<details><summary>💭 Thinking</summary>");
+        lines.push("");
+        // Indent thinking as a blockquote so it stays readable even if
+        // the host renderer ignores <details>.
+        lines.push(
+          b.text
+            .split("\n")
+            .map((l) => "> " + l)
+            .join("\n"),
+        );
+        lines.push("");
+        lines.push("</details>");
+        lines.push("");
+      } else {
+        // tool_use
+        lines.push(`<details><summary>⚙ <code>${b.name}</code></summary>`);
+        lines.push("");
+        const input = (() => {
+          try {
+            return "```json\n" + JSON.stringify(JSON.parse(b.input), null, 2) + "\n```";
+          } catch {
+            return "```\n" + b.input + "\n```";
+          }
+        })();
+        lines.push("**input**");
+        lines.push("");
+        lines.push(input);
+        if (b.result !== undefined) {
+          lines.push("");
+          lines.push(`**result${b.isError ? " (error)" : ""}**`);
+          lines.push("");
+          lines.push("```");
+          lines.push(b.result);
+          lines.push("```");
+        }
+        lines.push("");
+        lines.push("</details>");
+        lines.push("");
+      }
+    }
+    if (turn.error) {
+      lines.push(`> ⚠ error: ${turn.error}`);
+      lines.push("");
+    } else if (turn.exitCode != null && turn.exitCode !== 0) {
+      lines.push(`> ⚠ exited ${turn.exitCode}`);
+      lines.push("");
+    }
+  }
+  return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim() + "\n";
+}
+
+function triggerDownload(filename: string, content: string, mime: string): void {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  // Give the browser a tick to start the download before revoking.
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function slugify(s: string, fallback = "chat"): string {
+  const cleaned = s
+    .toLowerCase()
+    .replace(/[^a-z0-9가-힣ぁ-んァ-ヴ一-龯]+/gi, "-")
+    .replace(/^-+|-+$/g, "");
+  return cleaned || fallback;
+}
+
+function ChatTab({ onAgentDone }: { onAgentDone?: () => void }) {
+  const folioBridge =
+    (typeof window !== "undefined" && window.folioBridge) || null;
+  // Stash the callback in a ref so the streaming-event subscription
+  // (which lives in a useEffect keyed only on `bridge`) always sees
+  // the latest value without re-subscribing on every render.
+  const onAgentDoneRef = useRef(onAgentDone);
+  useEffect(() => {
+    onAgentDoneRef.current = onAgentDone;
+  }, [onAgentDone]);
+  const bridge = folioBridge?.agents || null;
+  const [sheetPath, setSheetPath] = useState<string | null>(null);
+  const [hydrated, setHydrated] = useState(false);
+  const [agentList, setAgentList] = useState<AgentAvailability[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<string>("claude-code");
-  const [turns, setTurns] = useState<ChatTurn[]>([]);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
-  const [running, setRunning] = useState<string | null>(null); // active sessionId
-  const [hasTurnedOnce, setHasTurnedOnce] = useState(false);
+  // Electron-side runId of the in-flight spawn, or null. One concurrent
+  // run at a time keeps the model simple — sessions can be many, but
+  // only the active one is "talking."
+  const [runningRunId, setRunningRunId] = useState<string | null>(null);
+  const [sessionMenuOpen, setSessionMenuOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to the bottom on new chunks.
-  useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [turns]);
+  const activeSession = sessions.find((s) => s.id === activeId) ?? null;
 
-  // Probe available agents on mount.
+  // Resolve sheet path and hydrate sessions from localStorage.
+  useEffect(() => {
+    if (!folioBridge) {
+      setHydrated(true);
+      return;
+    }
+    folioBridge.currentSheet().then((path) => {
+      setSheetPath(path);
+      if (path) {
+        try {
+          const raw = localStorage.getItem(CHAT_STORAGE_PREFIX + path);
+          if (raw) {
+            const parsed = JSON.parse(raw) as ChatSession[];
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              // Pre-block-rendering turns stored their reply as `text`
+              // rather than `blocks[]`. Convert on the way in so the
+              // bubble can render legacy history without crashing.
+              const migrated = parsed.map((s) => ({
+                ...s,
+                turns: s.turns.map((t) => {
+                  if (t.role !== "agent") return t;
+                  const tx = t as Record<string, unknown> & { role: "agent" };
+                  if (Array.isArray(tx.blocks)) return t;
+                  const legacyText =
+                    typeof tx.text === "string" ? tx.text : "";
+                  const blocks: ChatBlock[] = legacyText
+                    ? [{ kind: "text", text: legacyText }]
+                    : [];
+                  const { text: _legacy, ...rest } = tx;
+                  void _legacy;
+                  return { ...rest, blocks } as unknown as ChatTurn;
+                }),
+              }));
+              setSessions(migrated);
+              const newest = [...migrated].sort(
+                (a, b) => b.updatedAt - a.updatedAt,
+              )[0];
+              setActiveId(newest.id);
+            }
+          }
+        } catch {
+          /* corrupt blob — ignore */
+        }
+      }
+      setHydrated(true);
+    });
+  }, [folioBridge]);
+
+  // Persist after every change (after the initial hydrate so we don't
+  // wipe storage on first render).
+  useEffect(() => {
+    if (!hydrated || !sheetPath) return;
+    const key = CHAT_STORAGE_PREFIX + sheetPath;
+    if (sessions.length === 0) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify(sessions));
+  }, [sessions, sheetPath, hydrated]);
+
   useEffect(() => {
     if (!bridge) return;
     bridge.list().then((list) => {
-      setAgents(list);
+      setAgentList(list);
       const firstAvail = list.find((a) => a.available)?.id;
       if (firstAvail) setSelectedAgent(firstAvail);
     });
   }, [bridge]);
 
-  // Subscribe to streaming events for the lifetime of the tab. The
-  // handlers append to whichever agent turn matches `sessionId`.
+  // Per-message → blocks[] index mapping. Claude's stream-json resets
+  // content_block indices to 0 every time the assistant starts a new
+  // message (after tool roundtrips), but our renderer keeps a single
+  // flat `blocks[]` list per turn. Keyed by runId so concurrent runs
+  // don't share state. Lives in a ref so updates don't re-render.
+  const blockIndexRef = useRef<Map<string, Map<number, number>>>(new Map());
+
+  // Route structured events into whichever session holds the matching
+  // runId, regardless of which one is currently visible.
   useEffect(() => {
     if (!bridge) return;
-    const offChunk = bridge.onChunk(({ sessionId, stream, data }) => {
-      setTurns((cur) => {
-        const i = cur.findIndex((t) => t.role === "agent" && t.sessionId === sessionId);
-        if (i < 0) return cur;
-        const next = cur.slice();
-        const t = next[i] as Extract<ChatTurn, { role: "agent" }>;
-        if (stream === "stdout") {
-          next[i] = { ...t, text: t.text + data };
-        } else {
-          next[i] = { ...t, stderr: (t.stderr ?? "") + data };
-        }
-        return next;
-      });
-    });
-    const offEnd = bridge.onEnd(({ sessionId, exitCode, error }) => {
-      setTurns((cur) =>
-        cur.map((t) =>
-          t.role === "agent" && t.sessionId === sessionId
-            ? { ...t, done: true, exitCode, error }
-            : t,
-        ),
+
+    const updateAgentTurn = (
+      runId: string,
+      mut: (t: Extract<ChatTurn, { role: "agent" }>) => ChatTurn,
+    ) => {
+      setSessions((cur) =>
+        cur.map((s) => {
+          const i = s.turns.findIndex(
+            (t) => t.role === "agent" && t.runId === runId,
+          );
+          if (i < 0) return s;
+          const nextTurns = s.turns.slice();
+          nextTurns[i] = mut(
+            nextTurns[i] as Extract<ChatTurn, { role: "agent" }>,
+          );
+          return { ...s, turns: nextTurns, updatedAt: Date.now() };
+        }),
       );
-      setRunning((cur) => (cur === sessionId ? null : cur));
+    };
+
+    const getIndexMap = (runId: string): Map<number, number> => {
+      let m = blockIndexRef.current.get(runId);
+      if (!m) {
+        m = new Map();
+        blockIndexRef.current.set(runId, m);
+      }
+      return m;
+    };
+
+    const offEvent = bridge.onEvent(({ sessionId: runId, event }) => {
+      const ev = event as AgentEvent;
+      if (ev.kind === "message_start") {
+        // Per-message indices reset; flush our mapping so the next
+        // block_start gets a fresh slot in blocks[].
+        getIndexMap(runId).clear();
+        return;
+      }
+      if (ev.kind === "block_start") {
+        updateAgentTurn(runId, (t) => {
+          const blocks = t.blocks.slice();
+          let block: ChatBlock;
+          if (ev.blockType === "thinking") {
+            block = { kind: "thinking", text: "", done: false };
+          } else if (ev.blockType === "tool_use") {
+            block = {
+              kind: "tool_use",
+              toolUseId: ev.toolUseId ?? "",
+              name: ev.toolName ?? "tool",
+              input: "",
+            };
+          } else {
+            block = { kind: "text", text: "" };
+          }
+          blocks.push(block);
+          getIndexMap(runId).set(ev.index, blocks.length - 1);
+          return { ...t, blocks };
+        });
+        return;
+      }
+      if (ev.kind === "block_delta") {
+        const pos = getIndexMap(runId).get(ev.index);
+        if (pos == null) return;
+        updateAgentTurn(runId, (t) => {
+          const blocks = t.blocks.slice();
+          const b = blocks[pos];
+          if (b.kind === "text" || b.kind === "thinking") {
+            blocks[pos] = { ...b, text: b.text + ev.text };
+          } else if (b.kind === "tool_use") {
+            blocks[pos] = { ...b, input: b.input + ev.text };
+          }
+          return { ...t, blocks };
+        });
+        return;
+      }
+      if (ev.kind === "block_stop") {
+        const pos = getIndexMap(runId).get(ev.index);
+        if (pos == null) return;
+        updateAgentTurn(runId, (t) => {
+          const blocks = t.blocks.slice();
+          const b = blocks[pos];
+          if (b.kind === "thinking") blocks[pos] = { ...b, done: true };
+          return { ...t, blocks };
+        });
+        return;
+      }
+      if (ev.kind === "tool_result") {
+        updateAgentTurn(runId, (t) => {
+          const i = t.blocks.findIndex(
+            (b) => b.kind === "tool_use" && b.toolUseId === ev.toolUseId,
+          );
+          if (i < 0) return t;
+          const blocks = t.blocks.slice();
+          const b = blocks[i];
+          if (b.kind === "tool_use") {
+            blocks[i] = { ...b, result: ev.content, isError: ev.isError };
+          }
+          return { ...t, blocks };
+        });
+        return;
+      }
+      // `status` events are informational; ignore for now.
+    });
+
+    const offChunk = bridge.onChunk(({ sessionId: runId, stream, data }) => {
+      // Only stderr reaches us when an adapter uses parseLine — stdout
+      // is JSON we've already parsed into block_* events upstream.
+      if (stream !== "stderr") return;
+      updateAgentTurn(runId, (t) => ({
+        ...t,
+        stderr: (t.stderr ?? "") + data,
+      }));
+    });
+
+    const offEnd = bridge.onEnd(({ sessionId: runId, exitCode, error }) => {
+      updateAgentTurn(runId, (t) => ({ ...t, done: true, exitCode, error }));
+      blockIndexRef.current.delete(runId);
+      setRunningRunId((cur) => (cur === runId ? null : cur));
+      // Agents write via the `folio` CLI, which bypasses our in-process
+      // write API. Ping the host so it refetches records/contract from
+      // disk; otherwise the grid silently drifts out of sync with the
+      // sheet that the agent just modified.
+      onAgentDoneRef.current?.();
     });
     return () => {
+      offEvent();
       offChunk();
       offEnd();
     };
   }, [bridge]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: "end" });
+  }, [activeSession?.turns]);
 
   if (!bridge) {
     return (
@@ -960,9 +1391,9 @@ function ChatTab() {
         <div className="rp-section-title">Chat</div>
         <p className="muted small">
           The chat panel runs coding agents on the sheet's directory. It needs
-          access to the host shell and is therefore <strong>Folio Desktop
-          only</strong> — the standalone <code>folio serve</code> viewer can't
-          spawn binaries.
+          access to the host shell and is therefore{" "}
+          <strong>Folio Desktop only</strong> — the standalone{" "}
+          <code>folio serve</code> viewer can't spawn binaries.
         </p>
         <p className="muted small">
           Launch the desktop app and reopen this sheet to use it.
@@ -971,62 +1402,140 @@ function ChatTab() {
     );
   }
 
+  const newSession = () => {
+    const s = makeNewChatSession();
+    setSessions((cur) => [...cur, s]);
+    setActiveId(s.id);
+    setSessionMenuOpen(false);
+  };
+
+  const deleteSession = (id: string) => {
+    setSessions((cur) => cur.filter((s) => s.id !== id));
+    if (activeId === id) setActiveId(null);
+    if (sessions.length <= 1) setSessionMenuOpen(false);
+  };
+
+  const switchSession = (id: string) => {
+    setActiveId(id);
+    setSessionMenuOpen(false);
+  };
+
+  const exportSession = (s: ChatSession): void => {
+    const label =
+      agentList.find((a) => a.id === selectedAgent)?.label ?? "Agent";
+    const md = sessionToMarkdown(s, label);
+    const stamp = new Date(s.updatedAt).toISOString().slice(0, 10);
+    triggerDownload(
+      `folio-chat-${stamp}-${slugify(s.title)}.md`,
+      md,
+      "text/markdown",
+    );
+  };
+
   const send = async () => {
     const prompt = draft.trim();
-    if (!prompt || running) return;
-    const spec = agents.find((a) => a.id === selectedAgent);
+    if (!prompt || runningRunId) return;
+    const spec = agentList.find((a) => a.id === selectedAgent);
     if (!spec?.available) return;
 
+    let target = activeSession;
+    if (!target) {
+      target = makeNewChatSession(prompt.slice(0, 60));
+      setSessions((cur) => [...cur, target!]);
+      setActiveId(target.id);
+    }
+    const chatId = target.id;
+    const isFollowup = target.turns.length > 0;
+
     setDraft("");
-    setTurns((cur) => [...cur, { role: "user", text: prompt }]);
+    setSessions((cur) =>
+      cur.map((s) => {
+        if (s.id !== chatId) return s;
+        const turns: ChatTurn[] = [...s.turns, { role: "user", text: prompt }];
+        const title = s.turns.length === 0 ? prompt.slice(0, 60) : s.title;
+        return { ...s, turns, title, updatedAt: Date.now() };
+      }),
+    );
 
     const result = await bridge.run({
       agentId: selectedAgent,
       prompt,
-      isFollowup: hasTurnedOnce,
+      sessionId: chatId,
+      isFollowup,
     });
     if (!result.ok) {
-      setTurns((cur) => [
-        ...cur,
-        {
-          role: "agent",
-          sessionId: "err-" + Date.now(),
-          text: "",
-          done: true,
-          error: result.error,
-          exitCode: null,
-        },
-      ]);
+      setSessions((cur) =>
+        cur.map((s) =>
+          s.id === chatId
+            ? {
+                ...s,
+                turns: [
+                  ...s.turns,
+                  {
+                    role: "agent",
+                    runId: "err-" + Date.now(),
+                    blocks: [],
+                    done: true,
+                    error: result.error,
+                    exitCode: null,
+                  },
+                ],
+                updatedAt: Date.now(),
+              }
+            : s,
+        ),
+      );
       return;
     }
-    setRunning(result.sessionId);
-    setHasTurnedOnce(true);
-    setTurns((cur) => [
-      ...cur,
-      { role: "agent", sessionId: result.sessionId, text: "", done: false },
-    ]);
+    setRunningRunId(result.sessionId);
+    setSessions((cur) =>
+      cur.map((s) =>
+        s.id === chatId
+          ? {
+              ...s,
+              turns: [
+                ...s.turns,
+                {
+                  role: "agent",
+                  runId: result.sessionId,
+                  blocks: [],
+                  done: false,
+                },
+              ],
+              updatedAt: Date.now(),
+            }
+          : s,
+      ),
+    );
   };
 
   const stop = () => {
-    if (running) bridge.stop({ sessionId: running });
+    if (runningRunId) bridge.stop({ sessionId: runningRunId });
   };
 
-  const selectedSpec = agents.find((a) => a.id === selectedAgent);
-  const canSend = !!selectedSpec?.available && !running && draft.trim().length > 0;
+  const selectedSpec = agentList.find((a) => a.id === selectedAgent);
+  const canSend =
+    !!selectedSpec?.available && !runningRunId && draft.trim().length > 0;
+  const turns = activeSession?.turns ?? [];
+  const sortedSessions = [...sessions].sort(
+    (a, b) => b.updatedAt - a.updatedAt,
+  );
+  const triggerTitle =
+    activeSession?.title ??
+    (sessions.length === 0 ? "New chat" : "Select a session");
 
   return (
     <div className="chat-tab">
-      <div className="chat-header rp-pad">
+      <div className="chat-header">
         <div className="chat-pickrow">
-          <label className="muted small" htmlFor="chat-agent">agent</label>
           <select
             id="chat-agent"
-            className="mono small"
+            className="chat-agent-select mono small"
             value={selectedAgent}
             onChange={(e) => setSelectedAgent(e.target.value)}
-            disabled={!!running}
+            disabled={!!runningRunId}
           >
-            {agents.map((a) => (
+            {agentList.map((a) => (
               <option key={a.id} value={a.id} disabled={!a.available}>
                 {a.label}
                 {a.available ? "" : " (not installed)"}
@@ -1034,26 +1543,106 @@ function ChatTab() {
             ))}
           </select>
           {selectedSpec?.version && (
-            <span className="muted small mono">{selectedSpec.version}</span>
+            <span className="muted small mono chat-version">
+              {selectedSpec.version}
+            </span>
           )}
+          <span className="rp-tabs-spacer" />
         </div>
         {selectedSpec && !selectedSpec.available && (
           <div className="chat-install-hint muted small">
             {selectedSpec.installHint ?? "binary not on $PATH"}
           </div>
         )}
-        {hasTurnedOnce && (
+
+        <div className="chat-sessions-row">
           <button
-            className="ghost-btn small"
-            onClick={() => {
-              setTurns([]);
-              setHasTurnedOnce(false);
-            }}
-            disabled={!!running}
+            className={cls(
+              "chat-session-trigger",
+              sessionMenuOpen && "open",
+            )}
+            onClick={() => setSessionMenuOpen((v) => !v)}
+            title="Switch chat session"
+          >
+            <span className="chat-session-caret" aria-hidden>
+              <Icons.ChevronR size={10} />
+            </span>
+            <span className="ellipsis chat-session-trigger-label">
+              {triggerTitle}
+            </span>
+            {sessions.length > 0 && (
+              <span className="muted small mono chat-session-count">
+                {sessions.length}
+              </span>
+            )}
+          </button>
+          <button
+            className="ghost-btn small chat-session-new"
+            onClick={() => activeSession && exportSession(activeSession)}
+            disabled={!activeSession || activeSession.turns.length === 0}
+            title="Export this conversation as Markdown"
+          >
+            <Icons.Download size={10} />
+          </button>
+          <button
+            className="ghost-btn small chat-session-new"
+            onClick={newSession}
+            disabled={!!runningRunId}
             title="Start a new conversation"
           >
-            <Icons.Plus size={10} /> New chat
+            <Icons.Plus size={10} />
           </button>
+        </div>
+        {sessionMenuOpen && (
+          <ul className="chat-sessions-menu">
+            {sortedSessions.length === 0 && (
+              <li className="muted small chat-session-empty">
+                No sessions yet — send a message to start one.
+              </li>
+            )}
+            {sortedSessions.map((s) => (
+              <li
+                key={s.id}
+                className={cls(
+                  "chat-session-row",
+                  s.id === activeId && "active",
+                )}
+              >
+                <button
+                  className="chat-session-pick"
+                  onClick={() => switchSession(s.id)}
+                >
+                  <span className="chat-session-title ellipsis">
+                    {s.title}
+                  </span>
+                  <span className="muted small chat-session-time">
+                    {fmtTime(new Date(s.updatedAt).toISOString())}
+                  </span>
+                </button>
+                <button
+                  className="icon-btn chat-session-del"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    exportSession(s);
+                  }}
+                  title="Export as Markdown"
+                  disabled={s.turns.length === 0}
+                >
+                  <Icons.Download size={10} />
+                </button>
+                <button
+                  className="icon-btn chat-session-del"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    deleteSession(s.id);
+                  }}
+                  title="Delete session"
+                >
+                  <Icons.X size={10} />
+                </button>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
 
@@ -1086,11 +1675,11 @@ function ChatTab() {
               send();
             }
           }}
-          disabled={!selectedSpec?.available || !!running}
+          disabled={!selectedSpec?.available || !!runningRunId}
           rows={3}
         />
         <div className="chat-composer-actions">
-          {running ? (
+          {runningRunId ? (
             <button className="ghost-btn small" onClick={stop}>
               <Icons.X size={10} /> Stop
             </button>
@@ -1113,29 +1702,119 @@ function ChatTab() {
 function ChatBubble({ turn }: { turn: ChatTurn }) {
   if (turn.role === "user") {
     return (
-      <div className="chat-bubble chat-user">
-        <div className="chat-bubble-text">{turn.text}</div>
+      <div className="chat-row chat-row-user">
+        <div className="chat-bubble chat-user">
+          <div className="chat-bubble-text">{turn.text}</div>
+        </div>
       </div>
     );
   }
+  const failed =
+    !!turn.error || (turn.exitCode != null && turn.exitCode !== 0);
+  const showStderr = failed && !!turn.stderr;
+  const hasContent = turn.blocks.length > 0;
   return (
-    <div className="chat-bubble chat-agent">
-      {turn.text && <div className="chat-bubble-text">{turn.text}</div>}
-      {!turn.done && !turn.text && (
-        <div className="chat-typing muted small">…</div>
-      )}
-      {turn.stderr && (
-        <details className="chat-stderr">
-          <summary className="muted small">stderr</summary>
-          <pre className="mono small">{turn.stderr}</pre>
-        </details>
-      )}
-      {turn.done && turn.error && (
-        <div className="chat-error err small">⚠ {turn.error}</div>
-      )}
-      {turn.done && turn.exitCode != null && turn.exitCode !== 0 && !turn.error && (
-        <div className="muted small">exited {turn.exitCode}</div>
-      )}
+    <div className="chat-row chat-row-agent">
+      <div className="chat-bubble chat-agent">
+        {turn.blocks.map((b, i) => (
+          <ChatBlockView key={i} block={b} />
+        ))}
+        {!turn.done && !hasContent && (
+          <div className="chat-typing muted small">…</div>
+        )}
+        {turn.done && turn.error && (
+          <div className="chat-error err small">⚠ {turn.error}</div>
+        )}
+        {turn.done && failed && !turn.error && (
+          <div className="muted small">exited {turn.exitCode}</div>
+        )}
+        {showStderr && (
+          <details className="chat-stderr">
+            <summary className="muted small">stderr</summary>
+            <pre className="mono small">{turn.stderr}</pre>
+          </details>
+        )}
+      </div>
     </div>
   );
+}
+
+function ChatBlockView({ block }: { block: ChatBlock }) {
+  if (block.kind === "thinking") {
+    // Default-open while streaming so the user can watch reasoning;
+    // collapse once done so the final answer stays visually dominant.
+    return (
+      <details className="chat-thinking" open={!block.done}>
+        <summary>{block.done ? "Thought" : "Thinking…"}</summary>
+        <div className="chat-thinking-body">{block.text || "…"}</div>
+      </details>
+    );
+  }
+  if (block.kind === "tool_use") {
+    const argsPreview = summarizeToolArgs(block.input);
+    return (
+      <details className={cls("chat-tool", block.isError && "is-error")}>
+        <summary>
+          <span className="chat-tool-icon" aria-hidden>
+            ⚙
+          </span>
+          <span className="chat-tool-name">{block.name}</span>
+          {argsPreview && (
+            <span className="chat-tool-args">{argsPreview}</span>
+          )}
+        </summary>
+        <div className="chat-tool-body">
+          {block.input && (
+            <>
+              <div className="muted small">input</div>
+              <pre>{prettyJsonOrRaw(block.input)}</pre>
+            </>
+          )}
+          {block.result !== undefined && (
+            <>
+              <div className="muted small" style={{ marginTop: 6 }}>
+                result{block.isError ? " (error)" : ""}
+              </div>
+              <pre>{block.result}</pre>
+            </>
+          )}
+        </div>
+      </details>
+    );
+  }
+  // text block — render as markdown
+  return (
+    <div className="chat-md">
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{block.text}</ReactMarkdown>
+    </div>
+  );
+}
+
+/** Pull a short args preview out of a tool's (partial) JSON input. We
+ * never block on parsing — if the JSON isn't complete yet, return a
+ * truncated raw slice instead so the chip still shows something. */
+function summarizeToolArgs(raw: string): string {
+  if (!raw) return "";
+  try {
+    const obj = JSON.parse(raw) as Record<string, unknown>;
+    // Common shapes: { path }, { command }, { url }, { file_path }, …
+    for (const k of ["path", "file_path", "command", "url", "pattern", "query"]) {
+      const v = obj[k];
+      if (typeof v === "string" && v) return v;
+    }
+    const first = Object.values(obj).find((x) => typeof x === "string");
+    if (typeof first === "string") return first;
+  } catch {
+    /* not yet complete JSON — fall through */
+  }
+  const flat = raw.replace(/\s+/g, " ").trim();
+  return flat.length > 80 ? flat.slice(0, 80) + "…" : flat;
+}
+
+function prettyJsonOrRaw(s: string): string {
+  try {
+    return JSON.stringify(JSON.parse(s), null, 2);
+  } catch {
+    return s;
+  }
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type {
   AddPropertyInput,
   UpdatePropertyInput,
@@ -155,6 +155,20 @@ export default function App() {
         setStatus(st);
       })
       .catch((e) => console.error(e));
+  }, []);
+
+  // Refetch records/contract/status from disk. Called after an agent
+  // turn finishes so writes made through the `folio` CLI (which bypass
+  // our in-process write API and therefore don't show up via the
+  // event stream) appear in the grid without a manual reload.
+  const refreshSheet = useCallback(() => {
+    Promise.all([getContract(), listRecords({ limit: 500 }), getStatus()])
+      .then(([c, recs, st]) => {
+        setContract(c);
+        setRecords(recs.records);
+        setStatus(st);
+      })
+      .catch((e) => console.error("refresh failed", e));
   }, []);
 
   // refresh records & status after materialize finishes
@@ -649,8 +663,21 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement | null;
       const tag = target?.tagName;
+      // Treat focus *anywhere inside the right panel* (Chat / Schema /
+      // Activity / Inspector) as input-like: those tabs own their own
+      // keyboard interactions, so global grid shortcuts (Cmd+A, undo,
+      // materialize, arrow navigation, …) must not steal the key.
+      // Without this, pressing Cmd+A while focus rested on a chat tool
+      // chip (a <summary> element, not an <input>) would select every
+      // row in the grid behind the panel.
+      const isInRightPanel = !!target?.closest?.(".rp");
       const isInputFocused =
-        tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        (target as (HTMLElement & { isContentEditable?: boolean }) | null)
+          ?.isContentEditable === true ||
+        isInRightPanel;
       const isCellEditor = target?.classList.contains("cell-input") === true;
 
       // Esc — close help, hover, drawer, editor (editor handles itself).
@@ -680,8 +707,14 @@ export default function App() {
         return;
       }
 
-      // ⌘F — focus the query bar
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "f") {
+      // ⌘F — focus the query bar (skip when focus is in the panel so
+      // the chat composer's own find-in-text isn't hijacked)
+      if (
+        !isInRightPanel &&
+        (e.metaKey || e.ctrlKey) &&
+        !e.shiftKey &&
+        e.key.toLowerCase() === "f"
+      ) {
         e.preventDefault();
         setDrawerOpen(true);
         setDrawerTab("query");
@@ -736,6 +769,7 @@ export default function App() {
 
       // ⌘⇧N — add row
       if (
+        !isInRightPanel &&
         (e.metaKey || e.ctrlKey) &&
         e.shiftKey &&
         e.key.toLowerCase() === "n"
@@ -1004,6 +1038,7 @@ export default function App() {
           onAddField={onAddField}
           onUpdateField={onUpdateField}
           onDeleteField={onDeleteField}
+          onAgentDone={refreshSheet}
         />
       </div>
       {hovered && (
