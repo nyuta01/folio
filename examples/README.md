@@ -13,7 +13,8 @@ derivation kinds.
 | [`research-memory/`](research-memory) | 2.2 Structured Working Memory for Agents | `python` (domain) | `triage-candidates` |
 | [`research-notes/`](research-notes) | 2.3 Semi-structured Research Data Accumulation | `python` (word_count) | `weekly-digest` |
 | [`onboarding/`](onboarding) | 2.4 Operational Worklist for Business Processes | `python` (progress) | `advance-onboarding` |
-| [`task-tracker/`](task-tracker) | **Agent-driven CLI demo** — agent captures + triages, human verifies | `python` (priority_score, category) | `capture-task`, `weekly-review` |
+| [`task-tracker/`](task-tracker) | **Agent-driven CLI demo** — agent captures + triages, human verifies | `python` (priority_score, dep_count, path_count, verification_count) + `sql` (is_blocked) | `pick-next-task`, `close-task`, `daily-standup` |
+| [`product-catalog/`](product-catalog) | **Type showcase** — every `logicalType` + enum + python + SQL derivations in one schema | `python` (in_stock, tag_count, price_tier) + `sql` (is_top_quartile_priced) | `restock-suggestions` |
 
 Every sheet ships at least one packaged operating procedure under
 `skills/*.md`. Run `folio skill list <sheet>` to discover them, or
@@ -23,12 +24,12 @@ let an MCP client surface them as prompts.
 
 ```bash
 # Validate every example
-for sheet in customers customer-revenue research-memory research-notes onboarding task-tracker; do
+for sheet in customers customer-revenue research-memory research-notes onboarding task-tracker product-catalog; do
   uv run folio validate "examples/$sheet"
 done
 
-# Materialize the five with derivations
-for sheet in customers research-memory research-notes onboarding task-tracker; do
+# Materialize the six with derivations
+for sheet in customers research-memory research-notes onboarding task-tracker product-catalog; do
   uv run folio materialize "examples/$sheet" --actor agent:demo
 done
 

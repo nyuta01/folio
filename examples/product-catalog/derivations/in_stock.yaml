@@ -1,0 +1,4 @@
+targets: [in_stock]
+inputs: [stock]
+kind: python
+script: in_stock

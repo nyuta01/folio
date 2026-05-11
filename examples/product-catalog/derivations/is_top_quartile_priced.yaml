@@ -1,0 +1,13 @@
+targets: [is_top_quartile_priced]
+inputs: [price_usd]
+kind: sql
+expression: |
+  -- `?` is bound to this row's `price_usd`. Compare against the 75th
+  -- percentile of all `listed` rows so the threshold is computed
+  -- against the full sheet, not just this row.
+  WITH cutoff AS (
+    SELECT quantile_cont(price_usd, 0.75) AS p75
+      FROM records
+     WHERE status = 'listed'
+  )
+  SELECT (? >= (SELECT p75 FROM cutoff)) AS top_quartile

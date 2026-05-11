@@ -1,0 +1,4 @@
+targets: [price_tier]
+inputs: [price_usd]
+kind: python
+script: price_tier

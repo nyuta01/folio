@@ -1,0 +1,4 @@
+targets: [tag_count]
+inputs: [tags]
+kind: python
+script: tag_count

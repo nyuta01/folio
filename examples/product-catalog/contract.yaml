@@ -1,0 +1,141 @@
+apiVersion: v3.0.0
+kind: DataContract
+id: example-product-catalog
+name: product-catalog
+version: 1.0.0
+description: |
+  Deliberate showcase that uses **every** Folio logical type at least
+  once — plus an enum field, a python derivation, and a cross-record
+  SQL derivation. The schema is a small e-commerce product catalog:
+  realistic enough that the UX choices make sense, narrow enough that
+  the schema fits on one screen.
+
+  Coverage matrix:
+
+  | logicalType | field            | demo angle                         |
+  |-------------|------------------|------------------------------------|
+  | string      | name             | free text                          |
+  | string+enum | category         | dropdown editor + pill display     |
+  | string+enum | status           | dropdown editor + pill display     |
+  | integer     | stock            | right-aligned, thousand-grouped    |
+  | number      | price_usd        | right-aligned, decimals preserved  |
+  | boolean     | is_featured      | tone pill ✓/✗                      |
+  | date        | listed_on        | date picker                        |
+  | timestamp   | updated_at       | datetime-local picker              |
+  | array       | tags             | tag-chip editor + chip-row display |
+  | object      | dimensions       | JSON textarea editor + compact JSON|
+  | object      | vendor_codes     | same                               |
+
+schema:
+  - name: items
+    physicalType: jsonl
+    properties:
+      # ---- identity --------------------------------------------------------
+      - name: id
+        logicalType: string
+        primaryKey: true
+        required: true
+        description: Stable SKU-style id (convention - "p_<6-digit-zero-padded>").
+
+      - name: name
+        logicalType: string
+        required: true
+        description: Display name shown on the storefront.
+        x-editable-by: ["agent:*", "human:*"]
+
+      # ---- enums -----------------------------------------------------------
+      - name: category
+        logicalType: string
+        required: true
+        description: Top-level catalog category.
+        enum: [book, toy, electronics, clothing, food]
+        x-editable-by: ["agent:*", "human:*"]
+
+      - name: status
+        logicalType: string
+        required: true
+        description: Lifecycle state visible on the storefront.
+        enum: [draft, listed, sold_out, discontinued]
+        x-editable-by: ["agent:*", "human:*"]
+
+      # ---- numerics --------------------------------------------------------
+      - name: stock
+        logicalType: integer
+        required: true
+        description: Units on hand. Drives the `in_stock` derivation.
+        x-editable-by: ["agent:*", "human:*"]
+
+      - name: price_usd
+        logicalType: number
+        required: true
+        description: List price in USD. Drives the `price_tier` derivation.
+        x-editable-by: ["agent:*", "human:*"]
+
+      # ---- boolean ---------------------------------------------------------
+      - name: is_featured
+        logicalType: boolean
+        description: Pinned to the home page when true.
+        x-editable-by: ["agent:*", "human:*"]
+
+      # ---- temporals -------------------------------------------------------
+      - name: listed_on
+        logicalType: date
+        description: Date the product first went `listed` (YYYY-MM-DD).
+        x-editable-by: ["agent:*", "human:*"]
+
+      - name: updated_at
+        logicalType: timestamp
+        required: true
+        description: ISO-8601, last meaningful metadata change.
+        x-editable-by: ["agent:*", "human:*"]
+
+      # ---- arrays / objects ------------------------------------------------
+      - name: tags
+        logicalType: array
+        description: Free-form labels for filtering and search.
+        x-editable-by: ["agent:*", "human:*"]
+
+      - name: dimensions
+        logicalType: object
+        description: |
+          Shipping footprint as `{width_cm, height_cm, depth_cm}`. Stored
+          as a JSON object - the Viewer edits it via the JSON textarea.
+        x-editable-by: ["agent:*", "human:*"]
+
+      - name: vendor_codes
+        logicalType: object
+        description: |
+          External identifiers we use to reconcile with vendor feeds
+          (typically `{upc, ean}` for retail or `{isbn}` for books).
+        x-editable-by: ["agent:*", "human:*"]
+
+      # ---- derived ---------------------------------------------------------
+      - name: in_stock
+        logicalType: boolean
+        description: True when `stock > 0`. Python kind.
+        x-derived: true
+        x-inputs: [stock]
+
+      - name: tag_count
+        logicalType: integer
+        description: Length of `tags`. Python kind.
+        x-derived: true
+        x-inputs: [tags]
+
+      - name: price_tier
+        logicalType: string
+        description: |
+          Coarse bucket from `price_usd` - "budget" (< $20),
+          "mid" ($20-100), "premium" (≥ $100). Python kind.
+        enum: [budget, mid, premium]
+        x-derived: true
+        x-inputs: [price_usd]
+
+      - name: is_top_quartile_priced
+        logicalType: boolean
+        description: |
+          True when this row's `price_usd` is in the top 25% of all
+          listed rows. SQL kind - shows a cross-record window function
+          working alongside per-row python derivations.
+        x-derived: true
+        x-inputs: [price_usd]
