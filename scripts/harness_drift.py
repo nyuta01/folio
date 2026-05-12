@@ -362,8 +362,29 @@ def _workflow_run_snippets(job_text: str) -> list[str]:
     return snippets
 
 
+def validate_desktop_agent_execution_invariants() -> None:
+    """Keep portable sheets from influencing desktop agent executable lookup."""
+    desktop_agents = ROOT / "apps" / "desktop" / "src" / "main" / "agents.ts"
+    if not desktop_agents.exists():
+        return
+
+    text = desktop_agents.read_text(encoding="utf-8")
+    for forbidden_text in (
+        "env.PATH =",
+        "process.env.PATH =",
+        "env[\"PATH\"] =",
+        "env['PATH'] =",
+    ):
+        if forbidden_text in text:
+            fail(
+                "apps/desktop/src/main/agents.ts: do not mutate PATH in "
+                "runAgent; sheet-derived PATH entries can hijack agent binaries"
+            )
+
+
 validate_adr_anchored_invariants()
 validate_release_python_publish_invariants()
+validate_desktop_agent_execution_invariants()
 validate_failure_log((feature_list or {}).get("tasks") or [])
 
 

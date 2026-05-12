@@ -31,3 +31,23 @@ downloads only same-run artifacts with `actions/download-artifact`.
 `scripts/harness_drift.py` rejects future PyPI publish paths that call
 `gh release download`, omit the build dependency, skip release-event builds, or
 interpolate release tag expressions into publish-job shell snippets.
+
+## F-002 Desktop agent PATH hijack from sheet `.venv`
+
+- **Status**: `fixed`
+- **Task**: `FOLIO-H-029`
+- **Plan**: `docs/exec-plans/active/FOLIO-H-029-plan.md`
+
+### Observation
+
+Desktop chat agent execution trusted `.venv/bin` paths derived from the opened
+sheet. A malicious portable sheet could include `.venv/bin/folio` as a marker
+and `.venv/bin/claude` as a payload, causing Folio Desktop to execute
+sheet-provided code when the user started a chat turn.
+
+### Permanent fix
+
+`runAgent` no longer mutates `PATH` from sheet-controlled locations and resolves
+the trusted agent executable from the host PATH before spawning with the sheet
+as cwd. `scripts/harness_drift.py` rejects future direct PATH mutation in
+`apps/desktop/src/main/agents.ts`.
