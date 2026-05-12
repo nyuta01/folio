@@ -168,7 +168,7 @@ Unknown attributes inside a schema entry are **rejected** (`extra="forbid"`).
 | `enum` | array of strings \| null | no | Closed list of allowed values. When set, `upsert_records` rejects writes whose value is not in the list, and the Viewer renders a dropdown instead of a free-text input. Strings only; duplicates are rejected at load time. |
 | `x-derived` | boolean | no | Default `false`. When `true`, requires `x-inputs` and a matching derivation. |
 | `x-inputs` | array of strings | conditional | Required when `x-derived: true`. Must reference declared properties. |
-| `x-editable-by` | array of strings \| null | no | Default `null` ⇒ field is not human-editable. `fnmatch` patterns matched against the actor on every direct write. |
+| `x-editable-by` | array of strings \| null | no | Default `null` ⇒ unrestricted by Folio's field ACL. When set, `fnmatch` patterns are matched against the actor on every field write, including materialized derived-field writes. |
 
 Unknown attributes on a property are **rejected** (`extra="forbid"`).
 A typo such as `primaryKeys: true` fails at load time.
@@ -851,7 +851,7 @@ The Viewer additionally reads:
   cache invalidation.
 - **Actor** — Free-form string identifying who performed a write
   (`agent:human`, `agent:ops:reviewer`, …). Matched against
-  `x-editable-by` patterns on every direct write.
+  `x-editable-by` patterns on every field write.
 - **Materialize** — Run all eligible derivations; skip cache hits and
   human overrides; append provenance; update records atomically.
 - **Provenance** — `provenance.jsonl`. Append-only audit log per cell

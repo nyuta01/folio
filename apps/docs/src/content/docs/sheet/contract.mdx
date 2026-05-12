@@ -72,7 +72,7 @@ order, `frictionless` export, `folio list` default projection).
   required: false                  # default false
   x-derived: true                  # default false; this column is filled by a derivation
   x-inputs: [company_name]         # required when x-derived: true
-  x-editable-by: ["agent:human"]   # default []; absent means "not human-editable"
+  x-editable-by: ["agent:human"]   # optional field write allowlist
 ```
 
 ### `logicalType`

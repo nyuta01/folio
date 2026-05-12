@@ -69,8 +69,9 @@ Last updated: 2026-05-12
   materialize loop iterates derivation files in topological order,
   processes every target produced by each file together (so
   multi-target ai derivations cost one API call), short-circuits via
-  the cache, honors `respect_human_override` and stale `input_hash`
-  checks, persists `records.jsonl` atomically, and appends
+  the cache, enforces `x-editable-by` on selected targets, honors
+  `respect_human_override` and stale `input_hash` checks, persists
+  `records.jsonl` atomically, and appends
   provenance only after the records write succeeds. Failures are
   reported as `{record_id, field, error, error_type}` entries on
   the §10.6 envelope rather than raised.
@@ -149,6 +150,11 @@ Last updated: 2026-05-12
   `records.jsonl`) before materialize reads records. Tests cover absolute
   paths, parent-directory traversal, symlink escapes, and records-only
   directories.
+- Aardvark's materialize field-ACL report is fixed in `FOLIO-H-036`:
+  materialize now checks every selected derivation target with
+  `_check_editable_by()` before kind execution, record mutation, or provenance
+  append. The regression proves a denied actor cannot write protected derived
+  fields or provenance, while an allowed actor still can.
 - ADR-to-code drift checks (`scripts/harness_drift.py::
   validate_adr_anchored_invariants`) pin ADR-0005 / ADR-0006 /
   ADR-0008 / ADR-0009 against silent regressions: anthropic
@@ -170,7 +176,8 @@ Last updated: 2026-05-12
   rejects removal of the DuckDB query sandbox ingredients or the Viewer
   `/api/query` external-file-read regression. `FOLIO-H-035` rejects
   removal of the `cross_sheet` source containment checks and resolver
-  regressions.
+  regressions. `FOLIO-H-036` rejects removal of the materialize target
+  ACL check and regression.
 - `make verify` runs harness shape (`harness-check`), drift
   detection (`drift-check`), docs validation (`validate-docs`),
   pytest (`python-test`) covering Phase 0 / 1 / 2 / 3 / 4 / 5,
@@ -215,11 +222,12 @@ Last updated: 2026-05-12
 
 All product backlog (Phases 0 / 1 / 2 / 3 / 4 / 5) is
 feature-complete and ADR-anchored. `FOLIO-H-028`, `FOLIO-H-029`,
-`FOLIO-H-030`, `FOLIO-H-032`, `FOLIO-H-033`, `FOLIO-H-034`, and
-`FOLIO-H-035` are
+`FOLIO-H-030`, `FOLIO-H-032`, `FOLIO-H-033`, `FOLIO-H-034`,
+`FOLIO-H-035`, and `FOLIO-H-036` are
 complete. `FOLIO-H-031` removed the unnecessary MCP server surface.
 `FOLIO-H-034` locked the Viewer query sandbox regressions, and
-`FOLIO-H-035` locked the `cross_sheet` sibling-source boundary. On the next real
+`FOLIO-H-035` locked the `cross_sheet` sibling-source boundary.
+`FOLIO-H-036` locked materialize target ACL enforcement. On the next real
 Release publication, confirm GitHub Actions downloads the same-run
 `folio-python-<tag>` artifact before PyPI upload, and on the next packaged
 Desktop smoke confirm chat agents still resolve from the host install and run

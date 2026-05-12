@@ -12,6 +12,7 @@ from folio import open_sheet
 from folio._ai_kind import StubAIClient
 from folio._cache import default_cache_root
 from folio._provenance import append_provenance
+from folio.exceptions import PermissionDeniedError
 
 
 FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "import-kind"
@@ -248,6 +249,38 @@ def test_materialize_unknown_target_rejected(
 
 
 # --- import materialize ---------------------------------------------------
+
+
+def test_materialize_respects_target_editable_by_acl(
+    sheet_with_import_derivation: Path,
+) -> None:
+    contract_path = sheet_with_import_derivation / "contract.yaml"
+    contract_path.write_text(
+        contract_path.read_text(encoding="utf-8").replace(
+            "x-derived: true",
+            "x-derived: true\n"
+            "        x-editable-by: [admin]",
+        ),
+        encoding="utf-8",
+    )
+
+    guest = open_sheet(sheet_with_import_derivation, actor="guest")
+    with pytest.raises(PermissionDeniedError, match="cannot edit field 'industry_tag'"):
+        guest.upsert_records([{"id": "cust_001", "industry_tag": "blocked"}])
+
+    with pytest.raises(PermissionDeniedError, match="cannot edit field 'industry_tag'"):
+        guest.materialize(ai_client=StubAIClient())
+
+    rows = guest.query("SELECT id, industry_tag FROM records ORDER BY id")
+    assert rows == [
+        {"id": "cust_001", "industry_tag": None},
+        {"id": "cust_002", "industry_tag": None},
+    ]
+    assert guest.provenance("cust_001", "industry_tag") is None
+
+    admin = open_sheet(sheet_with_import_derivation, actor="admin")
+    result = admin.materialize(ai_client=StubAIClient())
+    assert result["materialized"] == 2
 
 
 def test_materialize_import_from_csv(sheet_with_import_derivation: Path) -> None:

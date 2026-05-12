@@ -143,6 +143,9 @@ Inject `ai_client=StubAIClient()` to keep `ai` derivations offline; inject
 `http_transport=StubHTTPTransport()` for `http` derivations. Both default
 to the production adapter when omitted.
 
+Materialize is a write path: the actor must match `x-editable-by` for every
+selected target before Folio writes derived values or provenance.
+
 ## `materialization_status`
 
 ```python

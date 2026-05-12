@@ -527,6 +527,34 @@ def validate_cross_sheet_source_invariants() -> None:
                 )
 
 
+def validate_materialize_acl_invariants() -> None:
+    """Keep materialize from bypassing field-level edit permissions."""
+    sheet_path = ROOT / "src" / "folio" / "sheet.py"
+    tests_path = ROOT / "tests" / "test_materialize.py"
+    if not sheet_path.exists():
+        return
+
+    text = sheet_path.read_text(encoding="utf-8")
+    if "_check_editable_by({target: None}, effective_actor)" not in text:
+        fail(
+            "src/folio/sheet.py: Sheet.materialize must check x-editable-by "
+            "for each selected derivation target before writing records or provenance"
+        )
+
+    if tests_path.exists():
+        tests = tests_path.read_text(encoding="utf-8")
+        for required_text in (
+            "test_materialize_respects_target_editable_by_acl",
+            "PermissionDeniedError",
+            "provenance(\"cust_001\", \"industry_tag\") is None",
+        ):
+            if required_text not in tests:
+                fail(
+                    "tests/test_materialize.py: materialize must keep the "
+                    f"field-ACL regression ({required_text})"
+                )
+
+
 validate_adr_anchored_invariants()
 validate_release_python_publish_invariants()
 validate_desktop_agent_execution_invariants()
@@ -535,6 +563,7 @@ validate_mcp_removed_invariants()
 validate_contract_write_invariants()
 validate_duckdb_query_sandbox_invariants()
 validate_cross_sheet_source_invariants()
+validate_materialize_acl_invariants()
 validate_failure_log((feature_list or {}).get("tasks") or [])
 
 

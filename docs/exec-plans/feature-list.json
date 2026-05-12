@@ -998,6 +998,41 @@
       "notes": "Constrained cross_sheet source_sheet to relative sibling-workspace paths by rejecting absolute sources, resolving before containment checks, requiring the target to stay inside the calling sheet's parent directory, and validating the foreign contract.yaml before reading records.jsonl. Added resolver regressions for absolute paths, parent escapes, symlink escapes, and records-only directories, plus a drift check that preserves the boundary."
     },
     {
+      "id": "FOLIO-H-036",
+      "title": "Enforce materialize field ACLs",
+      "priority": "P0",
+      "status": "done",
+      "owner": "agent",
+      "depends": ["FOLIO-H-012"],
+      "plan_url": "docs/exec-plans/active/FOLIO-H-036-plan.md",
+      "paths": [
+        "src/folio/sheet.py",
+        "tests/test_materialize.py",
+        "scripts/harness_drift.py",
+        "SPECIFICATION.md",
+        "docs/design-docs/overview.md",
+        "docs/design-docs/adrs/0007-match-x-editable-by-with-fnmatch-patterns.md",
+        "docs/product-specs/phase-1-derivations-and-provenance.md",
+        "apps/docs/src/content/docs/sheet/editable-by.mdx",
+        "apps/docs/src/content/docs/sdk/sheet-api.mdx",
+        "apps/docs/src/content/docs/reference/contract-spec.mdx",
+        "apps/docs/src/content/docs/sheet/contract.mdx",
+        "docs/exec-plans/active/FOLIO-H-036-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "docs/QUALITY_SCORE.md",
+        "docs/agent-failures.md",
+        "AGENT_PROGRESS.md"
+      ],
+      "verification": {
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true,
+        "python_test": true,
+        "security_regression": true
+      },
+      "notes": "Fixed the materialize field-ACL bypass by applying the existing x-editable-by check to every selected derivation target before kind execution, record mutation, or provenance append. Added regression coverage proving a denied actor cannot materialize a protected derived field or provenance while an allowed actor still can, plus a drift check that preserves the authorization boundary."
+    },
+    {
       "id": "FOLIO-H-006",
       "title": "Maintain self-PDCA loop and quality feedback artifacts",
       "priority": "P1",

@@ -69,7 +69,7 @@ schema:
 | `primaryKey` | boolean | – | Default `false`. Exactly one property must be `true`. |
 | `x-derived` | boolean | – | Default `false`. When `true`, requires `x-inputs`. |
 | `x-inputs` | array of strings | conditional | Required when `x-derived: true`. Must reference declared properties. |
-| `x-editable-by` | array of strings | – | Default `[]` ⇒ field not human-editable. `fnmatch` patterns. |
+| `x-editable-by` | array of strings | – | Optional field ACL. When set, `fnmatch` patterns are matched on direct writes and materialize target writes. |
 
 ## `logicalType` mapping
 

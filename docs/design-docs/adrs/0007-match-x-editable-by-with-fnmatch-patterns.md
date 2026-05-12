@@ -27,9 +27,11 @@ with two trivial fast paths:
 - All other patterns flow through `fnmatchcase`, which supports `*`,
   `?`, and `[seq]` glob metacharacters.
 
-`x-editable-by` is enforced only on fields that appear in the upserted
-record. Untouched fields are not rechecked. Fields without
-`x-editable-by` allow any actor.
+`x-editable-by` is enforced only on fields that a write path actually
+touches. Direct upserts check fields that appear in the upserted
+record; materialize checks the selected derivation targets before
+generated values or provenance are written. Untouched fields are not
+rechecked. Fields without `x-editable-by` allow any actor.
 
 Real authentication and authorization (JWT, OAuth, RBAC) remain the
 caller's responsibility. The reference implementation only enforces the
@@ -51,10 +53,11 @@ string.
 ## Confirmation
 
 `tests/test_sheet.py` covers `editable_by` allow / deny / no-restriction
-under `make verify`. `tests/test_cli.py` exercises the matching error
-path through the CLI. The decoupling between authentication and
-authorization is enforced by leaving `actor` as a free-form string
-across the SDK and CLI.
+under `make verify`. `tests/test_materialize.py` covers the same ACL on
+derived-field materialize writes. `tests/test_cli.py` exercises the
+matching error path through the CLI. The decoupling between
+authentication and authorization is enforced by leaving `actor` as a
+free-form string across the SDK and CLI.
 
 ## Alternatives Considered
 

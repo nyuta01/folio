@@ -178,3 +178,24 @@ directory, and validates the foreign `contract.yaml` before reading
 `records.jsonl`. `tests/test_kind_cross_sheet.py` covers absolute path,
 parent-directory escape, symlink escape, and records-only directory
 regressions, and `scripts/harness_drift.py` pins the resolver checks.
+
+## F-009 Materialize bypassed `x-editable-by`
+
+- **Status**: `fixed`
+- **Task**: `FOLIO-H-036`
+- **Plan**: `docs/exec-plans/active/FOLIO-H-036-plan.md`
+
+### Observation
+
+`Sheet.materialize()` accepted an actor and wrote derived field values without
+invoking the field-level ACL helper used by `upsert_records()`. A non-matching
+actor could therefore overwrite a protected derived field and receive
+provenance as the recorded writer.
+
+### Permanent fix
+
+`Sheet.materialize()` now checks every selected target with
+`_check_editable_by()` before kind execution, record mutation, or provenance
+append. `tests/test_materialize.py::test_materialize_respects_target_editable_by_acl`
+proves a denied actor cannot write records or provenance through materialize,
+and `scripts/harness_drift.py` pins the authorization check and regression.

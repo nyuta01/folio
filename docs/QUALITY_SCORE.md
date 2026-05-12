@@ -12,8 +12,8 @@ Scores use a 1-5 scale:
 
 | Domain | Score | Evidence | Weak Spot | Next Task |
 |---|---:|---|---|---|
-| Harness PDCA | 4 | `make verify` runs `harness-check`, `drift-check`, `validate-docs`, `python-test`, and offline smokes; GitHub Actions runs the same gate on pull requests and pushes to `main` after `uv sync --frozen`; PyPI release provenance, Desktop agent boundaries, retired-MCP invariants, contract writer temp-file safety, query sandbox shape, and cross_sheet source containment are now drift-checked | Semantic design drift checks beyond ADR and high-impact security anchors are still shallow | `FOLIO-H-006` |
-| Sheet Spec | 5 | Design overview defines `contract.yaml`, `records.jsonl`, derivations, provenance, cache-key, operations, and the Viewer end-to-end with ODCS subset alignment; `make verify` exercises every Phase 0–5 spec surface (parsing, querying, write semantics, derivations, materialize loop, cache, provenance, CLI verbs, TOON, extension kinds, datapackage export, Viewer REST + CSRF) through pytest plus the CLI / materialize / scripts / extension-kinds / Viewer smokes; cross_sheet resolver tests cover absolute path rejection, parent-directory containment, symlink escape rejection, and records-only directory rejection | Phase 5 V4–V6 (materialize dashboard, history, SSE) is spec-only | `FOLIO-H-025` |
+| Harness PDCA | 4 | `make verify` runs `harness-check`, `drift-check`, `validate-docs`, `python-test`, and offline smokes; GitHub Actions runs the same gate on pull requests and pushes to `main` after `uv sync --frozen`; PyPI release provenance, Desktop agent boundaries, retired-MCP invariants, contract writer temp-file safety, query sandbox shape, cross_sheet source containment, and materialize field ACLs are now drift-checked | Semantic design drift checks beyond ADR and high-impact security anchors are still shallow | `FOLIO-H-006` |
+| Sheet Spec | 5 | Design overview defines `contract.yaml`, `records.jsonl`, derivations, provenance, cache-key, operations, and the Viewer end-to-end with ODCS subset alignment; `make verify` exercises every Phase 0–5 spec surface (parsing, querying, write semantics, derivations, materialize loop, cache, provenance, CLI verbs, TOON, extension kinds, datapackage export, Viewer REST + CSRF) through pytest plus the CLI / materialize / scripts / extension-kinds / Viewer smokes; cross_sheet resolver tests cover absolute path rejection, parent-directory containment, symlink escape rejection, and records-only directory rejection; materialize ACL tests prove denied actors cannot write protected derived fields or provenance | Phase 5 V4–V6 (materialize dashboard, history, SSE) is spec-only | `FOLIO-H-025` |
 | Phase 0 SDK | 5 | `folio.open_sheet` exposes `get_contract`, `query` (single-statement DuckDB SELECT-only plus external-access sandboxing), `list_records` with pagination, `get_record`, `upsert_records`, and `delete_records` with `.lock` (30s timeout via filelock), atomic temp+rename writes using exclusive random same-directory temp files for `records.jsonl` and `contract.yaml`, primaryKey/required validation, and fnmatch-based `editable_by` enforcement; pytest covers the operation surface, atomic-write rollback, concurrent-writer serialization, `read_text` file exfiltration blocking, stacked-statement rejection, and contract temp-file symlink regression | Query safety still depends on DuckDB honoring `enable_external_access=false`; keep the focused regressions in the full gate | `FOLIO-H-034` |
 | Phase 0 CLI | 4 | `folio` CLI exposes `validate`, `query`, `list`, `count`, `upsert`, and `delete` via Typer; registered as a project script through `pyproject.toml`; covered by 16 `CliRunner` cases plus `scripts/smoke-cli.sh` that runs the §23.3 scenario end-to-end behind `make verify` | TOON output, `--format` switching, and the `materialize`/`status`/`provenance`/`serve` verbs are not implemented yet (Phase 1+) | `FOLIO-H-005` |
 | Design Docs & ADRs | 5 | Canonical design docs live under `docs/design-docs/`; nine indexed ADRs cover the docs hierarchy, every Phase 0 design choice encoded in code, and the Phase 1 AI client Protocol + deterministic stub (ADR-0009); `make validate-docs` enforces sequential numbering, indexing, required sections, and a confirmation path for accepted ADRs | Semantic ADR-to-code drift checks beyond the current anchors are still shallow | `FOLIO-H-006` |
@@ -31,7 +31,8 @@ ADR-anchored. The repository now ships:
 - The Phase 0 SDK + CLI (contract, query, list, get, upsert, delete), with
   DuckDB caller SQL sandboxed from arbitrary local file reads.
 - The Phase 1 materialize loop with cache + provenance + ai/import
-  kinds (offline-capable through `StubAIClient`).
+  kinds (offline-capable through `StubAIClient`) and `x-editable-by`
+  enforcement on materialized derived-field writes.
 - Phase 2 reusable scripts (`Sheet.run_script` + `folio script
   run`) and a typed README frontmatter (`Sheet.metadata`).
 - Phase 3 TOON encoder for `list_records`. The former MCP server surface
@@ -66,6 +67,10 @@ sources must be relative, remain inside the calling sheet's parent directory
 after symlink resolution, and include a valid `contract.yaml` before Folio reads
 their `records.jsonl`.
 
+`FOLIO-H-036` fixes the materialize field-ACL bypass: selected derivation
+targets are checked with `_check_editable_by()` before derived values or
+provenance can be written.
+
 Drift-check enforces five ADR invariants mechanically: anthropic
 import location (ADR-0009), duckdb / filelock retention
 (ADR-0005 / ADR-0006), fixture sheets free of cache / runtime
@@ -79,7 +84,8 @@ the retired MCP package, docs, dependency, console script, or smoke target. It
 also rejects predictable contract temp names and direct `Path.write_text` sinks
 in `write_contract()`, plus the DuckDB query sandbox ingredients and Viewer
 HTTP regression. It also rejects removal of the `cross_sheet` source
-containment checks and resolver regressions.
+containment checks and resolver regressions. It also rejects removal of the
+materialize field-ACL check and regression.
 `make verify` runs the full pytest suite plus five offline smokes (`cli`,
 `materialize`, `scripts`, `extension-kinds`, `viewer`). The viewer smoke now
 exercises SSE end-to-end against a live `uvicorn` instance.
