@@ -29,8 +29,8 @@ caching, TOON, or the Viewer.
     access; only Folio's in-memory `records` relation is exposed.
 - Core operations on the SDK surface:
   - `get_contract()`
-  - `query(sql, params=None)` — SELECT-only enforcement plus external-access
-    sandboxing.
+  - `query(sql, params=None)` — single SELECT-style statement enforcement plus
+    external-access sandboxing.
   - `list_records(filter=None, fields=None, limit=50, cursor=None)`
     returning `format=json`.
   - `get_record(id, fields=None)`.

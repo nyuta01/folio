@@ -459,12 +459,46 @@ def validate_contract_write_invariants() -> None:
             )
 
 
+def validate_duckdb_query_sandbox_invariants() -> None:
+    """Keep caller SQL confined to Folio's in-memory records relation."""
+    query_path = ROOT / "src" / "folio" / "_query.py"
+    viewer_test_path = ROOT / "tests" / "test_viewer.py"
+    if not query_path.exists():
+        return
+
+    text = query_path.read_text(encoding="utf-8")
+    for required_text in (
+        "enable_external_access",
+        "_records.read_records",
+        "_ensure_single_statement",
+    ):
+        if required_text not in text:
+            fail(
+                "src/folio/_query.py: query execution must keep DuckDB caller "
+                f"SQL sandboxed ({required_text})"
+            )
+    if "read_json(" in text:
+        fail(
+            "src/folio/_query.py: caller query setup must not use DuckDB "
+            "read_json; load records through Python before disabling external access"
+        )
+
+    if viewer_test_path.exists():
+        viewer_tests = viewer_test_path.read_text(encoding="utf-8")
+        if "test_query_sandbox_blocks_external_file_reads" not in viewer_tests:
+            fail(
+                "tests/test_viewer.py: /api/query must have an external-file-read "
+                "regression test"
+            )
+
+
 validate_adr_anchored_invariants()
 validate_release_python_publish_invariants()
 validate_desktop_agent_execution_invariants()
 validate_desktop_agent_ipc_invariants()
 validate_mcp_removed_invariants()
 validate_contract_write_invariants()
+validate_duckdb_query_sandbox_invariants()
 validate_failure_log((feature_list or {}).get("tasks") or [])
 
 

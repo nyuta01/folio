@@ -90,6 +90,12 @@ def test_query_strips_comments_before_keyword_check(populated_sheet: Path) -> No
     assert rows == [{"id": "a"}]
 
 
+def test_query_rejects_stacked_statement(populated_sheet: Path) -> None:
+    sheet = open_sheet(populated_sheet)
+    with pytest.raises(QueryError, match="one SQL statement"):
+        sheet.query("SELECT id FROM records; SELECT title FROM records")
+
+
 def test_query_cannot_read_files_outside_sheet(
     populated_sheet: Path, tmp_path: Path
 ) -> None:

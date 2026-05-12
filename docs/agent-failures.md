@@ -135,3 +135,24 @@ pre-creates the malicious predictable symlink and verifies a schema mutation
 does not alter the victim or turn `contract.yaml` into a symlink. `make drift-check`
 rejects reintroducing the predictable temp name or direct `Path.write_text`
 sink in `write_contract()`.
+
+## F-007 Viewer query route lacked direct sandbox regressions
+
+- **Status**: `fixed`
+- **Task**: `FOLIO-H-034`
+- **Plan**: `docs/exec-plans/active/FOLIO-H-034-plan.md`
+
+### Observation
+
+Viewer `POST /api/query` exposes `Sheet.query` over HTTP. The root DuckDB
+file-read primitive was fixed in `FOLIO-H-032`, but the Viewer route lacked a
+direct HTTP regression and the query guard still allowed stacked statements
+after a leading SELECT.
+
+### Permanent fix
+
+`Sheet.query` now rejects stacked SQL statements before execution.
+`tests/test_viewer.py::test_query_sandbox_blocks_external_file_reads` posts a
+DuckDB `read_csv(<outside file>)` query to `/api/query` and asserts the secret
+contents are not returned. `scripts/harness_drift.py` rejects removal of the
+query sandbox ingredients or the Viewer HTTP regression.
