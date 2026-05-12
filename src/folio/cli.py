@@ -127,7 +127,10 @@ def validate(
         )
 
 
-@app.command(name="query", help="Execute DuckDB SQL against the sheet's records view.")
+@app.command(
+    name="query",
+    help="Execute DuckDB SQL against the sheet's records relation.",
+)
 @_handle_folio_errors
 def query_command(
     sheet: Path = SHEET_ARGUMENT,

@@ -871,6 +871,37 @@
       "notes": "Removed the folio-mcp product surface entirely: package, console script, FastMCP dependency, tests, smoke target, public docs, nav entries, and spec references. Agents now use the CLI; integrations use the Python SDK. Added a drift check that rejects reintroducing the retired MCP package, docs, dependency, console script, or smoke target."
     },
     {
+      "id": "FOLIO-H-032",
+      "title": "Sandbox DuckDB query file access",
+      "priority": "P0",
+      "status": "done",
+      "owner": "agent",
+      "depends": ["FOLIO-H-003"],
+      "plan_url": "docs/exec-plans/active/FOLIO-H-032-plan.md",
+      "paths": [
+        "src/folio/_query.py",
+        "tests/test_sheet.py",
+        "docs/design-docs/overview.md",
+        "docs/design-docs/adrs/0004-store-records-as-line-delimited-json.md",
+        "docs/design-docs/adrs/0005-use-duckdb-select-only-for-queries.md",
+        "docs/product-specs/phase-0-minimum-sheet.md",
+        "SPECIFICATION.md",
+        "docs/exec-plans/active/FOLIO-H-032-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "docs/QUALITY_SCORE.md",
+        "docs/agent-failures.md",
+        "AGENT_PROGRESS.md"
+      ],
+      "verification": {
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true,
+        "python_test": true,
+        "security_regression": true
+      },
+      "notes": "Disabled DuckDB external access for caller SQL and preloads records.jsonl through Python into a typed temporary records table, preventing SELECT statements from exfiltrating local files via read_text/read_csv/read_json/glob while preserving the records query API."
+    },
+    {
       "id": "FOLIO-H-006",
       "title": "Maintain self-PDCA loop and quality feedback artifacts",
       "priority": "P1",

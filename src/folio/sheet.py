@@ -125,7 +125,7 @@ class Sheet:
         sql: str,
         params: Sequence[Any] | None = None,
     ) -> list[dict[str, Any]]:
-        """Execute a SELECT-only DuckDB query against the ``records`` view."""
+        """Execute a SELECT-only DuckDB query against the ``records`` relation."""
         return _query.execute_query(self._contract, self.records_path, sql, params)
 
     # --- operation: list_records ----------------------------------------

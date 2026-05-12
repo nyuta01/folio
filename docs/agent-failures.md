@@ -90,3 +90,23 @@ The MCP server surface was removed rather than retained with safer prose:
 `folio-mcp`, `src/folio_mcp`, FastMCP, MCP docs, MCP tests, and `mcp-smoke` are
 gone. `scripts/harness_drift.py` rejects reintroducing the package, docs,
 dependency, console script, or smoke target.
+
+## F-005 DuckDB SELECT-only was not filesystem-sandboxed
+
+- **Status**: `fixed`
+- **Task**: `FOLIO-H-032`
+- **Plan**: `docs/exec-plans/active/FOLIO-H-032-plan.md`
+
+### Observation
+
+`Sheet.query` rejected write-leading SQL but still allowed SELECT statements to
+call DuckDB external file functions such as `read_text`, exposing files
+readable by the Folio process.
+
+### Permanent fix
+
+`src/folio/_query.py` now loads `records.jsonl` through Python into an
+in-memory DuckDB table and connects with `enable_external_access=false`;
+`tests/test_sheet.py::test_query_cannot_read_files_outside_sheet` guards the
+exploit path. Any future query, SQL derivation, or DuckDB extension work must
+preserve that external-access sandbox.

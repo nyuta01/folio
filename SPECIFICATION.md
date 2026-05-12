@@ -264,11 +264,15 @@ Folio does **not** guarantee record order across writes.
 appends new ones at the end. If you need a stable order, use an
 `ORDER BY` in your query.
 
-#### 3.2.5 DuckDB view
+#### 3.2.5 DuckDB relation
 
-Folio exposes records to DuckDB as a view named `records`. **Only
+Folio exposes records to DuckDB as a relation named `records`. **Only
 `SELECT` is allowed**; INSERT / UPDATE / DELETE / DDL are rejected at
 the Folio layer. Use `upsert_records` / `delete_records` to mutate.
+Caller SQL must not be able to read arbitrary local files; the reference
+implementation loads `records.jsonl` through Python, inserts rows into a
+temporary DuckDB table, and disables DuckDB external access before
+executing caller SQL.
 
 ```python
 sheet.query("SELECT * FROM records WHERE country = ?", ["Japan"])
@@ -421,7 +425,7 @@ first use under `<user-cache>/folio/<sheet-id>/runtime/venv/`.
 
 #### 3.4.5 `sql` kind
 
-Evaluates a DuckDB SELECT-only expression against the `records` view.
+Evaluates a DuckDB SELECT-only expression against the `records` relation.
 
 <!-- spec-table: derivation-sql-fields -->
 
@@ -689,7 +693,7 @@ Typer command tree, JSON to stdout. Verbs:
 |---|---|
 | `init` | Scaffold a new sheet directory with starter `contract.yaml` / `records.jsonl` / `README.md` / `skills/getting-started.md`. |
 | `validate` | Validate `contract.yaml`, `records.jsonl`, and README frontmatter. |
-| `query` | Execute DuckDB SQL against the sheet's records view. |
+| `query` | Execute DuckDB SQL against the sheet's records relation. |
 | `list` | List records as a JSON envelope (records may be `json` or `toon`). |
 | `count` | Count records, optionally with a WHERE-clause filter. |
 | `upsert` | Insert or update records by `primaryKey`. |
@@ -869,7 +873,7 @@ The Viewer additionally reads:
   `records.jsonl`; the `logicalType` mapping in §3.1.4 lists the
   Frictionless-side names.
 - **DuckDB** — <https://duckdb.org>. The query engine exposed by
-  §3.2.5 (read-only; SELECT-only).
+  §3.2.5 (read-only, SELECT-only, and external-access disabled for caller SQL).
 - **POSIX `fnmatch(3)` — pattern matching** — referenced by
   `x-editable-by` patterns (§3.1.3).
 - **Server-Sent Events (`text/event-stream`)** —
@@ -888,7 +892,8 @@ set of design decisions:
 - **JSONL for records.** Streamable, grep-able, DuckDB-readable
   without ceremony.
 - **DuckDB SELECT-only for queries.** Reads share the engine; writes
-  go through the SDK so atomicity and provenance hold.
+  go through the SDK so atomicity and provenance hold, and caller SQL
+  cannot use DuckDB external-access functions as a local file reader.
 - **Single-writer `.lock`.** A 30-second `filelock` keeps multi-process
   semantics simple.
 - **`fnmatch` for `x-editable-by`.** Familiar pattern syntax;
