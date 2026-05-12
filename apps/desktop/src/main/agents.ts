@@ -9,8 +9,8 @@
 
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { existsSync } from "node:fs";
-import { join, delimiter as PATH_DELIM } from "node:path";
+import { accessSync, constants, existsSync } from "node:fs";
+import { isAbsolute, join, delimiter as PATH_DELIM } from "node:path";
 import type { WebContents } from "electron";
 
 /** Shape passed to AgentSpec.argv for one turn. */
@@ -248,12 +248,65 @@ function newId(): string {
   return "s_" + randomBytes(6).toString("hex");
 }
 
+function executableNames(bin: string): string[] {
+  if (process.platform !== "win32") return [bin];
+  if (/\.[^\\/]+$/.test(bin)) return [bin];
+
+  const pathExt = process.env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD";
+  return pathExt
+    .split(";")
+    .map((ext) => ext.trim())
+    .filter((ext) => ext.length > 0)
+    .map((ext) => bin + ext);
+}
+
+function canExecute(path: string): boolean {
+  try {
+    accessSync(
+      path,
+      process.platform === "win32" ? constants.F_OK : constants.X_OK,
+    );
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolveExecutableOnHostPath(bin: string): string | undefined {
+  if (bin.includes("/") || bin.includes("\\")) {
+    return isAbsolute(bin) && canExecute(bin) ? bin : undefined;
+  }
+
+  const pathEntries = (process.env.PATH ?? "")
+    .split(PATH_DELIM)
+    .filter((entry) => entry.length > 0 && entry !== ".");
+
+  for (const dir of pathEntries) {
+    for (const name of executableNames(bin)) {
+      const candidate = join(dir, name);
+      if (canExecute(candidate)) return candidate;
+    }
+  }
+  return undefined;
+}
+
 /** Best-effort PATH lookup probe — runs the agent's `--version`. */
 export async function probeAgent(spec: AgentSpec): Promise<AgentAvailability> {
   return new Promise((resolve) => {
+    const executable = resolveExecutableOnHostPath(spec.bin);
+    if (!executable) {
+      resolve({
+        id: spec.id,
+        label: spec.label,
+        available: false,
+        installHint: spec.installHint,
+      });
+      return;
+    }
+
     let proc: ChildProcessWithoutNullStreams;
     try {
-      proc = spawn(spec.bin, spec.check.args, { stdio: "pipe" });
+      proc = spawn(executable, spec.check.args, { stdio: "pipe" });
     } catch {
       resolve({
         id: spec.id,
@@ -300,28 +353,19 @@ export function runAgent(
 
   const systemHint = buildSheetHint(opts.cwd);
 
-  // Source-checkout convenience: if the sheet is a `folio` repo checkout
-  // with `.venv/bin/folio`, make sure that's first on PATH. Packaged
-  // installs come in via shell-PATH augmentation at app startup.
-  const env = { ...process.env };
-  const venvCandidates = [
-    join(opts.cwd, ".venv", "bin"),
-    // Walk up a couple of levels — sheets often live under examples/<name>/
-    // while the venv is at the repo root.
-    join(opts.cwd, "..", ".venv", "bin"),
-    join(opts.cwd, "..", "..", ".venv", "bin"),
-  ];
-  for (const dir of venvCandidates) {
-    if (existsSync(join(dir, "folio"))) {
-      env.PATH = dir + PATH_DELIM + (env.PATH ?? "");
-      break;
-    }
+  // Desktop chat agents are trusted host tools. Resolve the executable from
+  // the app's host PATH before changing cwd to the opened sheet, and never
+  // prepend sheet-controlled directories such as `.venv/bin`.
+  const executable = resolveExecutableOnHostPath(spec.bin);
+  if (!executable) {
+    return { ok: false, error: `${spec.label} executable not found on PATH` };
   }
+  const env = { ...process.env };
 
   let proc: ChildProcessWithoutNullStreams;
   try {
     proc = spawn(
-      spec.bin,
+      executable,
       spec.argv({
         prompt: opts.prompt,
         isFollowup: !!opts.isFollowup,

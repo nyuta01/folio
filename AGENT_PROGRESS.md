@@ -139,7 +139,9 @@ Last updated: 2026-05-12
   may be imported only from `src/folio_viewer/`. The drift gate
   also enforces the release security invariant from `FOLIO-H-028`:
   PyPI publishing must use same-run build artifacts rather than
-  mutable GitHub Release assets.
+  mutable GitHub Release assets. It also enforces the Desktop agent
+  execution invariant from `FOLIO-H-029`: `runAgent` must not mutate
+  `PATH` from sheet-controlled locations before spawning chat agents.
 - `make verify` runs harness shape (`harness-check`), drift
   detection (`drift-check`), docs validation (`validate-docs`),
   pytest (`python-test`) covering Phase 0 / 1 / 2 / 3 / 4 / 5,
@@ -153,6 +155,11 @@ Last updated: 2026-05-12
   specification. `scripts/verify_spec.py` parses every machine-marked
   table and asserts it matches the live code; `make verify-spec` is part
   of the `verify` gate. Drift fails CI.
+- Desktop agent execution was hardened after a high-impact security finding:
+  `apps/desktop/src/main/agents.ts::runAgent` no longer prepends `.venv/bin`
+  directories derived from the opened sheet before spawning `claude`, and
+  resolves the agent executable from the host PATH before using the sheet as
+  child-process cwd.
 - Distribution artifacts:
   - `make dist` builds `dist/folio_kit-*.whl` + `dist/folio_kit-*.tar.gz` via
     `uv build`. `make dist-check` smokes the wheel in a clean venv.
@@ -176,9 +183,11 @@ Last updated: 2026-05-12
 ## Next Action
 
 All product backlog (Phases 0 / 1 / 2 / 3 / 4 / 5) is
-feature-complete and ADR-anchored. `FOLIO-H-028` is complete; on the
-next real Release publication, confirm GitHub Actions downloads the same-run
-`folio-python-<tag>` artifact before PyPI upload. The standing tasks are:
+feature-complete and ADR-anchored. `FOLIO-H-028` and `FOLIO-H-029` are
+complete; on the next real Release publication, confirm GitHub Actions
+downloads the same-run `folio-python-<tag>` artifact before PyPI upload, and
+on the next packaged Desktop smoke confirm chat agents still resolve from the
+host install. The standing tasks are:
 
 - `FOLIO-H-006`: self-PDCA loop maintenance.
 - `FOLIO-H-007`: permanent-fix loop maintenance.

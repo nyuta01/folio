@@ -780,6 +780,32 @@
       "notes": "Fixed the release-published PyPI path to rebuild and smoke-test from the release tag, then publish only artifacts uploaded by the same workflow run. Added a drift invariant that rejects mutable GitHub Release asset downloads and unsafe release-tag shell interpolation in the PyPI publish job."
     },
     {
+      "id": "FOLIO-H-029",
+      "title": "Harden Desktop agent PATH handling",
+      "priority": "P0",
+      "status": "done",
+      "owner": "agent",
+      "depends": ["FOLIO-H-007"],
+      "plan_url": "docs/exec-plans/active/FOLIO-H-029-plan.md",
+      "paths": [
+        "apps/desktop/src/main/agents.ts",
+        "scripts/harness_drift.py",
+        "docs/exec-plans/active/FOLIO-H-029-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "docs/QUALITY_SCORE.md",
+        "docs/agent-failures.md",
+        "AGENT_PROGRESS.md"
+      ],
+      "verification": {
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true,
+        "desktop_check": true,
+        "desktop_build": true
+      },
+      "notes": "Removed sheet-derived .venv/bin PATH prepending from the Electron desktop runAgent path so an untrusted sheet cannot satisfy the folio marker and hijack the bare claude command. The agent executable is resolved from the host PATH before spawning with the sheet cwd. Added a drift check that rejects future direct PATH mutation in apps/desktop/src/main/agents.ts."
+    },
+    {
       "id": "FOLIO-H-006",
       "title": "Maintain self-PDCA loop and quality feedback artifacts",
       "priority": "P1",
