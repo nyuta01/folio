@@ -244,12 +244,12 @@ def validate_adr_anchored_invariants() -> None:
             )
 
     # FastAPI / uvicorn are Phase 5 Viewer dependencies and must not leak
-    # into the SDK or the MCP server. Both ship under src/folio_viewer/.
+    # into the SDK. Both ship under src/folio_viewer/.
     viewer_only = re.compile(
         r"^\s*(import\s+(fastapi|uvicorn)|from\s+(fastapi|uvicorn)\b)",
         re.MULTILINE,
     )
-    for module_dir in ("folio", "folio_mcp"):
+    for module_dir in ("folio",):
         module_root = ROOT / "src" / module_dir
         if not module_root.is_dir():
             continue
@@ -416,10 +416,29 @@ def validate_desktop_agent_ipc_invariants() -> None:
         fail("viewer/src/folio-bridge.d.ts: AgentsBridge.run must not expose cwd")
 
 
+def validate_mcp_removed_invariants() -> None:
+    """Keep the retired MCP server surface from drifting back in."""
+    if (ROOT / "src" / "folio_mcp").exists():
+        fail("src/folio_mcp: MCP server package was removed; use the CLI or SDK")
+    if (ROOT / "apps" / "docs" / "src" / "content" / "docs" / "mcp").exists():
+        fail("apps/docs/src/content/docs/mcp: MCP product docs were removed")
+
+    pyproject = ROOT / "pyproject.toml"
+    if pyproject.exists():
+        text = pyproject.read_text(encoding="utf-8")
+        if "fastmcp" in text or "folio-mcp" in text or "folio_mcp" in text:
+            fail("pyproject.toml: MCP dependency and console script must stay removed")
+
+    makefile = ROOT / "Makefile"
+    if makefile.exists() and "mcp-smoke" in makefile.read_text(encoding="utf-8"):
+        fail("Makefile: mcp-smoke must stay removed from the verification gate")
+
+
 validate_adr_anchored_invariants()
 validate_release_python_publish_invariants()
 validate_desktop_agent_execution_invariants()
 validate_desktop_agent_ipc_invariants()
+validate_mcp_removed_invariants()
 validate_failure_log((feature_list or {}).get("tasks") or [])
 
 

@@ -82,13 +82,11 @@ Last updated: 2026-05-12
   `src/folio/readme.py` exposes a Pydantic v2 `Frontmatter`
   (purpose / default_actor / tags / links / agent_skills) that
   `folio validate [--strict]` surfaces.
-- Phase 3 (MCP + TOON) is implemented: `folio-mcp` ships as a
-  sibling Python package whose FastMCP server exposes the nine SDK
-  operations as MCP tools (with when-to-use docstrings, sheet-path
-  resolution against `--root`, AIClient injection for materialize),
-  and `src/folio/_toon.py` adds a thin TOON encoder plumbed through
+- Phase 3 TOON output is implemented: `src/folio/_toon.py` adds a
+  thin TOON encoder plumbed through
   `Sheet.list_records(format="json"|"toon")` and `folio list
-  --format`.
+  --format`. The former `folio-mcp` server surface was removed in
+  `FOLIO-H-031`; agents use the CLI and integrations use the SDK.
 - Phase 4 (extension kinds + datapackage.json) is implemented:
   `src/folio/kinds/` houses `SQLDerivation` (DuckDB SELECT-only
   expression with parameter passthrough), `HTTPDerivation`
@@ -144,12 +142,14 @@ Last updated: 2026-05-12
   `PATH` from sheet-controlled locations before spawning chat agents.
   `FOLIO-H-030` adds the IPC boundary invariant: Desktop agent cwd must
   come from the Electron main-process `currentSheet`, never renderer
-  payload fields.
+  payload fields. `FOLIO-H-031` adds the retired-MCP invariant:
+  `src/folio_mcp`, `folio-mcp`, FastMCP, MCP docs, and `mcp-smoke`
+  must stay removed.
 - `make verify` runs harness shape (`harness-check`), drift
   detection (`drift-check`), docs validation (`validate-docs`),
   pytest (`python-test`) covering Phase 0 / 1 / 2 / 3 / 4 / 5,
-  plus six smokes: `cli-smoke`, `materialize-smoke`,
-  `scripts-smoke`, `mcp-smoke`, `extension-kinds-smoke`,
+  plus five smokes: `cli-smoke`, `materialize-smoke`,
+  `scripts-smoke`, `extension-kinds-smoke`,
   `viewer-smoke`. All run offline through `StubAIClient` /
   `StubHTTPTransport` / mocked filesystems.
 - GitHub Actions installs dependencies via `uv sync --frozen` and
@@ -189,7 +189,8 @@ Last updated: 2026-05-12
 
 All product backlog (Phases 0 / 1 / 2 / 3 / 4 / 5) is
 feature-complete and ADR-anchored. `FOLIO-H-028`, `FOLIO-H-029`, and
-`FOLIO-H-030` are complete. On the next real Release publication, confirm
+`FOLIO-H-030` are complete. `FOLIO-H-031` removed the unnecessary MCP
+server surface. On the next real Release publication, confirm
 GitHub Actions downloads the same-run `folio-python-<tag>` artifact before
 PyPI upload, and on the next packaged Desktop smoke confirm chat agents still
 resolve from the host install and run in the current sheet. The standing tasks
@@ -205,7 +206,7 @@ all out of scope for Phase 5 per §15).
 
 ## Open Notes
 
-- Phase-specific smokes (CLI smoke, MCP smoke, Viewer smoke) should land
+- Phase-specific smokes (CLI smoke, Viewer smoke) should land
   alongside the product code that needs them, not before.
 - Add or update an ADR when future changes alter architecture, persistence,
   protocol, security posture, or harness policy.

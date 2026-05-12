@@ -4,7 +4,7 @@
 
 <h1 align="center">folio-kit</h1>
 
-Portable, AI-native data sheets. The Python distribution ships three
+Portable, AI-native data sheets. The Python distribution ships two
 console scripts and a Python SDK for reading and writing typed data
 sheets that humans and AI agents can both edit.
 
@@ -24,7 +24,6 @@ my-sheet/
 | Surface | Command | Purpose |
 |---|---|---|
 | CLI | `folio` | init, validate, query, list, count, upsert, delete, materialize, status, provenance, serve, script, skill, export |
-| MCP server | `folio-mcp` | FastMCP server exposing the SDK over stdio or HTTP — plus one MCP prompt per skill — drop into Claude Desktop / Cursor / any MCP client |
 | Viewer backend | `folio-viewer` | Local-only FastAPI server that powers the Folio Viewer desktop app and web UI |
 | Python SDK | `from folio import open_sheet` | Programmatic access to the same operations as the CLI |
 

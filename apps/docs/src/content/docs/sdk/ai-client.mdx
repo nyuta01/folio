@@ -150,12 +150,11 @@ adapter = OpenAIAdapter(client=openai.OpenAI(api_key=...))
 sheet.materialize(ai_client=adapter)
 ```
 
-The MCP server's `materialize` tool and the Viewer's `/api/materialize`
-endpoint accept the same injection at construction time:
+The Viewer can receive the same injection at construction time:
 
 ```python
-from folio_mcp import build_server
-server = build_server(root="./sheets", default_actor="agent:hosted", ai_client=adapter)
+from folio_viewer.server import build_app
+app = build_app(sheet_path="./customers", actor="agent:hosted", ai_client=adapter)
 ```
 
 ## Testing tips

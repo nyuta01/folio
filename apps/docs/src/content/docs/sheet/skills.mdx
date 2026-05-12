@@ -1,6 +1,6 @@
 ---
 title: "skills/"
-description: Packaged how-to procedures that ship inside a Folio sheet — discoverable via MCP, runnable from CLI, validated by the harness.
+description: Packaged how-to procedures that ship inside a Folio sheet — discoverable via CLI, runnable by agents, validated by the harness.
 ---
 
 A **sheet skill** is a short, named markdown procedure stored inside
@@ -113,25 +113,6 @@ body   = sheet.render_skill("fill-missing-industries", {"only_country": "JP"})
 `Skill` is a pydantic model — `name`, `description`, `audience`,
 `arguments`, `tools`, `allowed_actors`, `body`.
 
-## MCP
-
-The Folio MCP server (`folio-mcp`) publishes one **prompt** per
-discovered skill under `prompts/list`. Prompt name uses the form
-`<sheet-id>:<skill-name>` to avoid collisions when a single server
-hosts multiple sheets:
-
-```
-example-customers:fill-missing-industries
-example-customer-revenue:refresh-revenue
-example-onboarding:advance-onboarding
-```
-
-Skill arguments are exposed as the prompt's argument schema;
-`prompts/get` returns the rendered body with substitutions filled
-in. Tools / `allowed_actors` are **advisory** metadata — the actual
-enforcement still happens at the MCP tool layer (existing
-`x-editable-by` semantics).
-
 ## Worked example
 
 ```yaml
@@ -160,10 +141,6 @@ $ folio skill show examples/onboarding advance-onboarding --arg hire_id=ob_002
 Mark one checklist item complete on `ob_002` and let the
 …
 ```
-
-The same skill is reachable over MCP as the prompt
-`example-onboarding:advance-onboarding`, with `hire_id` shown as a
-required argument.
 
 ## When to use a skill vs. other surfaces
 

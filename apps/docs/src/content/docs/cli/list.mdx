@@ -12,9 +12,8 @@ folio list <SHEET>
 ```
 
 Returns a JSON envelope with `records`, `format`, `limit`, and
-`next_cursor`. Built for agent and tool consumption — pair with the MCP
-server's `list_records` tool, or with the Viewer's `/api/records`
-endpoint.
+`next_cursor`. Built for agent and tool consumption through the CLI or
+the Viewer's `/api/records` endpoint.
 
 ## Default output
 
@@ -89,5 +88,5 @@ data.
 ## When to use
 
 - **`folio list`** when an agent wants a paginated table of rows with
-  cursor support. The natural mapping to the MCP `list_records` tool.
+  cursor support.
 - **`folio query`** when you need joins, aggregations, or windows.

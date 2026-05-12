@@ -119,9 +119,8 @@ tools: [materialize, list_records, provenance]
 Run `materialize` with `targets: ["country_code"]`…
 ```
 
-Skills surface uniformly: `folio skill list/show/run`, `Sheet.list_skills`,
-and MCP prompts named `<sheet-id>:<skill-name>`. See the
-[Sheet skills specification](/folio/sheet/skills/).
+Skills surface uniformly through `folio skill list/show/run` and
+`Sheet.list_skills`. See the [Sheet skills specification](/folio/sheet/skills/).
 
 ## Provenance
 
@@ -160,14 +159,12 @@ See [ADR-0008](/folio/reference/adrs/) for the rationale.
 
 ## Surfaces
 
-Same sheet, four interfaces:
+Same sheet, three interfaces:
 
 - [**CLI**](/folio/cli/overview/) (`folio`) — for shell scripts and humans.
 - [**Python SDK**](/folio/sdk/overview/) (`folio`) — for application code and tests.
-- [**MCP server**](/folio/mcp/overview/) (`folio-mcp`) — exposes the SDK as MCP
-  tools so agents speak it through standard runtimes.
 - [**Viewer**](/folio/viewer/overview/) (`folio-viewer`) — local-only FastAPI +
   React app for human review.
 
-All four are thin wrappers over the same Python SDK and read/write the same
+All three are thin wrappers over the same Python SDK and read/write the same
 files.

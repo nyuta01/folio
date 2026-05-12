@@ -48,7 +48,7 @@ and update task state before expanding scope.
 
 `make verify` is the single repository gate. It starts with harness, drift,
 and docs checks. As product code appears, add Python unit tests, CLI smoke,
-MCP smoke, and Viewer smoke behind the same target.
+and Viewer smoke behind the same target.
 
 ### CI Runs The Same Gate
 
@@ -94,8 +94,6 @@ As product code lands, `make verify` must add deterministic checks for:
 - DuckDB-backed read operations against `records.jsonl` (Phase 0).
 - `folio` CLI smoke against a temporary local sheet (Phase 0).
 - Derivation execution and provenance append-only behavior (Phase 1).
-- MCP server smoke that exercises the `query` and `list_records` tools
-  (Phase 3).
 - Viewer smoke that starts the FastAPI server and exercises the read path
   (Phase 5).
 

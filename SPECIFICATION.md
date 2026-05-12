@@ -40,9 +40,9 @@ optional derivations, and an append-only audit log. Folio is
 - a small **specification** (this file plus the ODCS-aligned contract
   schema),
 - a **Python reference implementation**,
-- and four read/write **surfaces** that all touch the same directory: the
-  CLI (`folio`), the SDK (`folio` Python package), the MCP server
-  (`folio-mcp`), and the local Viewer (`folio-viewer`, FastAPI + React).
+- and three read/write **surfaces** that all touch the same directory: the
+  CLI (`folio`), the SDK (`folio` Python package), and the local Viewer
+  (`folio-viewer`, FastAPI + React).
 
 The sheet is the **system of record.** Caches, virtualenvs, and runtime
 state live outside the sheet (see §6). Anything inside the sheet
@@ -90,7 +90,7 @@ my-sheet/
 ├── prompts/              # optional — markdown referenced by ai
 │   └── *.md              # derivations
 ├── skills/               # optional — packaged operating procedures
-│   └── *.md              # surfaced via CLI / SDK / MCP prompts (§3.8)
+│   └── *.md              # surfaced via CLI / SDK (§3.8)
 ├── README.md             # optional — typed YAML frontmatter (§3.6)
 └── .lock                 # filelock (30s timeout); Folio manages it
 ```
@@ -543,7 +543,7 @@ Frontmatter:
 | Field | Required | Notes |
 |---|---|---|
 | `name` | yes | URL-safe `^[a-z][a-z0-9-]*$`. Must equal the file's basename. |
-| `description` | yes | One-line summary surfaced in CLI / MCP listings. |
+| `description` | yes | One-line summary surfaced in CLI / SDK listings. |
 | `audience` | no | `agent` (default), `human`, or `both`. |
 | `arguments` | no | List of `{name, description?, required?}`. `name` matches `^[a-z][a-z0-9_]*$`. Substituted into the body via `{name}` placeholders. |
 | `tools` | no | Advisory allow-list of SDK method names (cross-checked against the live Sheet surface). |
@@ -552,10 +552,8 @@ Frontmatter:
 `folio validate` enforces basename / name agreement, declared
 argument placeholders, and tool-name validity. `Sheet.list_skills`,
 `Sheet.get_skill`, and `Sheet.render_skill` are the SDK surface;
-`folio skill list/show/validate` is the CLI surface. The MCP server
-publishes one prompt per skill as `<sheet-id>:<skill-name>` (see
-§7.3). `folio export claude-skills` emits one Claude Code-compatible
-`SKILL.md` directory per skill.
+`folio skill list/show/validate` is the CLI surface. `folio export
+claude-skills` emits one Claude Code-compatible `SKILL.md` directory per skill.
 
 The README frontmatter's optional `agent_skills:` field (see §3.6)
 acts as an advisory manifest cross-checked against this directory.
@@ -740,33 +738,7 @@ markdown files under `<sheet>/skills/` — short, named operating
 procedures the sheet carries for its agent / human users. See §3.8
 for the wire format.
 
-### 7.3 MCP (`folio-mcp`)
-
-FastMCP server exposing the SDK as tools so MCP-compatible runtimes
-(Claude Desktop, etc.) can read and write sheets without bespoke glue.
-
-<!-- spec-table: mcp-tools -->
-
-| Tool | Mirrors SDK method |
-|---|---|
-| `get_contract` | `Sheet.get_contract` |
-| `query` | `Sheet.query` |
-| `list_records` | `Sheet.list_records` |
-| `get_record` | `Sheet.get_record` |
-| `upsert_records` | `Sheet.upsert_records` |
-| `delete_records` | `Sheet.delete_records` |
-| `materialize` | `Sheet.materialize` |
-| `materialization_status` | `Sheet.materialization_status` |
-| `provenance` | `Sheet.provenance` |
-
-In addition to tools, the MCP server publishes one **prompt** per
-skill discovered under each sheet's `skills/` directory. Prompt
-names use the form `<sheet-id>:<skill-name>` to avoid collisions
-when one server hosts multiple sheets. Arguments declared on a skill
-are surfaced as the prompt's argument schema; `prompts/get` returns
-the rendered markdown body with substitutions filled in.
-
-### 7.4 Viewer (`folio-viewer`)
+### 7.3 Viewer (`folio-viewer`)
 
 FastAPI + React, **`127.0.0.1` only** by default. REST routes mirror
 SDK methods. All mutating verbs require a CSRF cookie + `X-CSRF-Token`
@@ -900,9 +872,6 @@ The Viewer additionally reads:
   §3.2.5 (read-only; SELECT-only).
 - **POSIX `fnmatch(3)` — pattern matching** — referenced by
   `x-editable-by` patterns (§3.1.3).
-- **Model Context Protocol (MCP)** —
-  <https://modelcontextprotocol.io>. The protocol the Folio MCP
-  surface speaks (§7.3).
 - **Server-Sent Events (`text/event-stream`)** —
   <https://html.spec.whatwg.org/multipage/server-sent-events.html>.
   The transport for the Viewer's lifecycle stream (`/events`).
@@ -954,7 +923,6 @@ The verifier parses the markdown tables marked
 | `readme-frontmatter` | `folio.readme.Frontmatter.model_fields` |
 | `cli-verbs` | top-level commands of the Typer app at `folio.cli:app` |
 | `sdk-methods` | public callable members of `folio.sheet.Sheet` |
-| `mcp-tools` | tools registered on the FastMCP server |
 | `viewer-routes` | FastAPI routes mounted by `folio_viewer.server.build_app` |
 | `exceptions` | classes in `folio.exceptions` plus `DerivationError` |
 

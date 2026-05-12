@@ -45,8 +45,8 @@ sheet.upsert_records([...], actor="agent:enrichment")  # overrides
 sheet.materialize(actor="agent:nightly")               # overrides
 ```
 
-The MCP server uses this pattern: it stores `default_actor` from the
-`--actor` CLI flag and lets every tool call override per-request.
+Use this pattern in application services that need a default actor but still
+allow explicit per-call overrides.
 
 ## Construction errors
 

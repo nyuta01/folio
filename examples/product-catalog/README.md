@@ -76,7 +76,7 @@ cells to confirm:
 Trying to commit an invalid value (e.g. `"P5"` into `priority` on
 the task-tracker, or `"banana"` into `category` here) surfaces a
 toast and keeps the editor open — the SDK side enforces the same
-rules via `OperationError`, so CLI / MCP writes get the same
+rules via `OperationError`, so CLI / SDK writes get the same
 guarantee.
 
 ## Honest scope

@@ -17,8 +17,7 @@ derivation kinds.
 | [`product-catalog/`](product-catalog) | **Type showcase** — every `logicalType` + enum + python + SQL derivations in one schema | `python` (in_stock, tag_count, price_tier) + `sql` (is_top_quartile_priced) | `restock-suggestions` |
 
 Every sheet ships at least one packaged operating procedure under
-`skills/*.md`. Run `folio skill list <sheet>` to discover them, or
-let an MCP client surface them as prompts.
+`skills/*.md`. Run `folio skill list <sheet>` to discover them.
 
 ## Quickstart
 

@@ -134,7 +134,6 @@ freshly computed `input_hash` (§8.3).
 - Extension derivation kinds (`sql`, `http`, `python`,
   `cross_sheet`). Phase 4.
 - TOON output formatting. Phase 3.
-- MCP server. Phase 3.
 - Viewer (FastAPI + React). Phase 5.
 - README.md frontmatter convention for AI metadata. Phase 2.
 - Reusable scripts under `scripts/` and language detection. Phase 2.

@@ -10,7 +10,7 @@ my-sheet/
 ```
 
 Phase 0 does not introduce derivations, provenance, scripts, attachments,
-caching, MCP, or the Viewer.
+caching, TOON, or the Viewer.
 
 ## In scope
 
@@ -47,7 +47,7 @@ caching, MCP, or the Viewer.
   cache, AI calls). See Phase 1.
 - Reusable scripts under `scripts/` and README frontmatter conventions. See
   Phase 2.
-- TOON output and the MCP server. See Phase 3.
+- TOON output. See Phase 3.
 - Extension derivation kinds (`sql`, `http`, `python`, `cross_sheet`) and
   `datapackage.json` generation. See Phase 4.
 - Viewer (FastAPI + React). See Phase 5.

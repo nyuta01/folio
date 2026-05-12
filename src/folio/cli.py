@@ -564,9 +564,8 @@ def _render_starter_skill() -> str:
 
         Replace this body with the steps an agent should take when working on
         this sheet. Skills are markdown files under `skills/<name>.md`; they
-        surface as `folio skill show <name>`, as MCP prompts named
-        `<sheet-id>:<skill-name>`, and (optionally) as Claude Skills via
-        `folio export claude-skills`.
+        surface as `folio skill show <name>` and (optionally) as Claude Skills
+        via `folio export claude-skills`.
         """
     )
 

@@ -28,13 +28,12 @@ When these conflict, decisions follow the order **Simplicity > Portability > Gen
 
 ## Project Name and Terminology
 
-**Folio** is the name of the entire project. It includes the CLI, SDK, MCP server, Viewer, and other implementations.
+**Folio** is the name of the entire project. It includes the CLI, SDK, Viewer, and other implementations.
 
 The data unit at the specification level is **sheet** (1 directory = 1 sheet). This adopts terminology close to industry-common concepts (ODCS / dbt / Airtable). One folio handles one sheet.
 
 Implementation package naming (reference):
 - `folio` — Python SDK + CLI
-- `folio-mcp` — MCP server
 - `folio-viewer` — Viewer
 
 ## Document Structure
@@ -69,7 +68,7 @@ What's missing is **"a data unit that AI agents can read and write as first-clas
 
 1. **Easy for AI to operate**: Code execution + filesystem interface as the center
 2. **Portable**: 1 directory = 1 unit. Self-contained via `tar`. Diffable via Git
-3. **Interface-independent**: The specification doesn't depend on any interface. CLI / SDK / MCP / Viewer are thin wrappers
+3. **Interface-independent**: The specification doesn't depend on any interface. CLI / SDK / Viewer are thin wrappers
 4. **Observable and reproducible**: Provenance for derived data, log for changes
 5. **Progressive strictness**: Build up gradually from a minimum configuration
 6. **Language-independent**: The Part 1 specification doesn't presuppose any specific language
@@ -91,7 +90,7 @@ What's missing is **"a data unit that AI agents can read and write as first-clas
 | Data contract | Open Data Contract Standard (ODCS) | Vocabulary for contracts |
 | Separation of declaration and implementation | dbt | Splitting schema from transform logic |
 | Field as asset | Dagster Software-Defined Assets | Reconciliation idea |
-| Agent interface | Anthropic Code Execution with MCP / Skills | File + code execution as center |
+| Agent interface | Anthropic Skills / code execution | File + code execution as center |
 | Output format | TOON | Token-saving wire format |
 | Derived field | Rowy Derivatives, Airtable formula | Derivation kind concept |
 
@@ -168,7 +167,7 @@ For simplicity, we use **2 layers**. Definition contains both "field declaration
 | **provenance** | Lineage info per record × field |
 | **actor** | The performer of an operation (free-form string) |
 
-Operation-side terms (SDK / CLI / MCP server / Viewer) are defined in Part 2.
+Operation-side terms (SDK / CLI / Viewer) are defined in Part 2.
 
 ## 4. Overall Architecture
 
@@ -206,10 +205,10 @@ my-sheet/
 ### 4.3 Interface Hierarchy
 
 ```
-   ┌──────┐  ┌──────────┐  ┌────────┐
-   │ CLI  │  │MCP server│  │ Viewer │  (any-language client)
-   └───┬──┘  └─────┬────┘  └────┬───┘
-       └───────────┴────────────┘
+   ┌──────┐  ┌────────┐
+   │ CLI  │  │ Viewer │  (any-language client)
+   └───┬──┘  └────┬───┘
+       └──────────┘
                   │
                   ▼ operates
        ┌──────────────────────┐
@@ -538,7 +537,7 @@ This keeps the permission model minimal while leaving room for extension. Real a
 
 ## 10. Operation Semantics
 
-This defines the semantics of operations on a sheet. Interfaces (CLI / MCP / Viewer / SDK) implement these.
+This defines the semantics of operations on a sheet. Interfaces (CLI / Viewer / SDK) implement these.
 
 ### 10.1 Design Approach
 
@@ -764,10 +763,10 @@ This is the **first reference implementation** provided by this project, written
 ## 15. Interfaces
 
 ```
-   ┌──────┐  ┌──────────┐  ┌────────┐
-   │ CLI  │  │MCP server│  │ Viewer │
-   └───┬──┘  └─────┬────┘  └────┬───┘
-       └───────────┴────────────┘
+   ┌──────┐  ┌────────┐
+   │ CLI  │  │ Viewer │
+   └───┬──┘  └────┬───┘
+       └──────────┘
                    │
                    ▼
               SDK (Python)
@@ -776,7 +775,7 @@ This is the **first reference implementation** provided by this project, written
          Sheet directory
 ```
 
-CLI / MCP server / Viewer access files through the SDK. The SDK exposes operations as Python methods.
+CLI and Viewer access files through the SDK. The SDK exposes operations as Python methods.
 
 ## 16. SDK Overview
 
@@ -836,43 +835,13 @@ folio serve <sheet> [--port 3000]            # Viewer server
 
 `<sheet>` is a path to a sheet directory. The `--filter` value is a SQL WHERE-clause string.
 
-## 18. MCP Server
+## 18. Agent Interfaces
 
-Exposes SDK operations as MCP tools using FastMCP.
-
-```python
-from fastmcp import FastMCP
-from folio import open_sheet
-
-mcp = FastMCP("folio")
-
-@mcp.tool
-def query(sheet_path: str, sql: str, params: list | None = None) -> dict:
-    """Execute DuckDB SQL on the sheet's records.
-
-    Use this for aggregations (COUNT, GROUP BY, MIN/MAX) instead of
-    fetching all records into context.
-
-    Use parameter placeholders (?) for user-provided values.
-    """
-    return open_sheet(sheet_path).query(sql, params)
-
-@mcp.tool
-def list_records(
-    sheet_path: str,
-    filter: str | None = None,
-    fields: list[str] | None = None,
-    format: Literal["json", "toon"] = "json",
-    limit: int = 50,
-) -> dict:
-    """List records. Default limit is small to protect context window.
-
-    Always specify `fields` to project only what you need.
-    """
-    ...
-```
-
-Docstrings include "when to use" and "how to combine" guidance for agents.
+Agents operate Folio through the CLI and sheet-local skills. The project does
+not ship a network tool server; removing that surface keeps Folio aligned with
+the local, inspectable, file-first trust model. Remote orchestration should use
+explicit application code on top of the SDK rather than exposing a generic
+unauthenticated sheet tool surface.
 
 ## 19. Viewer
 
@@ -918,7 +887,6 @@ One-to-one mapping with operations. Details finalized in Phase 5.
 | AI calls | anthropic SDK |
 | Lock | filelock |
 | Canonical JSON | rfc8785 |
-| MCP | FastMCP |
 | CLI | Typer |
 | Prompt template | self-implemented (`{{ field }}` only) |
 | HTTP | httpx (for http kind) |
@@ -946,7 +914,7 @@ This design follows the latter pattern. Aligning with Anthropic's production exa
 | 0 | contract.yaml + records.jsonl + core operations + CLI |
 | 1 | derivations/ (ai/import kind) + provenance + cache |
 | 2 | scripts/ + README frontmatter (AI metadata) |
-| 3 | MCP server + TOON output |
+| 3 | TOON output |
 | 4 | Extension kinds (sql/http/python) + datapackage.json generation |
 | 5 | Viewer |
 | 6 | Multi-sheet integration |
@@ -992,7 +960,7 @@ my-sheet/
 - provenance (no derivation execution, so it doesn't occur)
 - cache
 - TOON output (json only)
-- MCP server / Viewer
+- Viewer
 - scripts/
 - Extension kinds
 
@@ -1257,14 +1225,12 @@ If this scenario runs, Phase 1 is complete.
 - Rowy Derivatives field type
 - Airtable Formula / AI field
 - Anthropic Skills repository: https://github.com/anthropics/skills
-- Anthropic "Code execution with MCP"
 - Anthropic "Writing effective tools for agents"
 
 ### Libraries
 
 - Pydantic v2: https://docs.pydantic.dev/
 - DuckDB: https://duckdb.org/
-- FastMCP: https://github.com/jlowin/fastmcp
 - Typer: https://typer.tiangolo.com/
 - filelock: https://pypi.org/project/filelock/
 - FastAPI: https://fastapi.tiangolo.com/
