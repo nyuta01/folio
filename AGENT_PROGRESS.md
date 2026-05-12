@@ -97,7 +97,8 @@ Last updated: 2026-05-12
   `StubHTTPTransport` for offline tests), `PythonDerivation`
   (subprocess execution via `Sheet.run_script`), and
   `CrossSheetDerivation` (sibling-sheet match by primary key,
-  foreign records hash folded into `input_hash`).
+  relative-only source path constrained to the calling sheet's
+  parent directory, foreign records hash folded into `input_hash`).
   `src/folio/datapackage.py` + `folio export datapackage` map the
   contract to a Frictionless v1 descriptor.
 - Phase 5 (Viewer V0–V6) is implemented: `src/folio_viewer/`
@@ -142,6 +143,12 @@ Last updated: 2026-05-12
   same-directory temp file, fsyncs it, and publishes via `os.replace()`;
   tests pre-create a malicious `contract.yaml.tmp` symlink and verify schema
   edits do not clobber the symlink target.
+- Aardvark's `cross_sheet` records escape report is fixed in `FOLIO-H-035`:
+  `source_sheet` must be relative, resolve inside the calling sheet's parent
+  directory, and point at a valid Folio sheet (`contract.yaml` plus
+  `records.jsonl`) before materialize reads records. Tests cover absolute
+  paths, parent-directory traversal, symlink escapes, and records-only
+  directories.
 - ADR-to-code drift checks (`scripts/harness_drift.py::
   validate_adr_anchored_invariants`) pin ADR-0005 / ADR-0006 /
   ADR-0008 / ADR-0009 against silent regressions: anthropic
@@ -161,7 +168,9 @@ Last updated: 2026-05-12
   must stay removed. `FOLIO-H-033` rejects predictable contract temp names
   and direct `Path.write_text` sinks in `write_contract()`. `FOLIO-H-034`
   rejects removal of the DuckDB query sandbox ingredients or the Viewer
-  `/api/query` external-file-read regression.
+  `/api/query` external-file-read regression. `FOLIO-H-035` rejects
+  removal of the `cross_sheet` source containment checks and resolver
+  regressions.
 - `make verify` runs harness shape (`harness-check`), drift
   detection (`drift-check`), docs validation (`validate-docs`),
   pytest (`python-test`) covering Phase 0 / 1 / 2 / 3 / 4 / 5,
@@ -206,9 +215,11 @@ Last updated: 2026-05-12
 
 All product backlog (Phases 0 / 1 / 2 / 3 / 4 / 5) is
 feature-complete and ADR-anchored. `FOLIO-H-028`, `FOLIO-H-029`,
-`FOLIO-H-030`, `FOLIO-H-032`, `FOLIO-H-033`, and `FOLIO-H-034` are
+`FOLIO-H-030`, `FOLIO-H-032`, `FOLIO-H-033`, `FOLIO-H-034`, and
+`FOLIO-H-035` are
 complete. `FOLIO-H-031` removed the unnecessary MCP server surface.
-`FOLIO-H-034` locked the Viewer query sandbox regressions. On the next real
+`FOLIO-H-034` locked the Viewer query sandbox regressions, and
+`FOLIO-H-035` locked the `cross_sheet` sibling-source boundary. On the next real
 Release publication, confirm GitHub Actions downloads the same-run
 `folio-python-<tag>` artifact before PyPI upload, and on the next packaged
 Desktop smoke confirm chat agents still resolve from the host install and run

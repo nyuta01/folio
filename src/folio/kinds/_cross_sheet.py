@@ -1,10 +1,10 @@
 """``cross_sheet`` extension kind.
 
 Reads values from a sibling sheet's ``records.jsonl``. The foreign
-sheet is resolved by relative path; the current record's primary key
-selects the row to read. The foreign records-file hash folds into the
-materialize cache key so a foreign change invalidates downstream
-derivations.
+sheet is resolved by a relative path that must stay inside the calling
+sheet's parent directory; the current record's primary key selects the
+row to read. The foreign records-file hash folds into the materialize
+cache key so a foreign change invalidates downstream derivations.
 """
 
 from __future__ import annotations
@@ -17,6 +17,7 @@ from typing_extensions import Self
 
 from .._cache import sha256_file
 from .._records import read_records
+from ..contract import load_contract
 from ..derivation import _BaseDerivation
 from ..exceptions import FolioError
 
@@ -69,9 +70,26 @@ class CrossSheetDerivation(_BaseDerivation):
 
 
 def resolve_foreign_sheet(sheet_path: Path | str, source_sheet: str) -> Path:
-    target = (Path(sheet_path) / source_sheet).resolve()
+    source = Path(source_sheet)
+    if source.is_absolute():
+        raise FolioError(
+            f"cross_sheet source_sheet must be relative: {source_sheet}"
+        )
+
+    sheet_root = Path(sheet_path).resolve()
+    allowed_root = sheet_root.parent
+    target = (sheet_root / source).resolve()
+    try:
+        target.relative_to(allowed_root)
+    except ValueError as exc:
+        raise FolioError(
+            "cross_sheet source_sheet must stay inside the calling "
+            f"sheet's parent directory: {source_sheet}"
+        ) from exc
+
     if not target.is_dir():
         raise FolioError(f"cross_sheet source not found: {target}")
+    load_contract(target)
     if not (target / "records.jsonl").exists():
         raise FolioError(
             f"cross_sheet source missing records.jsonl: {target}"

@@ -44,7 +44,9 @@ expressible without leaving the materialize loop.
   missing-script rejection, and the Sheet.materialize integration.
 - `tests/test_kind_cross_sheet.py` covering: foreign sheet match
   by primary key, no-match no-op, multi-value mapping, missing
-  foreign sheet rejection, foreign-records hash invalidation.
+  foreign sheet rejection, absolute source rejection, parent-directory
+  escape rejection, records-only directory rejection, symlink escape
+  rejection, foreign-records hash invalidation.
 - `scripts/harness_check.py` requires the new modules and tests.
 
 ## Out of scope
@@ -77,12 +79,14 @@ Phase 4 extension set is incomplete.
 - Use `folio.scripts.run_script` for the python kind so the
   subprocess isolation, runtime cache placement (ADR-0008), and
   safe-name regex from `FOLIO-H-014` apply automatically.
-- Resolve `source_sheet` as a path relative to the current sheet
-  (e.g., `../parent-customers`) and validate that the resolved
-  target contains a `contract.yaml` + `records.jsonl`. Cross-sheet
-  paths can legitimately escape the current sheet directory (that's
-  the whole point of the kind), so the path-traversal guard from
-  the import kind does not apply here.
+- Resolve `source_sheet` as a relative path from the current sheet
+  (e.g., `../parent-customers`), reject absolute paths, require the
+  resolved target to stay inside the calling sheet's parent directory,
+  and validate that the target is a Folio sheet with `contract.yaml` +
+  `records.jsonl`. Cross-sheet paths can escape the current sheet
+  directory, but they must remain in the sheet's local sibling
+  workspace so materialize cannot read arbitrary local `records.jsonl`
+  files.
 - Fold the foreign `records.jsonl` content hash into the cache key
   so a derivation re-runs when the upstream sheet changes.
 
@@ -93,8 +97,12 @@ Phase 4 extension set is incomplete.
   two new test files.
 - The cross-sheet hash test pins the invalidation invariant so a
   refactor cannot accidentally cache stale foreign data.
+- Cross-sheet resolver tests pin the security boundary: no absolute
+  `source_sheet`, no traversal or symlink escape outside the calling
+  sheet's parent, and no records-only directory without `contract.yaml`.
 
 ## Next Check
 
-`FOLIO-H-024` and `FOLIO-H-025` ship the Viewer; the existing
-materialize CLI keeps working unchanged.
+Run `make verify` after future cross-sheet path changes, and include a
+new resolver regression if the later workspace model makes the allowed
+cross-sheet root configurable.

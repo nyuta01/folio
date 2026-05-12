@@ -156,3 +156,25 @@ after a leading SELECT.
 DuckDB `read_csv(<outside file>)` query to `/api/query` and asserts the secret
 contents are not returned. `scripts/harness_drift.py` rejects removal of the
 query sandbox ingredients or the Viewer HTTP regression.
+
+## F-008 cross_sheet source path escaped the sibling workspace
+
+- **Status**: `fixed`
+- **Task**: `FOLIO-H-035`
+- **Plan**: `docs/exec-plans/active/FOLIO-H-035-plan.md`
+
+### Observation
+
+`cross_sheet.source_sheet` was resolved as an unconstrained local path and only
+had to contain `records.jsonl`. A malicious derivation could point outside the
+calling sheet's sibling workspace and materialize selected fields from an
+unrelated local records file into the attacker's sheet.
+
+### Permanent fix
+
+`resolve_foreign_sheet()` now rejects absolute paths, resolves before checking
+containment, requires the target to stay inside the calling sheet's parent
+directory, and validates the foreign `contract.yaml` before reading
+`records.jsonl`. `tests/test_kind_cross_sheet.py` covers absolute path,
+parent-directory escape, symlink escape, and records-only directory
+regressions, and `scripts/harness_drift.py` pins the resolver checks.
