@@ -1,6 +1,6 @@
 # Quality Score
 
-Last updated: 2026-05-10
+Last updated: 2026-05-12
 
 Scores use a 1-5 scale:
 
@@ -16,7 +16,8 @@ Scores use a 1-5 scale:
 | Sheet Spec | 5 | Design overview defines `contract.yaml`, `records.jsonl`, derivations, provenance, cache-key, operations, and the Viewer end-to-end with ODCS subset alignment; `make verify` exercises every Phase 0–5 spec surface (parsing, querying, write semantics, derivations, materialize loop, cache, provenance, CLI verbs, MCP tools, TOON, extension kinds, datapackage export, Viewer REST + CSRF) through pytest plus the CLI / materialize / scripts / MCP / extension-kinds / Viewer smokes | Phase 5 V4–V6 (materialize dashboard, history, SSE) is spec-only | `FOLIO-H-025` |
 | Phase 0 SDK | 4 | `folio.open_sheet` exposes `get_contract`, `query` (DuckDB SELECT-only), `list_records` with pagination, `get_record`, `upsert_records`, and `delete_records` with `.lock` (30s timeout via filelock), atomic temp+rename writes, primaryKey/required validation, and fnmatch-based `editable_by` enforcement; pytest covers 35 cases including atomic-write rollback and concurrent-writer serialization | No CLI surface or smoke yet | `FOLIO-H-004` |
 | Phase 0 CLI | 4 | `folio` CLI exposes `validate`, `query`, `list`, `count`, `upsert`, and `delete` via Typer; registered as a project script through `pyproject.toml`; covered by 16 `CliRunner` cases plus `scripts/smoke-cli.sh` that runs the §23.3 scenario end-to-end behind `make verify` | TOON output, `--format` switching, and the `materialize`/`status`/`provenance`/`serve` verbs are not implemented yet (Phase 1+) | `FOLIO-H-005` |
-| Design Docs & ADRs | 5 | Canonical design docs live under `docs/design-docs/`; nine indexed ADRs cover the docs hierarchy, every Phase 0 design choice encoded in code, and the Phase 1 AI client Protocol + deterministic stub (ADR-0009); `make validate-docs` enforces sequential numbering, indexing, required sections, and a confirmation path for accepted ADRs | Semantic ADR-to-code drift checks beyond the four anchors enforced today (anthropic / duckdb / filelock / fastapi-uvicorn) are not enforced yet | `FOLIO-H-006` |
+| Design Docs & ADRs | 5 | Canonical design docs live under `docs/design-docs/`; nine indexed ADRs cover the docs hierarchy, every Phase 0 design choice encoded in code, and the Phase 1 AI client Protocol + deterministic stub (ADR-0009); `make validate-docs` enforces sequential numbering, indexing, required sections, and a confirmation path for accepted ADRs | Semantic ADR-to-code drift checks beyond the current anchors are still shallow | `FOLIO-H-006` |
+| Release Automation | 4 | `release-python.yml` rebuilds and smoke-tests from the release tag on Release publication, and PyPI OIDC publishing downloads only artifacts uploaded by the same workflow run; `make drift-check` rejects mutable GitHub Release asset downloads and publish-job release-tag shell interpolation | GitHub Actions behavior still needs end-to-end confirmation on the next real release | `FOLIO-H-028` |
 | Phase 5 Viewer | 5 | `src/folio_viewer/` ships a FastAPI backend (`folio-viewer` + `folio serve` alias) covering all of §19.3 V0–V6: contract / records / query / status / materialize / provenance routes, CSRF cookie + header on every mutating verb, `FolioError` mapped to a typed JSON envelope, an in-process `EventBus` whose `materialize.start` / `materialize.end` / `materialize.error` frames stream out over `/events` (SSE with 15-second keepalives); the Vite + React + TanStack Table scaffold under `viewer/` ships V0–V3 plus `Dashboard.tsx` (V4), `History.tsx` (V5), and `useEventStream.ts` (V6); pytest covers the API surface + the EventBus + the `folio serve` alias, and `scripts/smoke-viewer.sh` boots `uvicorn`, opens an SSE consumer, triggers materialize, and asserts the lifecycle frames arrive | Playwright frontend smoke is opt-in (Node toolchain is intentionally not wired into `make verify`) | — |
 
 ## Current Assessment
@@ -44,7 +45,9 @@ Drift-check enforces five ADR invariants mechanically: anthropic
 import location (ADR-0009), duckdb / filelock retention
 (ADR-0005 / ADR-0006), fixture sheets free of cache / runtime
 / venv state (ADR-0008), and Phase 5's viewer-only fastapi /
-uvicorn imports. `make verify` runs the full pytest suite plus
+uvicorn imports. It also enforces the release security invariant that
+PyPI publishing uses same-run build artifacts instead of mutable GitHub
+Release assets. `make verify` runs the full pytest suite plus
 six offline smokes (`cli`, `materialize`, `scripts`, `mcp`,
 `extension-kinds`, `viewer`). The viewer smoke now exercises
 SSE end-to-end against a live `uvicorn` instance.

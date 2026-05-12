@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "updated": "2026-05-10",
+  "updated": "2026-05-12",
   "principles": [
     "small-agent-entrypoint",
     "repository-as-system-of-record",
@@ -753,6 +753,31 @@
         "viewer_smoke": true
       },
       "notes": "Re-implemented the Viewer frontend against the Claude Design (claude.ai/design) handoff bundle: integrated single-view layout (QueryBar → grid + right panel), unified query bar (WHERE clauses or DuckDB SELECT in one input, with a resizable Result/History/Schema drawer), Sheets-flavored grid with sticky header, inline cell editor (Enter to commit, Esc to cancel) for x-editable-by fields, click-to-select rows with bulk delete, click derived header → Inspector tab, hover any cell for the provenance pop, and a 3-tab right panel (Schema · Activity · Inspector) with a persistent rail. Materialize lifecycle SSE frames are folded into the activity feed and pulse the cells that just filled. Backend addition: materialization_status now returns derivation_kind + per-kind counts (python/sql/http/cross_sheet) so the UI can color the per-target dot."
+    },
+    {
+      "id": "FOLIO-H-028",
+      "title": "Harden PyPI release publishing provenance",
+      "priority": "P0",
+      "status": "done",
+      "owner": "agent",
+      "depends": ["FOLIO-H-001"],
+      "plan_url": "docs/exec-plans/active/FOLIO-H-028-plan.md",
+      "paths": [
+        ".github/workflows/release-python.yml",
+        "scripts/harness_drift.py",
+        "docs/methodology/release.md",
+        "docs/exec-plans/active/FOLIO-H-028-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "docs/QUALITY_SCORE.md",
+        "docs/agent-failures.md",
+        "AGENT_PROGRESS.md"
+      ],
+      "verification": {
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true
+      },
+      "notes": "Fixed the release-published PyPI path to rebuild and smoke-test from the release tag, then publish only artifacts uploaded by the same workflow run. Added a drift invariant that rejects mutable GitHub Release asset downloads and unsafe release-tag shell interpolation in the PyPI publish job."
     },
     {
       "id": "FOLIO-H-006",

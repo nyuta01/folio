@@ -7,7 +7,7 @@
 > instead. This file is consumed by `scripts/agent-init.sh` and is
 > referenced from [AGENTS.md](AGENTS.md).
 
-Last updated: 2026-05-11
+Last updated: 2026-05-12
 
 ## Current State
 
@@ -136,7 +136,10 @@ Last updated: 2026-05-11
   only imports in `_ai_kind.py`, duckdb / filelock must remain
   in `src/folio/`, sample fixtures cannot bundle env state.
   Phase 5 adds a viewer-only invariant: `fastapi` and `uvicorn`
-  may be imported only from `src/folio_viewer/`.
+  may be imported only from `src/folio_viewer/`. The drift gate
+  also enforces the release security invariant from `FOLIO-H-028`:
+  PyPI publishing must use same-run build artifacts rather than
+  mutable GitHub Release assets.
 - `make verify` runs harness shape (`harness-check`), drift
   detection (`drift-check`), docs validation (`validate-docs`),
   pytest (`python-test`) covering Phase 0 / 1 / 2 / 3 / 4 / 5,
@@ -155,7 +158,10 @@ Last updated: 2026-05-11
     `uv build`. `make dist-check` smokes the wheel in a clean venv.
   - `.github/workflows/release-python.yml` fires on `v*.*.*` tag push,
     builds and smokes the wheel, attaches the wheel + sdist +
-    `SHA256SUMS.txt` to a draft GitHub Release.
+    `SHA256SUMS.txt` to a draft GitHub Release. When that draft is
+    published, the PyPI OIDC path rebuilds and smoke-tests from the
+    release tag and publishes only artifacts downloaded from the same
+    workflow run, never mutable GitHub Release assets.
   - `.github/workflows/release-desktop.yml` builds the Electron app on
     macOS / Linux / Windows runners (DMG + zip / AppImage + deb /
     NSIS Setup + portable) and attaches them to the same Release.
@@ -170,7 +176,9 @@ Last updated: 2026-05-11
 ## Next Action
 
 All product backlog (Phases 0 / 1 / 2 / 3 / 4 / 5) is
-feature-complete and ADR-anchored. The standing tasks are:
+feature-complete and ADR-anchored. `FOLIO-H-028` is complete; on the
+next real Release publication, confirm GitHub Actions downloads the same-run
+`folio-python-<tag>` artifact before PyPI upload. The standing tasks are:
 
 - `FOLIO-H-006`: self-PDCA loop maintenance.
 - `FOLIO-H-007`: permanent-fix loop maintenance.

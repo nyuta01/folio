@@ -291,7 +291,79 @@ def _any_module_imports(paths: list[Path], module: str) -> bool:
     return False
 
 
+def validate_release_python_publish_invariants() -> None:
+    """Keep PyPI publishing tied to artifacts built in the same workflow run."""
+    workflow_path = ROOT / ".github" / "workflows" / "release-python.yml"
+    if not workflow_path.exists():
+        return
+
+    workflow = workflow_path.read_text(encoding="utf-8")
+    build_and_release = _workflow_job_section(workflow, "build-and-release")
+    publish_pypi = _workflow_job_section(workflow, "publish-pypi")
+    if not publish_pypi:
+        return
+
+    if "gh release download" in publish_pypi:
+        fail(
+            ".github/workflows/release-python.yml: PyPI publishing must not "
+            "download mutable GitHub Release assets"
+        )
+
+    for required_text in (
+        "needs: build-and-release",
+        "actions/download-artifact@",
+        "packages-dir: dist",
+    ):
+        if required_text not in publish_pypi:
+            fail(
+                ".github/workflows/release-python.yml: publish-pypi must "
+                f"include {required_text!r}"
+            )
+
+    skipped_release_condition = (
+        "github.event_name == 'push' || github.event_name == 'workflow_dispatch'"
+    )
+    if skipped_release_condition in build_and_release:
+        fail(
+            ".github/workflows/release-python.yml: build-and-release must not "
+            "skip release events used for PyPI publishing"
+        )
+
+    for run_snippet in _workflow_run_snippets(publish_pypi):
+        if "github.event.release.tag_name" in run_snippet:
+            fail(
+                ".github/workflows/release-python.yml: release tag names must "
+                "not be interpolated into publish-pypi shell commands"
+            )
+
+
+def _workflow_job_section(workflow: str, job_name: str) -> str:
+    marker = f"  {job_name}:"
+    if marker not in workflow:
+        return ""
+    tail = workflow.split(marker, 1)[1]
+    next_job = re.search(r"\n  [A-Za-z0-9_-]+:\n", tail)
+    if next_job:
+        return tail[: next_job.start()]
+    return tail
+
+
+def _workflow_run_snippets(job_text: str) -> list[str]:
+    snippets = [
+        match.group(0)
+        for match in re.finditer(r"(?m)^        run: [^\n]*", job_text)
+    ]
+    snippets.extend(
+        match.group(0)
+        for match in re.finditer(
+            r"(?m)^        run:\s*[|>]\n(?:          .*\n?)+", job_text
+        )
+    )
+    return snippets
+
+
 validate_adr_anchored_invariants()
+validate_release_python_publish_invariants()
 validate_failure_log((feature_list or {}).get("tasks") or [])
 
 
