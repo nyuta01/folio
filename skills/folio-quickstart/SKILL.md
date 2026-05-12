@@ -12,7 +12,7 @@ description: >-
 Create a working Folio sheet (a directory containing `contract.yaml`
 and `records.jsonl`) from a description of what data the user wants
 to collect. Hand it back so other Folio skills (derivations,
-materialize, MCP) can build on it.
+materialize) can build on it.
 
 ## When this skill applies
 

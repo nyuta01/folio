@@ -71,10 +71,6 @@ materialize-smoke: ## Run the Phase 1 materialize smoke against a stubbed AI cli
 scripts-smoke: ## Run the Phase 2 reusable-script smoke against a temporary sheet.
 	@bash scripts/smoke-scripts.sh
 
-.PHONY: mcp-smoke
-mcp-smoke: ## Run the Phase 3 MCP server smoke through FastMCP's in-process client.
-	@bash scripts/smoke-mcp.sh
-
 .PHONY: extension-kinds-smoke
 extension-kinds-smoke: ## Run the Phase 4 sql + http extension-kind smoke offline.
 	@bash scripts/smoke-extension-kinds.sh
@@ -84,5 +80,5 @@ viewer-smoke: ## Run the Phase 5 Viewer backend smoke (uvicorn + REST round-trip
 	@bash scripts/smoke-viewer.sh
 
 .PHONY: verify
-verify: harness-check drift-check validate-docs verify-spec python-test cli-smoke materialize-smoke scripts-smoke mcp-smoke extension-kinds-smoke viewer-smoke ## Run the current single verification gate.
+verify: harness-check drift-check validate-docs verify-spec python-test cli-smoke materialize-smoke scripts-smoke extension-kinds-smoke viewer-smoke ## Run the current single verification gate.
 	@echo "verify: ok"

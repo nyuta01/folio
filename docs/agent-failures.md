@@ -70,3 +70,23 @@ The main-process handler ignores renderer cwd fields and derives cwd only from
 `currentSheet`; the preload no longer forwards arbitrary run payloads; the
 renderer bridge type omits cwd; `scripts/harness_drift.py` now fails if the cwd
 field is re-exposed or consumed again.
+
+## F-004 Unauthenticated MCP HTTP remote-agent guidance
+
+- **Status**: `fixed`
+- **Task**: `FOLIO-H-031`
+- **Plan**: `docs/exec-plans/active/FOLIO-H-031-plan.md`
+
+### Observation
+
+User-facing docs showed `folio-mcp` HTTP bound to all interfaces for remote
+agents. The underlying server had no built-in authentication, so operators
+following that recipe could expose sheet read/write/delete/materialize tools to
+any reachable client under the configured `--root`.
+
+### Permanent fix
+
+The MCP server surface was removed rather than retained with safer prose:
+`folio-mcp`, `src/folio_mcp`, FastMCP, MCP docs, MCP tests, and `mcp-smoke` are
+gone. `scripts/harness_drift.py` rejects reintroducing the package, docs,
+dependency, console script, or smoke target.

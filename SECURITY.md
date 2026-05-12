@@ -32,15 +32,13 @@ escape) are prioritized.
 
 Reports against the following are in scope:
 
-- `folio` CLI, `folio-mcp` server, `folio-viewer` backend
+- `folio` CLI and `folio-viewer` backend
 - The Python SDK (`folio` package)
 - The Electron desktop app under `apps/desktop/`
 - Release pipelines under `.github/workflows/`
 
 Out of scope:
 
-- Third-party MCP clients (Claude Desktop, Cursor, etc.). Report
-  those upstream.
 - The `anthropic` Python SDK or other vendor dependencies. Report
   those to the respective project.
 - Vulnerabilities that require local filesystem access to a sheet

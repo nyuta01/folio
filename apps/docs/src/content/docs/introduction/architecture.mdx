@@ -4,8 +4,7 @@ description: Sheet anatomy, surface boundaries, and the principle that the sheet
 ---
 
 Folio's architecture follows one rule: **the sheet is the system of record.**
-Everything else — caches, runtimes, the Viewer, the MCP server — is derived
-or transient.
+Everything else — caches, runtimes, and the Viewer — is derived or transient.
 
 ## What's inside a sheet
 
@@ -32,7 +31,7 @@ not:
 - **No virtualenv.** When `scripts/requirements.txt` exists, Folio creates a
   venv at `<user-cache>/folio/<sheet-id>/runtime/venv/`. The sheet stays clean.
 
-## The four surfaces
+## The three surfaces
 
 ```
                         +---------------------+
@@ -43,22 +42,21 @@ not:
                         +---------------------+
                                   ▲
                                   │ same SDK, same files
-        ┌────────────────┬────────┼────────┬─────────────────┐
-        │                │                 │                 │
-   ┌────────┐      ┌─────────┐       ┌──────────┐     ┌────────────┐
-   │  CLI   │      │ Python  │       │   MCP    │     │   Viewer   │
-   │ folio  │      │   SDK   │       │ folio-   │     │  folio-    │
-   │        │      │ (folio) │       │  mcp     │     │  viewer    │
-   └────────┘      └─────────┘       └──────────┘     └────────────┘
-   shell flows     application       agents through   humans through
-                   code & tests      MCP runtimes     127.0.0.1 only
+        ┌────────────────┼────────────────┐
+        │                │                │
+   ┌────────┐      ┌─────────┐       ┌────────────┐
+   │  CLI   │      │ Python  │       │   Viewer   │
+   │ folio  │      │   SDK   │       │  folio-    │
+   │        │      │ (folio) │       │  viewer    │
+   └────────┘      └─────────┘       └────────────┘
+   shell flows     application       humans through
+                   code & tests      127.0.0.1 only
 ```
 
-The Python SDK is the only place that touches files directly. The other three
+The Python SDK is the only place that touches files directly. The other two
 surfaces import the SDK and project it onto their transport:
 
 - **CLI** — Typer commands per verb, JSON to stdout.
-- **MCP** — FastMCP tools, structured payloads.
 - **Viewer** — FastAPI routes per `Sheet` method, plus an in-process
   EventBus that streams materialize lifecycle frames over SSE.
 

@@ -159,5 +159,4 @@ After that, every per-record failure is reported on the envelope.
 |---|---|
 | Python SDK | The exception is raised. |
 | CLI | `error: <message>` on stderr, exit code 1. |
-| MCP | Tool result includes `isError: true` with the message; FastMCP wraps. |
 | Viewer (REST) | JSON `{"error": {"type": "...", "message": "..."}}` with HTTP status: 400 / 403 / 404 / 409 / 500 depending on type. |

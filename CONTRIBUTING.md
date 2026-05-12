@@ -27,7 +27,7 @@ than masking it.
 | `validate-docs` | Design doc + ADR structure + docs-local links |
 | `verify-spec` | `SPECIFICATION.md` matches the live implementation |
 | `python-test` | Pytest unit tests |
-| `cli-smoke` … `viewer-smoke` | Six end-to-end smokes (CLI, materialize, scripts, MCP, extension kinds, viewer) |
+| `cli-smoke` … `viewer-smoke` | Five end-to-end smokes (CLI, materialize, scripts, extension kinds, viewer) |
 
 Every change must keep all of these green. If you can't run one
 locally (e.g. you don't have `npm` for the viewer smoke), say so in

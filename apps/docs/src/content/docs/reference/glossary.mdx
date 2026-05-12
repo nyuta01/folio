@@ -83,13 +83,6 @@ JSON shape on records and Frictionless type on export.
 The verb (and SDK method) that runs derivations. Returns the
 [§10.6 envelope](/folio/cli/materialize/) — `{materialized, skipped, failures, total_cost}`.
 
-## MCP
-
-The Model Context Protocol. `folio-mcp` exposes the SDK as nine MCP
-tools plus one MCP prompt per discovered skill, so any MCP-compatible
-runtime (Claude Desktop, IDE plugins, custom agent loops) can read and
-write Folio sheets.
-
 ## ODCS
 
 The [Open Data Contract Standard](https://github.com/bitol-io/open-data-contract-standard).
@@ -132,8 +125,7 @@ extras. The unit of portability.
 A packaged operating procedure for a sheet — a markdown file under
 `<sheet>/skills/<name>.md` with YAML frontmatter (`name`, `description`,
 `audience`, `arguments`, `tools`, `allowed_actors`) and a body using
-`{arg}` placeholders. Surfaces via `folio skill`, `Sheet.list_skills`,
-and MCP prompts named `<sheet-id>:<skill-name>`.
+`{arg}` placeholders. Surfaces via `folio skill` and `Sheet.list_skills`.
 
 ## sheet-id
 

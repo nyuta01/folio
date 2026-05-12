@@ -422,25 +422,19 @@
         "drift_check": true,
         "validate_docs": true
       },
-      "notes": "Recorded the Phase 3 spec for the MCP server (FastMCP) and TOON output, and registered FOLIO-H-017 / FOLIO-H-018 implementation tasks."
+      "notes": "Recorded the original Phase 3 spec for MCP + TOON. FOLIO-H-031 later removed the MCP surface; Phase 3 now retains TOON output only."
     },
     {
       "id": "FOLIO-H-017",
-      "title": "Implement Phase 3 MCP server",
+      "title": "Implement Phase 3 MCP server (retired)",
       "priority": "P2",
       "status": "done",
       "owner": "agent",
       "depends": ["FOLIO-H-016"],
       "plan_url": "docs/exec-plans/active/FOLIO-H-017-plan.md",
       "paths": [
-        "src/folio_mcp/__init__.py",
-        "src/folio_mcp/server.py",
-        "src/folio_mcp/cli.py",
         "pyproject.toml",
         "uv.lock",
-        "tests/test_mcp.py",
-        "scripts/smoke-mcp.sh",
-        "scripts/_mcp_smoke.py",
         "Makefile",
         "scripts/harness_check.py",
         "docs/exec-plans/active/FOLIO-H-017-plan.md",
@@ -451,10 +445,9 @@
         "harness_check": true,
         "drift_check": true,
         "validate_docs": true,
-        "python_test": true,
-        "mcp_smoke": true
+        "python_test": true
       },
-      "notes": "Added the folio-mcp sibling package with build_server exposing the nine SDK operations as FastMCP tools (with when-to-use docstrings), sheet-path resolution against --root with traversal rejection, AIClient injection for materialize, the folio-mcp serve CLI (stdio + http), in-process Client tests, and a deterministic scripts/smoke-mcp.sh harness wired into make verify."
+      "notes": "Historical task. The MCP implementation originally landed here, then FOLIO-H-031 removed the package, FastMCP dependency, tests, smoke, docs, and console script after the unauthenticated HTTP surface proved unnecessary beside the CLI."
     },
     {
       "id": "FOLIO-H-018",
@@ -834,6 +827,48 @@
         "viewer_build": true
       },
       "notes": "Security hotfix for renderer-controlled Desktop coding-agent cwd: agents:run now ignores renderer cwd fields and always uses main-process currentSheet, preload no longer forwards arbitrary run payload fields, the renderer bridge type no longer exposes cwd, and drift-check mechanically rejects this regression pattern."
+    },
+    {
+      "id": "FOLIO-H-031",
+      "title": "Remove MCP server surface",
+      "priority": "P0",
+      "status": "done",
+      "owner": "agent",
+      "depends": ["FOLIO-H-007"],
+      "plan_url": "docs/exec-plans/active/FOLIO-H-031-plan.md",
+      "paths": [
+        "apps/docs/src/content/docs/get-started/installation.mdx",
+        "apps/docs/src/content/docs/guides/agent-operated-sheet.mdx",
+        "apps/docs/src/content/docs/index.mdx",
+        "apps/docs/astro.config.mjs",
+        "pyproject.toml",
+        "uv.lock",
+        "Makefile",
+        "scripts/harness_check.py",
+        "scripts/harness_drift.py",
+        "scripts/verify_spec.py",
+        "scripts/smoke-dist.sh",
+        "src/folio/cli.py",
+        "SPECIFICATION.md",
+        "README.md",
+        "README.pypi.md",
+        "SECURITY.md",
+        "CONTRIBUTING.md",
+        "docs/design-docs/overview.md",
+        "docs/product-specs/phase-3-mcp-server-and-toon-output.md",
+        "docs/exec-plans/active/FOLIO-H-031-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "docs/QUALITY_SCORE.md",
+        "docs/agent-failures.md",
+        "AGENT_PROGRESS.md"
+      ],
+      "verification": {
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true,
+        "docs_build": true
+      },
+      "notes": "Removed the folio-mcp product surface entirely: package, console script, FastMCP dependency, tests, smoke target, public docs, nav entries, and spec references. Agents now use the CLI; integrations use the Python SDK. Added a drift check that rejects reintroducing the retired MCP package, docs, dependency, console script, or smoke target."
     },
     {
       "id": "FOLIO-H-006",

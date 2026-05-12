@@ -49,8 +49,8 @@ No databases. No vendor lock-in.
   },
   {
     tag: "Surfaces",
-    title: "CLI · SDK · MCP · Viewer",
-    body: "Same sheet through four interfaces. Pick the one that fits the task.",
+    title: "CLI · SDK · Viewer",
+    body: "Same sheet through focused local interfaces. Pick the one that fits the task.",
     href: "/folio/cli/overview/",
   },
 ]} />
@@ -109,12 +109,6 @@ sheet-id and live in the user cache, never inside the sheet itself.
     href: "/folio/sdk/overview/",
   },
   {
-    tag: "MCP",
-    title: "folio-mcp",
-    body: "FastMCP server exposing the SDK as nine tools, plus one MCP prompt per skill. Stdio or HTTP transport.",
-    href: "/folio/mcp/overview/",
-  },
-  {
     tag: "UI",
     title: "folio-viewer",
     body: "Local-only FastAPI + React app. Records grid, dashboard, history timeline, SSE.",
@@ -125,7 +119,7 @@ sheet-id and live in the user cache, never inside the sheet itself.
 ## Where to next
 
 - New to Folio? Read [Concepts](/folio/introduction/concepts/) (10 min) then walk through [Your first sheet](/folio/get-started/your-first-sheet/).
-- Handing the sheet to an AI agent? See [AI agent operates, human verifies](/folio/guides/agent-operated-sheet/) — the end-to-end recipe for MCP → write → provenance → Viewer → ship the tar.
-- Building an integration? Jump to the [Python SDK](/folio/sdk/overview/) or [MCP tools](/folio/mcp/tools/).
+- Handing the sheet to an AI agent? See [AI agent operates, human verifies](/folio/guides/agent-operated-sheet/) — the end-to-end recipe for CLI → write → provenance → Viewer → ship the tar.
+- Building an integration? Jump to the [Python SDK](/folio/sdk/overview/).
 - Looking for the spec? Start at [contract.yaml](/folio/sheet/contract/) and the [derivations overview](/folio/sheet/derivations/overview/).
 - Want to see real sheets? The [Guides](/folio/guides/customer-master/) section walks the four use cases shipped under [`examples/`](https://github.com/nyuta01/folio/tree/main/examples).

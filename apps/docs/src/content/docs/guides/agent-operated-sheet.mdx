@@ -1,6 +1,6 @@
 ---
 title: AI agent operates, human verifies
-description: End-to-end recipe — an MCP-connected agent writes a sheet, provenance records who did what, a human reviews in the Viewer, and the sheet ships as a single tar.
+description: End-to-end recipe — a CLI-driven agent writes a sheet, provenance records who did what, a human reviews in the Viewer, and the sheet ships as a single tar.
 ---
 
 import KindBadge from "../../../components/KindBadge.astro";
@@ -23,12 +23,8 @@ own sheets.
 ┌──────────────┐                            ┌─────────────────┐
 │   AI agent   │   Bash tool, `folio …`     │  sheet on disk  │
 │ (Claude Code,│ ─────────────────────────▶ │  contract +     │
-│  Cursor, …)  │     (default path)         │  records +      │
+│  Cursor, …)  │                            │  records +      │
 │              │                            │  provenance     │
-│              │   MCP (when remote / no    │                 │
-│              │    shell / MCP-native      │                 │
-│              │    runtime)                │                 │
-│              │ ──folio-mcp serve ───────▶ │                 │
 └──────────────┘                            └────────┬────────┘
                                                      │
                                                      ▼
@@ -44,12 +40,9 @@ own sheets.
                                             (ship to anyone)
 ```
 
-Two ways the agent reaches Folio. **The default is the top arrow**:
-the agent uses its built-in Bash tool, runs `folio` verbs, and
-`folio-agent-skills` (via `skills.sh`) provides the `SKILL.md` files
-that tell it which verbs to call. The MCP path is the second arrow
-and is the right call when the agent has no shell access, runs in an
-MCP-native runtime, or talks to Folio across a network.
+The agent reaches Folio through the CLI: it uses its built-in Bash
+tool, runs `folio` verbs, and `folio-agent-skills` (via `skills.sh`)
+provides the `SKILL.md` files that tell it which verbs to call.
 
 Three guarantees Folio gives you make this work:
 
@@ -63,11 +56,10 @@ Three guarantees Folio gives you make this work:
 
 ## 1. Connect an agent to the sheet
 
-For an agent running locally on the developer's machine, the canonical
-path is **CLI + `skills.sh`**. Reach for MCP only when shell access
-isn't available (see the recap at the end of this section).
+For an agent running on the developer's machine, the canonical path is
+**CLI + `skills.sh`**.
 
-### Default — `folio` CLI + skills.sh (Claude Code / Cursor / Cline / Codex / …)
+### `folio` CLI + skills.sh (Claude Code / Cursor / Cline / Codex / …)
 
 The agent already has a `Bash` tool. Install the
 [`folio-agent-skills`](https://www.npmjs.com/package/folio-agent-skills)
@@ -108,24 +100,6 @@ sheet scope — `folio skill list <sheet>` / `folio skill show <sheet>
 <name>` surface them at the CLI, and the agent invokes the steps via
 the same Bash tool.
 
-### When MCP earns its keep
-
-Use `folio-mcp` instead when one of these is true:
-
-- The agent is **remote** or runs in a sandbox without shell access —
-  `folio-mcp serve --transport http --bind 0.0.0.0 --port 3001` puts
-  Folio behind an MCP/HTTP endpoint.
-- The agent runs in an **MCP-native runtime** with no shell tool
-  (Claude Desktop's built-in MCP surface, custom orchestrators built
-  directly on the MCP SDK).
-- The same long-lived agent session performs **thousands of writes**
-  and the subprocess-startup cost per CLI call becomes the bottleneck.
-- You're exposing Folio to **another service** as a structured-tool API
-  rather than scraping stdout.
-
-If you're connecting Claude Desktop specifically, see [Deploy
-folio-mcp](/folio/mcp/deploy/) for the JSON config snippet.
-
 ## 2. Let the agent run a packaged skill
 
 A **skill** is the agent's operating procedure — a markdown file
@@ -148,11 +122,6 @@ Per-sheet skills are sibling to the product-knowledge skills in
 the npm package teaches the agent how to *use Folio*, the per-sheet
 skills teach the agent how to *operate a specific dataset*. Both are
 plain markdown that the agent reads and follows.
-
-If you're going the MCP route instead, the same per-sheet skill body
-also surfaces as a prompt named `<sheet-id>:<skill-name>` (here
-`research-memory:triage-candidates`) via the standard `prompts/list`
-+ `prompts/get` MCP methods.
 
 ## 3. The writes go through provenance
 
@@ -227,12 +196,12 @@ folio export datapackage ./research-memory --stdout > datapackage.json
 
 | Step | Status |
 |---|---|
-| Agent writes via MCP using `agent:*` actor | ✓ covered by `tests/test_mcp.py` |
+| Agent writes via CLI using `agent:*` actor | ✓ covered by `tests/test_cli.py` and `scripts/smoke-cli.sh` |
 | Materialize records `actor`, `input_hash`, `model`, `cost_usd` | ✓ covered by `tests/test_provenance.py` |
 | `respect_human_override` blocks agent rewrites of human-edited cells | ✓ same test file |
-| Skills surface as MCP prompts | ✓ covered by `tests/test_mcp.py` (`prompts/list`, `prompts/get`) |
+| Skills surface through `folio skill list/show` | ✓ covered by `tests/test_cli.py` |
 | Sheet stays portable (cache + runtime outside the dir) | ✓ enforced by [ADR‑0008](/folio/reference/adrs/) |
-| End-to-end "agent runs skill → human opens Viewer" smoke | Currently the offline `scripts/_mcp_smoke.py` validates the agent side; the human-Viewer side is not automated. Track as a known gap. |
+| End-to-end "agent runs skill → human opens Viewer" smoke | Covered in pieces by CLI and Viewer smokes; a single combined UI smoke remains a known gap. |
 
 ## Adapt to your own sheet
 
@@ -252,8 +221,6 @@ hand the loop over to an agent.
 
 ## See also
 
-- [MCP server overview](/folio/mcp/overview/) — what `folio-mcp` exposes.
-- [Deploy folio-mcp](/folio/mcp/deploy/) — full Claude Desktop / HTTP-transport configs.
 - [Sheet skills](/folio/sheet/skills/) — frontmatter spec for `skills/*.md`.
 - [Editing and provenance](/folio/get-started/editing-and-provenance/) — what the audit log records and how `respect_human_override` works.
 - [Working memory for agents guide](/folio/guides/working-memory/) — the use case this recipe is built on top of.

@@ -12,29 +12,27 @@ sheet. Examples:
 - "Run weekly revenue refresh"
 - "Review onboarding queue"
 
-The point is that an MCP-driven agent can *discover the right
+The point is that a CLI-driven agent can *discover the right
 operating instructions for the domain* without relying on a system
 prompt baked into the agent runtime — the sheet itself carries the
 operating manual.
 
 ## Why not just lean on existing mechanisms?
 
-We surveyed the four candidates:
+We surveyed the current candidates:
 
 | Mechanism | Ships with | Discoverability | Auto-invoke | Per-sheet portability |
 |---|---|---|---|---|
 | **Claude Skills** (`.claude/skills/<name>/SKILL.md`) | Claude Code / Desktop | by tool runtime | ✓ (model-detected) | ✗ (lives in repo / home, not in the sheet directory) |
-| **MCP `prompts/list` + `prompts/get`** | every MCP runtime | ✓ (protocol-native) | user-triggered | depends on server |
 | **Custom GPT instructions** | OpenAI | per-GPT only | ✗ | ✗ |
 | **Cursor/Continue rules** | per-tool | per-tool | partial | ✗ |
 
-None of them alone delivers all four properties. **Claude Skills**
+None of them alone delivers all properties. **Claude Skills**
 nail discoverability and auto-invoke but live outside the sheet — a
-sheet that gets `tar`-ed loses them. **MCP prompts** are
-protocol-native discoverable but don't auto-invoke. We therefore
-propose a hybrid: store skills inside the sheet (portability),
-surface them via MCP prompts (discoverability), and optionally
-generate a Claude Skills mirror as an export.
+sheet that gets `tar`-ed loses them. We therefore propose a hybrid:
+store skills inside the sheet (portability), surface them via the
+CLI/SDK (discoverability), and optionally generate a Claude Skills
+mirror as an export.
 
 ## Layout (inside a sheet)
 
@@ -99,8 +97,7 @@ materialize, and surface a per-row diff.
 ```
 
 Body is plain markdown — no executable code paths. Anything that
-needs side effects goes through Folio's existing tools (the same nine
-SDK methods exposed on MCP).
+needs side effects goes through Folio's existing CLI or SDK methods.
 
 ## Validation
 
@@ -128,25 +125,6 @@ sheet.list_skills() -> list[Skill]
 sheet.get_skill(name) -> Skill | None
 sheet.render_skill(name, args: dict[str, Any]) -> str  # frontmatter-stripped, args-filled
 ```
-
-## MCP surface
-
-The Folio MCP server adds a prompt per skill via FastMCP's
-`mcp.add_prompt(...)` so existing MCP clients see them under
-`prompts/list`. Naming convention to avoid collisions when a single
-MCP server hosts multiple sheets:
-
-```
-<sheet-id>:<skill-name>
-example-customers:refresh-revenue
-example-customers:audit-provenance
-```
-
-`prompts/get` renders the skill body with the supplied arguments
-substituted into `{name}` placeholders. Tools and actor allow-lists
-remain *advisory* metadata in the prompt's description — the actual
-enforcement still happens at the MCP tool layer (existing
-`x-editable-by` semantics).
 
 ## CLI surface
 
@@ -178,11 +156,11 @@ truth.
 | Property | Mechanism |
 |---|---|
 | Portability — sheet is a self-contained tarball | skills live inside the sheet |
-| Discoverability for agents | MCP `prompts/list` is the protocol way |
+| Discoverability for agents | `folio skill list/show` and `Sheet.list_skills` |
 | Auto-invoke for Claude users | optional `claude-skills` export |
 | Versioning | the sheet's own `version` covers it; skills are part of the sheet |
-| Naming collisions | `<sheet-id>:` prefix on MCP prompt names |
-| Security | prose-only; tools listed are advisory; real auth at MCP tool layer |
+| Naming collisions | one skill id namespace per sheet |
+| Security | prose-only; tools listed are advisory; real authorization stays in SDK write paths |
 | Multilingual | the skill body can be authored in any language; `audience` lets sheets ship per-audience copies |
 
 ## Out of scope (explicit non-goals)
@@ -202,9 +180,6 @@ truth.
 
 - Claude Skills (official): <https://code.claude.com/docs/en/skills>
 - Agent Skills open standard: <https://agentskills.io>
-- MCP prompts concept: <https://modelcontextprotocol.info/docs/concepts/prompts/>
-
 ## Implementation rollout
 
-Tracked as separate tasks (so the sheet format ships before MCP and
-CLI surfaces). See the project task list for `Folio Skills:` items.
+Tracked as separate tasks. See the project task list for `Folio Skills:` items.

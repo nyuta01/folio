@@ -5,8 +5,8 @@ description: Folio is a sheet — a directory of files — that humans and AI ag
 
 A **Folio sheet** is a directory holding a typed contract, JSONL records, and
 optional derivations. Folio is not a SaaS, not a database, and not a notebook.
-It is a small specification, a Python reference implementation, and four
-surfaces (CLI, SDK, MCP server, local Viewer) that all read and write the
+It is a small specification, a Python reference implementation, and three
+surfaces (CLI, SDK, local Viewer) that all read and write the
 *same* directory.
 
 ## What problem does it solve?
@@ -42,9 +42,9 @@ When two priorities conflict, simplicity wins.
 Two things, both intentional:
 
 - **AI is a first-class user.** Reading and writing a sheet is something the
-  spec expects an agent to do — by design, not as an afterthought. The MCP
-  server exposes the SDK as tools so agents can interact through MCP-compatible
-  runtimes without bespoke glue.
+  spec expects an agent to do — by design, not as an afterthought. Agents use
+  the `folio` CLI and sheet-local skills so actions stay visible in command
+  logs and provenance.
 - **Derivations include AI.** The `ai` derivation kind invokes a model
   through a Protocol you can swap (`AIClient`); the [`StubAIClient`](/folio/sdk/ai-client/)
   ships with the SDK so tests and offline pipelines work without a key.
@@ -67,7 +67,7 @@ Two things, both intentional:
 - [**Get started**](/folio/get-started/installation/) — install, build a real
   sheet, run derivations, edit through the Viewer.
 - [**Sheet specification**](/folio/sheet/contract/) — the spec layer. Stable, slow.
-- [**CLI / SDK / MCP / Viewer**](/folio/cli/overview/) — the four surfaces. All
+- [**CLI / SDK / Viewer**](/folio/cli/overview/) — the three surfaces. All
   speak the same sheet.
 - [**Guides**](/folio/guides/customer-master/) — four use-case walkthroughs that
   match the sheets shipped under [`examples/`](https://github.com/nyuta01/folio/tree/main/examples).

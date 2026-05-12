@@ -16,7 +16,6 @@ Exit code 1 ⇒ at least one drift; details printed to stderr.
 
 from __future__ import annotations
 
-import asyncio
 import inspect
 import re
 import sys
@@ -293,16 +292,6 @@ def check_viewer_routes(spec_tables) -> list[CheckResult]:
     return [diff_sets("viewer-routes", expected, spec_set)]
 
 
-def check_mcp_tools(spec_tables) -> list[CheckResult]:
-    from folio_mcp.server import build_server
-
-    server = build_server(root=REPO_ROOT / "examples")
-    tools = asyncio.run(server._list_tools())  # FastMCP private API
-    expected = {t.name for t in tools}
-    spec = set(first_column(spec_tables.get("mcp-tools", [])))
-    return [diff_sets("mcp-tools", expected, spec)]
-
-
 def check_exceptions(spec_tables) -> list[CheckResult]:
     import folio.derivation as _derivation
     import folio.exceptions as _exceptions
@@ -337,7 +326,6 @@ def main() -> int:
         check_cli_verbs,
         check_sdk_methods,
         check_viewer_routes,
-        check_mcp_tools,
         check_exceptions,
     ):
         try:

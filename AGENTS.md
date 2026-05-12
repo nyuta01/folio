@@ -53,8 +53,8 @@ make verify
 ```
 
 Today `make verify` runs the harness, drift, and docs gates. As implementation
-lands, it must become the single gate for Python tests, CLI smokes, MCP smoke,
-and Viewer smoke.
+lands, it must become the single gate for Python tests, CLI smokes, and Viewer
+smoke.
 
 ## Completion Rule
 

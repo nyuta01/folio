@@ -34,8 +34,6 @@ my-sheet/
 - **`folio`** — Python SDK + CLI (init, validate, query, list, count,
   upsert, delete, materialize, status, provenance, serve, script,
   skill, export).
-- **`folio-mcp`** — FastMCP server exposing the SDK as nine tools plus
-  one MCP prompt per discovered skill (stdio or HTTP transport).
 - **`folio-viewer`** — local-only FastAPI + React UI for human review.
 
 ## Documentation
@@ -71,7 +69,7 @@ folio serve examples/customers --port 3000 --actor agent:human
 Releases ship three artifact families. Pick the one that matches how you
 want to use Folio.
 
-### Python (CLI + SDK + MCP server + Viewer backend)
+### Python (CLI + SDK + Viewer backend)
 
 ```bash
 # from PyPI (preferred)
@@ -82,8 +80,8 @@ uv tool install folio-kit
 pipx install https://github.com/nyuta01/folio/releases/download/vX.Y.Z/folio_kit-X.Y.Z-py3-none-any.whl
 ```
 
-The PyPI distribution name is `folio-kit`; the wheel installs three
-console scripts: `folio`, `folio-mcp`, `folio-viewer`. SHA-256
+The PyPI distribution name is `folio-kit`; the wheel installs two
+console scripts: `folio`, `folio-viewer`. SHA-256
 checksums for every release artifact are attached as `SHA256SUMS.txt`.
 
 ### Folio Desktop (Electron wrapper)

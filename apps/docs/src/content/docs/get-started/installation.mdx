@@ -1,12 +1,12 @@
 ---
 title: Installation
-description: Install the folio CLI, the Python SDK, the MCP server, and the local Viewer.
+description: Install the folio CLI, the Python SDK, and the local Viewer.
 ---
 
 import { Tabs, TabItem } from "@astrojs/starlight/components";
 
-Folio is distributed as a single Python package that registers three console
-scripts: `folio`, `folio-mcp`, and `folio-viewer`. Python 3.13+ is required.
+Folio is distributed as a single Python package that registers two console
+scripts: `folio` and `folio-viewer`. Python 3.13+ is required.
 
 ## Recommended: `uv`
 
@@ -17,14 +17,13 @@ puts the entry point on your `PATH`.
 uv tool install folio-kit
 ```
 
-The PyPI distribution name is `folio-kit`; it puts three commands on
-your `PATH`: `folio`, `folio-mcp`, and `folio-viewer`.
+The PyPI distribution name is `folio-kit`; it puts two commands on
+your `PATH`: `folio` and `folio-viewer`.
 
 Verify:
 
 ```bash
 folio --help
-folio-mcp --help
 folio-viewer --help
 ```
 
@@ -68,7 +67,6 @@ pip install folio-kit
 | Console script | Module | What it is |
 |---|---|---|
 | `folio` | `folio.cli:main` | The primary CLI: init / validate / query / list / count / upsert / delete / materialize / status / provenance / serve / script / skill / export |
-| `folio-mcp` | `folio_mcp.cli:main` | FastMCP server; `--transport stdio` (default) or `http` |
 | `folio-viewer` | `folio_viewer.cli:main` | FastAPI + React Viewer; binds to `127.0.0.1` |
 
 `folio serve` is an alias for `folio-viewer serve`, kept on the primary CLI for
@@ -86,9 +84,6 @@ the user supplies:
 - **Frictionless validation.** `folio export datapackage` writes a valid
   Frictionless v1 descriptor; running `frictionless validate` against it
   requires the `frictionless` package separately.
-- **MCP HTTP transport.** `folio-mcp serve --transport http` does not
-  require anything beyond the `fastmcp` dependency that ships in the wheel.
-
 ## Let your AI coding agent drive Folio
 
 If you use Claude Code, Cursor, Cline, Codex, Windsurf, Aider, Copilot,
@@ -104,8 +99,8 @@ npx skills add nyuta01/folio
 This drops `SKILL.md` files into your runtime's discovery path
 (`.claude/skills/`, `.cursor/skills/`, etc.). The agent then picks
 them up automatically and uses its built-in Bash tool to invoke
-`folio` verbs — no daemon, no MCP server, every action visible in
-your shell history. See [AI agent operates, human
+`folio` verbs — no daemon, every action visible in your shell
+history. See [AI agent operates, human
 verifies](/folio/guides/agent-operated-sheet/) for the end-to-end
 recipe.
 
@@ -114,9 +109,9 @@ The bundled skills today: `folio-quickstart`, `add-derivation-ai`,
 [npm package](https://www.npmjs.com/package/folio-agent-skills) is
 also TanStack Intent compatible.
 
-> Reach for `folio-mcp` instead when the agent is remote, sandboxed
-> without shell access, or runs in an MCP-native runtime — see [MCP
-> overview](/folio/mcp/overview/) for the trade-off table.
+Folio no longer ships a network tool server. Agents should use the CLI
+through their shell/tooling surface, which keeps every action inspectable and
+auditable.
 
 ## Confirm the install in 30 seconds
 

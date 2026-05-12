@@ -5,7 +5,7 @@ description: folio-viewer — a local-only FastAPI + React app for human review.
 
 The Viewer is the human surface. It binds to `127.0.0.1` only and serves
 a React UI alongside a FastAPI REST API that wraps the same Python SDK
-the CLI and MCP use.
+the CLI uses.
 
 ```bash
 folio serve ./customers --port 3000 --actor agent:human
@@ -36,7 +36,7 @@ to see the design language in action.
         │                                      │
         │  uvicorn + FastAPI  ←──── /api/* ────│
         │       │                              │
-        │       └─── folio Python SDK ─────────│ same files as CLI / MCP
+        │       └─── folio Python SDK ─────────│ same files as CLI
         │                                      │
         │  StaticFiles  ←─── / (HTML / JS / CSS)
         │                                      │
@@ -76,8 +76,8 @@ Multi-user / hosted Viewer is **out of scope** for Phase 5
 
 Folio ships a tiny **TOON encoder** for token-efficient tabular output —
 useful when an agent reads a list of records into its context. The Viewer
-itself uses JSON (the browser is fine with it), but the same `Sheet.list_records(format="toon")`
-that powers the MCP `list_records` tool works server-side too.
+itself uses JSON (the browser is fine with it), but the same
+`Sheet.list_records(format="toon")` path works server-side too.
 
 The format:
 

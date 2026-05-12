@@ -158,14 +158,6 @@ export default defineConfig({
           ],
         },
         {
-          label: "MCP server",
-          items: [
-            { label: "Overview", slug: "mcp/overview" },
-            { label: "Tools", slug: "mcp/tools" },
-            { label: "Deploy", slug: "mcp/deploy" },
-          ],
-        },
-        {
           label: "Viewer",
           items: [
             { label: "Overview", slug: "viewer/overview" },

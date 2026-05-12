@@ -13,8 +13,8 @@ than one actor writes the same field.
 Folio recognizes two operations that change `records.jsonl`:
 
 - **Direct writes** — `Sheet.upsert_records` (CLI: `folio upsert`, Viewer:
-  the inline editor, MCP: the `upsert_records` tool). The actor is
-  whoever you pass; provenance is logged with `source: human`.
+  the inline editor). The actor is whoever you pass; provenance is logged
+  with `source: human`.
 - **Derivation writes** — `Sheet.materialize`. The actor is whoever you
   pass; provenance is logged with `source: <kind>` (`ai`, `python`, …).
 

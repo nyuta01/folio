@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Smoke-test the freshly-built wheel by installing it into a throwaway venv
-# and asserting the three console scripts run.
+# and asserting the console scripts run.
 #
 # Run from the repo root: bash scripts/smoke-dist.sh
 # (Usually invoked via `make dist-check`.)
@@ -24,7 +24,6 @@ uv pip install --quiet --python "${TMP}/venv/bin/python" "${WHEEL}"
 
 echo "smoke-dist: invoking entry points"
 "${TMP}/venv/bin/folio" --help >/dev/null
-"${TMP}/venv/bin/folio-mcp" --help >/dev/null
 "${TMP}/venv/bin/folio-viewer" --help >/dev/null
 
-echo "smoke-dist: ok (folio, folio-mcp, folio-viewer all run from the wheel)"
+echo "smoke-dist: ok (folio and folio-viewer run from the wheel)"
