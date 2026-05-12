@@ -12,9 +12,9 @@ Scores use a 1-5 scale:
 
 | Domain | Score | Evidence | Weak Spot | Next Task |
 |---|---:|---|---|---|
-| Harness PDCA | 4 | `make verify` runs `harness-check`, `drift-check`, `validate-docs`, `python-test`, and offline smokes; GitHub Actions runs the same gate on pull requests and pushes to `main` after `uv sync --frozen`; PyPI release provenance, Desktop agent boundaries, and retired-MCP invariants are now drift-checked | Semantic design drift checks beyond ADR and high-impact security anchors are still shallow | `FOLIO-H-006` |
+| Harness PDCA | 4 | `make verify` runs `harness-check`, `drift-check`, `validate-docs`, `python-test`, and offline smokes; GitHub Actions runs the same gate on pull requests and pushes to `main` after `uv sync --frozen`; PyPI release provenance, Desktop agent boundaries, retired-MCP invariants, and contract writer temp-file safety are now drift-checked | Semantic design drift checks beyond ADR and high-impact security anchors are still shallow | `FOLIO-H-006` |
 | Sheet Spec | 5 | Design overview defines `contract.yaml`, `records.jsonl`, derivations, provenance, cache-key, operations, and the Viewer end-to-end with ODCS subset alignment; `make verify` exercises every Phase 0–5 spec surface (parsing, querying, write semantics, derivations, materialize loop, cache, provenance, CLI verbs, TOON, extension kinds, datapackage export, Viewer REST + CSRF) through pytest plus the CLI / materialize / scripts / extension-kinds / Viewer smokes | Phase 5 V4–V6 (materialize dashboard, history, SSE) is spec-only | `FOLIO-H-025` |
-| Phase 0 SDK | 5 | `folio.open_sheet` exposes `get_contract`, `query` (DuckDB SELECT-only plus external-access sandboxing), `list_records` with pagination, `get_record`, `upsert_records`, and `delete_records` with `.lock` (30s timeout via filelock), atomic temp+rename writes, primaryKey/required validation, and fnmatch-based `editable_by` enforcement; pytest covers the operation surface, atomic-write rollback, concurrent-writer serialization, and a regression that blocks `read_text` file exfiltration | Query safety still depends on DuckDB honoring `enable_external_access=false`; keep the focused regression in the full gate | `FOLIO-H-032` |
+| Phase 0 SDK | 5 | `folio.open_sheet` exposes `get_contract`, `query` (DuckDB SELECT-only plus external-access sandboxing), `list_records` with pagination, `get_record`, `upsert_records`, and `delete_records` with `.lock` (30s timeout via filelock), atomic temp+rename writes using exclusive random same-directory temp files for `records.jsonl` and `contract.yaml`, primaryKey/required validation, and fnmatch-based `editable_by` enforcement; pytest covers the operation surface, atomic-write rollback, concurrent-writer serialization, `read_text` file exfiltration blocking, and contract temp-file symlink regression | Query safety still depends on DuckDB honoring `enable_external_access=false`; keep the focused regressions in the full gate | `FOLIO-H-033` |
 | Phase 0 CLI | 4 | `folio` CLI exposes `validate`, `query`, `list`, `count`, `upsert`, and `delete` via Typer; registered as a project script through `pyproject.toml`; covered by 16 `CliRunner` cases plus `scripts/smoke-cli.sh` that runs the §23.3 scenario end-to-end behind `make verify` | TOON output, `--format` switching, and the `materialize`/`status`/`provenance`/`serve` verbs are not implemented yet (Phase 1+) | `FOLIO-H-005` |
 | Design Docs & ADRs | 5 | Canonical design docs live under `docs/design-docs/`; nine indexed ADRs cover the docs hierarchy, every Phase 0 design choice encoded in code, and the Phase 1 AI client Protocol + deterministic stub (ADR-0009); `make validate-docs` enforces sequential numbering, indexing, required sections, and a confirmation path for accepted ADRs | Semantic ADR-to-code drift checks beyond the current anchors are still shallow | `FOLIO-H-006` |
 | Release Automation | 4 | `release-python.yml` rebuilds and smoke-tests from the release tag on Release publication, and PyPI OIDC publishing downloads only artifacts uploaded by the same workflow run; `make drift-check` rejects mutable GitHub Release asset downloads and publish-job release-tag shell interpolation | GitHub Actions behavior still needs end-to-end confirmation on the next real release | `FOLIO-H-028` |
@@ -49,6 +49,12 @@ runs with DuckDB external access disabled after Folio preloads `records.jsonl`
 into a temporary in-memory table. The regression test creates an outside secret
 and asserts `read_text` is rejected.
 
+Aardvark's contract temp-file symlink finding is fixed in `FOLIO-H-033`:
+`write_contract()` now uses an exclusive random same-directory temp file,
+fsyncs it, and publishes with `os.replace()`. The regression pre-creates a
+malicious `contract.yaml.tmp` symlink and asserts schema edits do not clobber
+the target.
+
 Drift-check enforces five ADR invariants mechanically: anthropic
 import location (ADR-0009), duckdb / filelock retention
 (ADR-0005 / ADR-0006), fixture sheets free of cache / runtime
@@ -58,7 +64,9 @@ PyPI publishing uses same-run build artifacts instead of mutable GitHub
 Release assets, and the Desktop security invariant that chat agents must not
 mutate PATH from sheet-controlled locations. It also enforces Desktop agent IPC
 cwd confinement to the main-process `currentSheet`, and rejects reintroducing
-the retired MCP package, docs, dependency, console script, or smoke target.
+the retired MCP package, docs, dependency, console script, or smoke target. It
+also rejects predictable contract temp names and direct `Path.write_text` sinks
+in `write_contract()`.
 `make verify` runs the full pytest suite plus five offline smokes (`cli`,
 `materialize`, `scripts`, `extension-kinds`, `viewer`). The viewer smoke now
 exercises SSE end-to-end against a live `uvicorn` instance.

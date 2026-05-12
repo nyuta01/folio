@@ -434,11 +434,37 @@ def validate_mcp_removed_invariants() -> None:
         fail("Makefile: mcp-smoke must stay removed from the verification gate")
 
 
+def validate_contract_write_invariants() -> None:
+    """Reject predictable temp-file writes for contract.yaml rewrites."""
+    contract_path = ROOT / "src" / "folio" / "contract.py"
+    if not contract_path.exists():
+        return
+
+    text = contract_path.read_text(encoding="utf-8")
+    if 'with_suffix(".yaml.tmp")' in text or "with_suffix('.yaml.tmp')" in text:
+        fail(
+            "src/folio/contract.py: write_contract must not use predictable "
+            "contract.yaml.tmp paths"
+        )
+    if ".write_text(text" in text:
+        fail(
+            "src/folio/contract.py: write_contract must not write via "
+            "Path.write_text; it follows attacker-created symlinks"
+        )
+    for required_text in ("tempfile.mkstemp", "os.replace", "os.fsync"):
+        if required_text not in text:
+            fail(
+                "src/folio/contract.py: write_contract must use exclusive "
+                f"random temp files and atomic replace ({required_text})"
+            )
+
+
 validate_adr_anchored_invariants()
 validate_release_python_publish_invariants()
 validate_desktop_agent_execution_invariants()
 validate_desktop_agent_ipc_invariants()
 validate_mcp_removed_invariants()
+validate_contract_write_invariants()
 validate_failure_log((feature_list or {}).get("tasks") or [])
 
 

@@ -10,8 +10,8 @@
 Multiple AI agents and humans may operate the same sheet directory
 concurrently. The design overview §12 chooses a single-writer model with
 a `.lock` file under the sheet, atomic temp file + rename writes for
-`records.jsonl`, and OS-level atomic appends for `provenance.jsonl`. CRDT
-is explicitly rejected.
+rewritten sheet files, and OS-level atomic appends for `provenance.jsonl`.
+CRDT is explicitly rejected.
 
 Without an ADR, a future agent could legitimately try to introduce
 optimistic concurrency, multi-writer merging, or a heavier coordination
@@ -23,8 +23,10 @@ auditable.
 Writes to a sheet acquire `<sheet_path>/.lock` via the `filelock` library
 with a default timeout of 30 seconds. Reads do not acquire the lock and
 may run concurrently. After the write completes (or fails), the `.lock`
-file is removed. `records.jsonl` updates use a temp file + `os.replace`
-so a partial write cannot replace the canonical file.
+file is removed. `records.jsonl` updates and SDK-driven `contract.yaml`
+updates use exclusive random same-directory temp files + `os.replace` so a
+partial write cannot replace the canonical file and attacker-created
+predictable temp symlinks are not followed.
 
 Concurrent writes from multiple agents must be serialized by an upstream
 queue or by retrying after lock acquisition. CRDT-based collaborative
@@ -50,8 +52,10 @@ editing is out of scope (§14.3).
 threads through a `threading.Barrier` and asserts that both writes
 land. `test_atomic_write_preserves_original_on_failure` patches
 `os.replace` to fail and asserts the original `records.jsonl` is
-untouched and no `*.tmp` leftover remains. Both run under
-`make verify`.
+untouched and no `*.tmp` leftover remains.
+`tests/test_contract.py::test_contract_write_ignores_predictable_tmp_symlink`
+pre-creates `contract.yaml.tmp` as a symlink and asserts schema edits do not
+clobber the symlink target. Both run under `make verify`.
 
 ## Alternatives Considered
 

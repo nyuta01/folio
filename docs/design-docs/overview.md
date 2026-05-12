@@ -671,7 +671,10 @@ Single-writer assumption:
 - CRDT is not introduced
 
 Atomicity of writes:
-- Updates to `records.jsonl`: temp file + rename
+- Updates to `records.jsonl`: exclusive random same-directory temp file + rename
+- SDK-driven updates to `contract.yaml`: exclusive random same-directory temp
+  file + fsync + `os.replace`; never write through predictable temp names such
+  as `contract.yaml.tmp`
 - Appends to `provenance.jsonl`: OS-level atomic append (size ≤ PIPE_BUF)
 
 ## 13. Placement of Environment-Dependent Items

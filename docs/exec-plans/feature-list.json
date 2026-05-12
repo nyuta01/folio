@@ -902,6 +902,37 @@
       "notes": "Disabled DuckDB external access for caller SQL and preloads records.jsonl through Python into a typed temporary records table, preventing SELECT statements from exfiltrating local files via read_text/read_csv/read_json/glob while preserving the records query API."
     },
     {
+      "id": "FOLIO-H-033",
+      "title": "Harden contract.yaml atomic writes",
+      "priority": "P0",
+      "status": "done",
+      "owner": "agent",
+      "depends": ["FOLIO-H-007"],
+      "plan_url": "docs/exec-plans/active/FOLIO-H-033-plan.md",
+      "paths": [
+        "src/folio/contract.py",
+        "tests/test_contract.py",
+        "scripts/harness_drift.py",
+        "SPECIFICATION.md",
+        "docs/design-docs/overview.md",
+        "docs/design-docs/adrs/0006-use-single-writer-dot-lock-for-sheet-writes.md",
+        "docs/product-specs/phase-0-minimum-sheet.md",
+        "docs/exec-plans/active/FOLIO-H-033-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "docs/QUALITY_SCORE.md",
+        "docs/agent-failures.md",
+        "AGENT_PROGRESS.md"
+      ],
+      "verification": {
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true,
+        "python_test": true,
+        "security_regression": true
+      },
+      "notes": "Replaced write_contract's predictable contract.yaml.tmp path with an exclusive random same-directory temp file from tempfile.mkstemp, fsynced it, and published with os.replace. Added a regression test that pre-creates contract.yaml.tmp as a symlink to a victim file, mutates the schema through the SDK, and asserts the victim is unchanged and contract.yaml remains a regular file. Added a drift check that rejects reintroducing the predictable temp path or direct Path.write_text sink."
+    },
+    {
       "id": "FOLIO-H-006",
       "title": "Maintain self-PDCA loop and quality feedback artifacts",
       "priority": "P1",
