@@ -10,4 +10,24 @@ Status values:
 - `archived`
 - `fixed-but-regressing`
 
-No failures have been recorded yet.
+## F-001 Mutable release assets trusted for PyPI publishing
+
+- **Status**: `fixed`
+- **Task**: `FOLIO-H-028`
+- **Plan**: `docs/exec-plans/active/FOLIO-H-028-plan.md`
+
+### Observation
+
+The Release-published PyPI OIDC job trusted mutable GitHub Release assets and
+embedded the release tag in a shell command, creating a supply-chain path for a
+release editor or compromised release process to upload untrusted wheel/sdist
+files.
+
+### Permanent fix
+
+`.github/workflows/release-python.yml` now rebuilds and smoke-tests from the
+release tag during the release-published workflow run, then `publish-pypi`
+downloads only same-run artifacts with `actions/download-artifact`.
+`scripts/harness_drift.py` rejects future PyPI publish paths that call
+`gh release download`, omit the build dependency, skip release-event builds, or
+interpolate release tag expressions into publish-job shell snippets.

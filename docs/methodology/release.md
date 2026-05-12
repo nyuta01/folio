@@ -73,7 +73,11 @@ Desktop pipeline takes ~10–15 minutes (Electron download dominates).
    changes; the GitHub-generated changelog is a starting point, not
    the final copy.
 5. Flip the Release from **Draft** to **Published**. This automatically
-   triggers the `Publish to PyPI (OIDC)` job (~30 s). Once it's green,
+   triggers `release-python.yml` again for PyPI trusted publishing. The
+   publish path checks out the release tag, rebuilds the wheel and sdist,
+   runs `make dist-check`, downloads only the artifacts from that same
+   workflow run, and then uploads them to PyPI via OIDC. It deliberately
+   does **not** publish mutable GitHub Release assets. Once the job is green,
    `uv tool install folio-kit` will pick up the new version.
 
 If a smoke fails, **delete the draft Release** (not the tag) and fix
