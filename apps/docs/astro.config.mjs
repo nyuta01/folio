@@ -67,9 +67,13 @@ export default defineConfig({
           },
         },
       ],
-      social: {
-        github: "https://github.com/nyuta01/folio",
-      },
+      social: [
+        {
+          icon: "github",
+          label: "GitHub",
+          href: "https://github.com/nyuta01/folio",
+        },
+      ],
       editLink: {
         baseUrl:
           "https://github.com/nyuta01/folio/edit/main/apps/docs/",
