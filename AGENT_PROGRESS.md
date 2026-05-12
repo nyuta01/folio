@@ -142,6 +142,9 @@ Last updated: 2026-05-12
   mutable GitHub Release assets. It also enforces the Desktop agent
   execution invariant from `FOLIO-H-029`: `runAgent` must not mutate
   `PATH` from sheet-controlled locations before spawning chat agents.
+  `FOLIO-H-030` adds the IPC boundary invariant: Desktop agent cwd must
+  come from the Electron main-process `currentSheet`, never renderer
+  payload fields.
 - `make verify` runs harness shape (`harness-check`), drift
   detection (`drift-check`), docs validation (`validate-docs`),
   pytest (`python-test`) covering Phase 0 / 1 / 2 / 3 / 4 / 5,
@@ -159,7 +162,9 @@ Last updated: 2026-05-12
   `apps/desktop/src/main/agents.ts::runAgent` no longer prepends `.venv/bin`
   directories derived from the opened sheet before spawning `claude`, and
   resolves the agent executable from the host PATH before using the sheet as
-  child-process cwd.
+  child-process cwd. A follow-up Desktop IPC fix makes `agents:run` ignore
+  renderer-provided cwd and always spawn agents in the currently opened sheet
+  tracked by the Electron main process.
 - Distribution artifacts:
   - `make dist` builds `dist/folio_kit-*.whl` + `dist/folio_kit-*.tar.gz` via
     `uv build`. `make dist-check` smokes the wheel in a clean venv.
@@ -183,11 +188,12 @@ Last updated: 2026-05-12
 ## Next Action
 
 All product backlog (Phases 0 / 1 / 2 / 3 / 4 / 5) is
-feature-complete and ADR-anchored. `FOLIO-H-028` and `FOLIO-H-029` are
-complete; on the next real Release publication, confirm GitHub Actions
-downloads the same-run `folio-python-<tag>` artifact before PyPI upload, and
-on the next packaged Desktop smoke confirm chat agents still resolve from the
-host install. The standing tasks are:
+feature-complete and ADR-anchored. `FOLIO-H-028`, `FOLIO-H-029`, and
+`FOLIO-H-030` are complete. On the next real Release publication, confirm
+GitHub Actions downloads the same-run `folio-python-<tag>` artifact before
+PyPI upload, and on the next packaged Desktop smoke confirm chat agents still
+resolve from the host install and run in the current sheet. The standing tasks
+are:
 
 - `FOLIO-H-006`: self-PDCA loop maintenance.
 - `FOLIO-H-007`: permanent-fix loop maintenance.

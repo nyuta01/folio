@@ -532,15 +532,17 @@ function registerIpcHandlers(): void {
       const p = payload as Record<string, unknown>;
       const agentId = typeof p.agentId === "string" ? p.agentId : "";
       const prompt = typeof p.prompt === "string" ? p.prompt : "";
-      const cwd =
-        typeof p.cwd === "string" && p.cwd ? p.cwd : currentSheet ?? "";
+      const cwd = currentSheet ?? "";
       const sessionId = typeof p.sessionId === "string" ? p.sessionId : "";
       const isFollowup = !!p.isFollowup;
-      if (!agentId || !prompt || !cwd || !sessionId) {
+      if (!agentId || !prompt || !sessionId) {
         return {
           ok: false,
-          error: "agentId, prompt, cwd, and sessionId are required",
+          error: "agentId, prompt, and sessionId are required",
         };
+      }
+      if (!cwd) {
+        return { ok: false, error: "open a sheet before running an agent" };
       }
       return agents.runAgent(
         { agentId, prompt, cwd, sessionId, isFollowup },

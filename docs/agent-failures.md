@@ -51,3 +51,22 @@ sheet-provided code when the user started a chat turn.
 the trusted agent executable from the host PATH before spawning with the sheet
 as cwd. `scripts/harness_drift.py` rejects future direct PATH mutation in
 `apps/desktop/src/main/agents.ts`.
+
+## F-003 Renderer-controlled Desktop agent cwd
+
+- **Status**: `fixed`
+- **Task**: `FOLIO-H-030`
+- **Plan**: `docs/exec-plans/active/FOLIO-H-030-plan.md`
+
+### Observation
+
+Renderer JavaScript could call the Electron `agents:run` IPC path with an
+arbitrary `cwd`, causing the main process to spawn a coding agent outside the
+selected sheet while inheriting the Desktop process environment.
+
+### Permanent fix
+
+The main-process handler ignores renderer cwd fields and derives cwd only from
+`currentSheet`; the preload no longer forwards arbitrary run payloads; the
+renderer bridge type omits cwd; `scripts/harness_drift.py` now fails if the cwd
+field is re-exposed or consumed again.

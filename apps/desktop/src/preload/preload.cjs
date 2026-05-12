@@ -14,7 +14,13 @@ try {
     // and degrades gracefully.
     agents: {
       list: () => ipcRenderer.invoke("agents:list"),
-      run: (payload) => ipcRenderer.invoke("agents:run", payload),
+      run: (payload) =>
+        ipcRenderer.invoke("agents:run", {
+          agentId: payload?.agentId,
+          prompt: payload?.prompt,
+          sessionId: payload?.sessionId,
+          isFollowup: payload?.isFollowup,
+        }),
       input: (payload) => ipcRenderer.invoke("agents:input", payload),
       stop: (payload) => ipcRenderer.invoke("agents:stop", payload),
       onStart: (handler) => {

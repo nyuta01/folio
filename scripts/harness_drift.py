@@ -382,9 +382,44 @@ def validate_desktop_agent_execution_invariants() -> None:
             )
 
 
+def validate_desktop_agent_ipc_invariants() -> None:
+    """Reject regressions where renderer IPC can choose agent cwd."""
+    main_path = ROOT / "apps" / "desktop" / "src" / "main" / "main.ts"
+    preload_path = ROOT / "apps" / "desktop" / "src" / "preload" / "preload.cjs"
+    bridge_path = ROOT / "viewer" / "src" / "folio-bridge.d.ts"
+    if not (main_path.exists() and preload_path.exists() and bridge_path.exists()):
+        return
+
+    main_text = main_path.read_text(encoding="utf-8")
+    preload_text = preload_path.read_text(encoding="utf-8")
+    bridge_text = bridge_path.read_text(encoding="utf-8")
+
+    if "p.cwd" in main_text or "payload.cwd" in main_text:
+        fail(
+            "apps/desktop/src/main/main.ts: agents:run must ignore "
+            "renderer-provided cwd"
+        )
+
+    if 'const cwd = currentSheet ?? "";' not in main_text:
+        fail(
+            "apps/desktop/src/main/main.ts: agents:run must derive cwd from "
+            "currentSheet"
+        )
+
+    if 'run: (payload) => ipcRenderer.invoke("agents:run", payload)' in preload_text:
+        fail(
+            "apps/desktop/src/preload/preload.cjs: agents.run must not "
+            "forward raw payloads"
+        )
+
+    if re.search(r"\bcwd\??\s*:", bridge_text):
+        fail("viewer/src/folio-bridge.d.ts: AgentsBridge.run must not expose cwd")
+
+
 validate_adr_anchored_invariants()
 validate_release_python_publish_invariants()
 validate_desktop_agent_execution_invariants()
+validate_desktop_agent_ipc_invariants()
 validate_failure_log((feature_list or {}).get("tasks") or [])
 
 

@@ -882,6 +882,9 @@ Docstrings include "when to use" and "how to combine" guidance for agents.
 - Frontend: React + TanStack Table + TanStack Virtual
 - Communication: REST (primary) + SSE (one-way push for agent activity)
 - Bind: 127.0.0.1 only, CSRF token required
+- Desktop coding-agent runs are Electron-main-process only and must derive
+  their working directory from the currently opened sheet tracked by the main
+  process, never from renderer-provided IPC payload fields.
 
 ### 19.2 Roles
 
