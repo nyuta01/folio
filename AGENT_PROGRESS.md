@@ -32,8 +32,9 @@ Last updated: 2026-05-12
   DuckDB external file access disabled for caller SQL),
   `list_records` (with pagination + field projection), `get_record`,
   `upsert_records`, and `delete_records`. Writes acquire `.lock` with a
-  30-second timeout via `filelock` and use atomic temp file + rename
-  writes; `editable_by` patterns are matched with `fnmatch`.
+  30-second timeout via `filelock` and use exclusive random same-directory
+  temp file + rename writes for `records.jsonl` and `contract.yaml`;
+  `editable_by` patterns are matched with `fnmatch`.
 - `folio` CLI is wired as a Typer app at `src/folio/cli.py` and registered
   as a project script (`folio = folio.cli:main`). It exposes `validate`,
   `query`, `list`, `count`, `upsert`, and `delete` over the SDK, defaults
@@ -134,6 +135,11 @@ Last updated: 2026-05-12
   `records` table and connects DuckDB with `enable_external_access=false`;
   the sheet test suite includes a regression proving `read_text(<outside
   file>)` is rejected.
+- Aardvark's contract temp-file symlink report is fixed in `FOLIO-H-033`:
+  `write_contract()` uses `tempfile.mkstemp()` for an exclusive random
+  same-directory temp file, fsyncs it, and publishes via `os.replace()`;
+  tests pre-create a malicious `contract.yaml.tmp` symlink and verify schema
+  edits do not clobber the symlink target.
 - ADR-to-code drift checks (`scripts/harness_drift.py::
   validate_adr_anchored_invariants`) pin ADR-0005 / ADR-0006 /
   ADR-0008 / ADR-0009 against silent regressions: anthropic
@@ -150,7 +156,8 @@ Last updated: 2026-05-12
   come from the Electron main-process `currentSheet`, never renderer
   payload fields. `FOLIO-H-031` adds the retired-MCP invariant:
   `src/folio_mcp`, `folio-mcp`, FastMCP, MCP docs, and `mcp-smoke`
-  must stay removed.
+  must stay removed. `FOLIO-H-033` rejects predictable contract temp names
+  and direct `Path.write_text` sinks in `write_contract()`.
 - `make verify` runs harness shape (`harness-check`), drift
   detection (`drift-check`), docs validation (`validate-docs`),
   pytest (`python-test`) covering Phase 0 / 1 / 2 / 3 / 4 / 5,
@@ -195,12 +202,12 @@ Last updated: 2026-05-12
 
 All product backlog (Phases 0 / 1 / 2 / 3 / 4 / 5) is
 feature-complete and ADR-anchored. `FOLIO-H-028`, `FOLIO-H-029`,
-`FOLIO-H-030`, and `FOLIO-H-032` are complete. `FOLIO-H-031` removed the
-unnecessary MCP server surface. On the next real Release publication, confirm
-GitHub Actions downloads the same-run `folio-python-<tag>` artifact before
-PyPI upload, and on the next packaged Desktop smoke confirm chat agents still
-resolve from the host install and run in the current sheet. The standing tasks
-are:
+`FOLIO-H-030`, `FOLIO-H-032`, and `FOLIO-H-033` are complete. `FOLIO-H-031`
+removed the unnecessary MCP server surface. On the next real Release
+publication, confirm GitHub Actions downloads the same-run
+`folio-python-<tag>` artifact before PyPI upload, and on the next packaged
+Desktop smoke confirm chat agents still resolve from the host install and run
+in the current sheet. The standing tasks are:
 
 - `FOLIO-H-006`: self-PDCA loop maintenance.
 - `FOLIO-H-007`: permanent-fix loop maintenance.

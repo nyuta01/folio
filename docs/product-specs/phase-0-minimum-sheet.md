@@ -38,7 +38,9 @@ caching, TOON, or the Viewer.
   - `delete_records(ids, actor)`.
 - Single-writer concurrency: acquire `.lock` directly under the sheet before
   writes, default 30 second timeout.
-- Atomic writes: `records.jsonl` updates use temp file + rename.
+- Atomic writes: `records.jsonl` updates and SDK-driven `contract.yaml`
+  updates use exclusive random same-directory temp file + rename, not
+  predictable temp paths.
 - `editable_by` validation: only enforced when present, pattern-match against
   the supplied `actor` string.
 - `folio` CLI verbs:

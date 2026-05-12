@@ -243,16 +243,22 @@ For each non-empty line:
 #### 3.2.3 Atomicity
 
 `Sheet.upsert_records`, `Sheet.delete_records`, and `Sheet.materialize`
-write `records.jsonl` through a **temp file + rename**:
+write `records.jsonl` through an **exclusive random temp file + rename**:
 
 ```
-records.jsonl.tmp.<pid>     ← write the new content
+.records.<random>.jsonl.tmp ← write the new content
 records.jsonl               ← atomic rename over the old file
 ```
 
 A reader holding an open file descriptor on `records.jsonl` sees a
 complete older snapshot. A new reader sees the new file. There is no
 torn state.
+
+SDK schema-edit operations use the same rule for `contract.yaml`: create an
+exclusive random same-directory temp file, write and fsync that open file
+descriptor, then publish with `os.replace()`. Predictable temp names such as
+`contract.yaml.tmp` must not be used because attacker-created sheet symlinks
+could otherwise redirect the write.
 
 A `.lock` file (filelock, 30s timeout) serializes writers
 (single-writer). Reads do not take the lock.

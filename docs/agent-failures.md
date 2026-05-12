@@ -110,3 +110,28 @@ in-memory DuckDB table and connects with `enable_external_access=false`;
 `tests/test_sheet.py::test_query_cannot_read_files_outside_sheet` guards the
 exploit path. Any future query, SQL derivation, or DuckDB extension work must
 preserve that external-access sandbox.
+
+## F-006 Predictable contract temp path followed sheet symlinks
+
+- **Status**: `fixed`
+- **Task**: `FOLIO-H-033`
+- **Plan**: `docs/exec-plans/active/FOLIO-H-033-plan.md`
+
+### Observation
+
+A schema-editing implementation added `write_contract()` with a predictable
+`contract.yaml.tmp` path and `Path.write_text()`. Because that write follows
+symlinks, an attacker-controlled sheet could include `contract.yaml.tmp` as a
+symlink to a user-writable victim file and cause SDK or Viewer schema edits to
+clobber the victim with serialized contract YAML.
+
+### Permanent fix
+
+`write_contract()` now uses `tempfile.mkstemp()` to create an exclusive random
+same-directory `.contract.*.yaml.tmp` file, writes and fsyncs the open file
+descriptor, publishes with `os.replace()`, and removes the random temp file on
+failure. `tests/test_contract.py::test_contract_write_ignores_predictable_tmp_symlink`
+pre-creates the malicious predictable symlink and verifies a schema mutation
+does not alter the victim or turn `contract.yaml` into a symlink. `make drift-check`
+rejects reintroducing the predictable temp name or direct `Path.write_text`
+sink in `write_contract()`.

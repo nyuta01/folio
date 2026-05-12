@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from folio import ContractError, load_contract
+from folio import ContractError, load_contract, open_sheet
 
 MINIMAL_CONTRACT = textwrap.dedent(
     """
@@ -51,6 +51,27 @@ def test_minimal_contract_loads(tmp_path: Path) -> None:
     assert contract.main_schema.name == "items"
     assert [prop.name for prop in contract.main_schema.properties] == ["id", "title"]
     assert contract.main_schema.properties[0].primary_key is True
+
+
+def test_contract_write_ignores_predictable_tmp_symlink(tmp_path: Path) -> None:
+    sheet = write_sheet(tmp_path, MINIMAL_CONTRACT)
+    victim = tmp_path / "victim_config"
+    victim.write_text("ORIGINAL_SECRET_CONFIG=keepme\n", encoding="utf-8")
+    predictable_tmp = sheet / "contract.yaml.tmp"
+    try:
+        predictable_tmp.symlink_to(victim)
+    except (OSError, NotImplementedError) as exc:
+        pytest.skip(f"symlinks are not available in this environment: {exc}")
+
+    open_sheet(sheet, actor="agent:test").add_property(
+        {"name": "notes", "logicalType": "string"}, actor="agent:test"
+    )
+
+    assert victim.read_text(encoding="utf-8") == "ORIGINAL_SECRET_CONFIG=keepme\n"
+    assert predictable_tmp.is_symlink()
+    assert predictable_tmp.readlink() == victim
+    assert not (sheet / "contract.yaml").is_symlink()
+    assert "name: notes" in (sheet / "contract.yaml").read_text(encoding="utf-8")
 
 
 def test_missing_contract_yaml_raises(tmp_path: Path) -> None:

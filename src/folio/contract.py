@@ -11,6 +11,8 @@ parts of the SDK can consume.
 
 from __future__ import annotations
 
+import os
+import tempfile
 from collections import Counter
 from pathlib import Path
 from typing import Any, Literal
@@ -166,9 +168,22 @@ def write_contract(sheet_path: str | Path, contract: Contract) -> None:
     if payload.get("description") is None:
         payload.pop("description", None)
     text = yaml.safe_dump(payload, sort_keys=False, allow_unicode=True)
-    tmp = target.with_suffix(".yaml.tmp")
-    tmp.write_text(text, encoding="utf-8")
-    tmp.replace(target)
+    fd, tmp_str = tempfile.mkstemp(
+        dir=target.parent, prefix=".contract.", suffix=".yaml.tmp"
+    )
+    tmp_path = Path(tmp_str)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+            handle.write(text)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(tmp_path, target)
+    except BaseException:
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
 
 
 def load_contract(sheet_path: str | Path) -> Contract:
