@@ -46,7 +46,6 @@ export interface AgentsBridge {
      * main process to thread `--session-id` / `--resume` into adapters
      * that support resumable conversations (e.g. Claude Code). */
     sessionId: string;
-    cwd?: string;
     isFollowup?: boolean;
   }) => Promise<{ ok: true; sessionId: string } | { ok: false; error: string }>;
   input: (p: { sessionId: string; text: string }) => Promise<{ ok: boolean }>;

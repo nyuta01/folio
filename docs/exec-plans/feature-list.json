@@ -806,6 +806,36 @@
       "notes": "Removed sheet-derived .venv/bin PATH prepending from the Electron desktop runAgent path so an untrusted sheet cannot satisfy the folio marker and hijack the bare claude command. The agent executable is resolved from the host PATH before spawning with the sheet cwd. Added a drift check that rejects future direct PATH mutation in apps/desktop/src/main/agents.ts."
     },
     {
+      "id": "FOLIO-H-030",
+      "title": "Confine Desktop coding-agent cwd to the current sheet",
+      "priority": "P0",
+      "status": "done",
+      "owner": "agent",
+      "depends": ["FOLIO-H-007"],
+      "plan_url": "docs/exec-plans/active/FOLIO-H-030-plan.md",
+      "paths": [
+        "apps/desktop/src/main/main.ts",
+        "apps/desktop/src/preload/preload.cjs",
+        "viewer/src/folio-bridge.d.ts",
+        "scripts/harness_drift.py",
+        "docs/design-docs/overview.md",
+        "docs/exec-plans/active/FOLIO-H-030-plan.md",
+        "docs/exec-plans/feature-list.json",
+        "docs/QUALITY_SCORE.md",
+        "docs/agent-failures.md",
+        "AGENT_PROGRESS.md"
+      ],
+      "verification": {
+        "harness_check": true,
+        "drift_check": true,
+        "validate_docs": true,
+        "desktop_check": true,
+        "desktop_build": true,
+        "viewer_build": true
+      },
+      "notes": "Security hotfix for renderer-controlled Desktop coding-agent cwd: agents:run now ignores renderer cwd fields and always uses main-process currentSheet, preload no longer forwards arbitrary run payload fields, the renderer bridge type no longer exposes cwd, and drift-check mechanically rejects this regression pattern."
+    },
+    {
       "id": "FOLIO-H-006",
       "title": "Maintain self-PDCA loop and quality feedback artifacts",
       "priority": "P1",
