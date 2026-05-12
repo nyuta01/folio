@@ -3,9 +3,9 @@ title: Edit permissions
 description: x-editable-by, fnmatch patterns, and the rules Folio uses to decide who can write what.
 ---
 
-Folio's permission model is intentionally tiny: each property carries an
+Folio's permission model is intentionally tiny: each property can carry an
 `x-editable-by` array of `fnmatch` patterns ([ADR-0007](/folio/reference/adrs/)).
-A direct write is allowed when the actor matches at least one pattern.
+A field write is allowed when the actor matches at least one declared pattern.
 
 ## The shape
 
@@ -68,10 +68,6 @@ x-editable-by: ["agent:human*"]
 
 - **Reads.** `query`, `list_records`, `get_record` ignore actor entirely.
   Anyone with the directory can read.
-- **Materialize writes.** Derivations write derived fields. The actor on the
-  materialize call is logged in provenance but is **not** matched against
-  `x-editable-by` — derivations are governed by the contract's `x-derived`
-  and `x-inputs` instead.
 - **Deletes.** `delete_records` removes whole rows; it does not check
   `x-editable-by` (which is per-field).
 
@@ -80,12 +76,9 @@ not something the spec covers.
 
 ## Default behaviour
 
-A property without `x-editable-by` (or with `x-editable-by: []`) is **not**
-human-editable. Only a derivation may write it.
-
-This is the right default: a field that no one is authorized to edit is
-either fully derived or fully read-only — both safer than "anyone can edit
-because we forgot to declare anything."
+A property without `x-editable-by` is unrestricted by Folio's field ACL. To
+make a field editable by only specific actors, declare the allowlist explicitly.
+An empty `x-editable-by: []` allowlist matches no actors.
 
 ## Worked example
 
@@ -105,7 +98,7 @@ because we forgot to declare anything."
   logicalType: string
   x-derived: true
   x-inputs: [company_name]
-  # not editable: only the derivation writes it
+  x-editable-by: ["agent:enrichment"] # materialize must use this actor
 
 - name: notes
   logicalType: string
@@ -134,7 +127,7 @@ sheet.upsert_records([{"id": "cust_001", "company_name": "X"}])
 | Anything writeable by humans | `["agent:human*"]` |
 | Specific bots only | `["agent:enrichment", "agent:summary"]` |
 | Demo / sandbox | `["*"]` |
-| Read-only / derivation-only | `[]` (or omit the attribute) |
+| No matching writers | `[]` |
 
 ## Combined with `respect_human_override`
 
@@ -143,7 +136,9 @@ materialize) decides **whether the derivation can overwrite a human edit**.
 
 A field with `x-editable-by: ["agent:human"]` can be edited by a human; the
 next materialize call sees `source: human` on the latest provenance line
-and skips that cell unless `--force` is passed.
+and skips that cell unless `--force` is passed. If the same field also has a
+derivation, the actor passed to materialize must match `x-editable-by` before
+Folio can write the derived value.
 
 This is the pattern Folio is designed for: agents do the bulk, humans
 correct the long tail, and `respect_human_override` keeps the human's word

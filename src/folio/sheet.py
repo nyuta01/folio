@@ -520,6 +520,10 @@ class Sheet:
                 derivation_targets = [
                     target for target in derivation.targets if target in selected
                 ]
+                for target in derivation_targets:
+                    # Materialize is a write path: generated values must honor
+                    # the same field-level ACLs as direct record upserts.
+                    self._check_editable_by({target: None}, effective_actor)
 
                 prompt_body: str | None = None
                 source_rows: list[dict[str, Any]] | None = None

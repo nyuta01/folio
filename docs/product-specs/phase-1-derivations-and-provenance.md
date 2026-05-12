@@ -77,6 +77,9 @@ materialization results keyed by `input_hash` (§11).
 - `force=True` ignores `respect_human_override` and recomputes every
   selected record × field.
 - Returns the §10.6 envelope `{materialized, skipped, failures, total_cost}`.
+- Enforces `x-editable-by` on every selected target before writing derived
+  values or provenance, using the same field-level ACL helper as
+  `upsert_records`.
 - Honors the cache: if `input_hash` is unchanged and the cached output
   exists, reuse it without invoking the kind.
 - Honors `respect_human_override`: a `provenance` row whose `source`

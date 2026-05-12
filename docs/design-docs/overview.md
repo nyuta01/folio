@@ -523,7 +523,7 @@ Implementations decide operational rules. This makes integration with auth syste
 
 ### 9.3 Edit Permissions
 
-`x-editable-by` is **optional**. Without it, anyone can edit. With it, interpretation is up to the implementation (pattern-match against actor strings).
+`x-editable-by` is **optional**. Without it, anyone can edit. With it, interpretation is up to the implementation (pattern-match against actor strings). Implementations must apply the same field-level check to every field write path, including derived values written by `materialize`.
 
 Example:
 
