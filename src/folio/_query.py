@@ -60,14 +60,15 @@ _BLOCK_COMMENT_RE = re.compile(r"/\*.*?\*/", re.DOTALL)
 def ensure_select_only(sql: str) -> None:
     """Reject statements that are not pure ``SELECT``/``WITH`` queries.
 
-    This check blocks DuckDB writes; the connection-level external-access
-    setting below separately blocks file-reading SELECTs (§10.3 of the design
-    overview).
+    This check blocks DuckDB writes and stacked statements; the
+    connection-level external-access setting below separately blocks
+    file-reading SELECTs (§10.3 of the design overview).
     """
     cleaned = _BLOCK_COMMENT_RE.sub(" ", _LINE_COMMENT_RE.sub("", sql))
     cleaned = cleaned.strip().lstrip("(").lstrip()
     if not cleaned:
         raise QueryError("query is empty")
+    _ensure_single_statement(cleaned)
     leading = cleaned.split(None, 1)[0].upper()
     if leading in _FORBIDDEN_LEADING_KEYWORDS:
         raise QueryError(
@@ -85,6 +86,35 @@ def ensure_select_only(sql: str) -> None:
         "SHOW",
     }:
         raise QueryError(f"unrecognized leading keyword {leading!r}")
+
+
+def _ensure_single_statement(sql: str) -> None:
+    """Reject stacked SQL statements while allowing one trailing semicolon."""
+    in_single_quote = False
+    in_double_quote = False
+    index = 0
+    while index < len(sql):
+        char = sql[index]
+        next_char = sql[index + 1] if index + 1 < len(sql) else ""
+        if in_single_quote:
+            if char == "'" and next_char == "'":
+                index += 2
+                continue
+            if char == "'":
+                in_single_quote = False
+        elif in_double_quote:
+            if char == '"' and next_char == '"':
+                index += 2
+                continue
+            if char == '"':
+                in_double_quote = False
+        elif char == "'":
+            in_single_quote = True
+        elif char == '"':
+            in_double_quote = True
+        elif char == ";" and sql[index + 1 :].strip():
+            raise QueryError("only one SQL statement is allowed")
+        index += 1
 
 
 def execute_query(

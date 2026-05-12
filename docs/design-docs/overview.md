@@ -570,7 +570,7 @@ query(sql: str, params?: list) → list[dict]
 
 Executes DuckDB SQL against records.jsonl. The table name `records` is available.
 
-**Read-only and sandbox constraint**: `query` only allows SELECT-style queries. INSERT / UPDATE / DELETE / CREATE / DROP and similar are rejected. Writes use `upsert_records` / `delete_records`. The query engine must also be filesystem-sandboxed: caller SQL can see only the in-memory `records` relation that Folio constructs from `records.jsonl`, not arbitrary local files through DuckDB table functions such as `read_text`, `read_csv_auto`, `read_json`, or `glob`. The Python reference implementation enforces this by loading `records.jsonl` through Python, inserting it into a temporary DuckDB table, and opening DuckDB with external access disabled.
+**Read-only and sandbox constraint**: `query` only allows one SELECT-style statement. INSERT / UPDATE / DELETE / CREATE / DROP and similar are rejected, stacked statements are rejected, and writes use `upsert_records` / `delete_records`. The query engine must also be filesystem-sandboxed: caller SQL can see only the in-memory `records` relation that Folio constructs from `records.jsonl`, not arbitrary local files through DuckDB table functions such as `read_text`, `read_csv_auto`, `read_json`, or `glob`. The Python reference implementation enforces this by loading `records.jsonl` through Python, inserting it into a temporary DuckDB table, and opening DuckDB with external access disabled.
 
 Examples:
 ```sql

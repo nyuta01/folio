@@ -130,11 +130,13 @@ Last updated: 2026-05-12
   boots `uvicorn` on a random port, opens an SSE consumer,
   triggers materialize, and asserts the lifecycle frames
   arrive.
-- Aardvark's DuckDB file-read report is fixed in `FOLIO-H-032`: query
-  execution preloads `records.jsonl` via Python into a typed temporary
-  `records` table and connects DuckDB with `enable_external_access=false`;
-  the sheet test suite includes a regression proving `read_text(<outside
-  file>)` is rejected.
+- Aardvark's DuckDB file-read report is fixed in `FOLIO-H-032` and
+  reinforced in `FOLIO-H-034`: query execution preloads `records.jsonl` via
+  Python into a typed temporary `records` table and connects DuckDB with
+  `enable_external_access=false`; the sheet test suite proves
+  `read_text(<outside file>)` is rejected, stacked statements are rejected,
+  and the Viewer HTTP test proves `/api/query` does not return local file
+  contents through DuckDB file-reading functions.
 - Aardvark's contract temp-file symlink report is fixed in `FOLIO-H-033`:
   `write_contract()` uses `tempfile.mkstemp()` for an exclusive random
   same-directory temp file, fsyncs it, and publishes via `os.replace()`;
@@ -157,7 +159,9 @@ Last updated: 2026-05-12
   payload fields. `FOLIO-H-031` adds the retired-MCP invariant:
   `src/folio_mcp`, `folio-mcp`, FastMCP, MCP docs, and `mcp-smoke`
   must stay removed. `FOLIO-H-033` rejects predictable contract temp names
-  and direct `Path.write_text` sinks in `write_contract()`.
+  and direct `Path.write_text` sinks in `write_contract()`. `FOLIO-H-034`
+  rejects removal of the DuckDB query sandbox ingredients or the Viewer
+  `/api/query` external-file-read regression.
 - `make verify` runs harness shape (`harness-check`), drift
   detection (`drift-check`), docs validation (`validate-docs`),
   pytest (`python-test`) covering Phase 0 / 1 / 2 / 3 / 4 / 5,
@@ -202,9 +206,10 @@ Last updated: 2026-05-12
 
 All product backlog (Phases 0 / 1 / 2 / 3 / 4 / 5) is
 feature-complete and ADR-anchored. `FOLIO-H-028`, `FOLIO-H-029`,
-`FOLIO-H-030`, `FOLIO-H-032`, and `FOLIO-H-033` are complete. `FOLIO-H-031`
-removed the unnecessary MCP server surface. On the next real Release
-publication, confirm GitHub Actions downloads the same-run
+`FOLIO-H-030`, `FOLIO-H-032`, `FOLIO-H-033`, and `FOLIO-H-034` are
+complete. `FOLIO-H-031` removed the unnecessary MCP server surface.
+`FOLIO-H-034` locked the Viewer query sandbox regressions. On the next real
+Release publication, confirm GitHub Actions downloads the same-run
 `folio-python-<tag>` artifact before PyPI upload, and on the next packaged
 Desktop smoke confirm chat agents still resolve from the host install and run
 in the current sheet. The standing tasks are:

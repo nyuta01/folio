@@ -33,6 +33,7 @@ The query layer is read-only by construction:
   GRANT / REVOKE` after stripping line and block comments.
 - Only `SELECT`, `WITH`, `TABLE`, `VALUES`, `FROM`, `DESCRIBE`, `EXPLAIN`,
   and `SHOW` lead-keywords are accepted.
+- Stacked statements are rejected; one trailing semicolon is allowed.
 - Writes must go through `upsert_records` and `delete_records`.
 - DuckDB external access is disabled for caller SQL; file-reading table
   functions and path scans such as `read_text`, `read_csv_auto`,
@@ -60,12 +61,13 @@ placeholders to prevent SQL injection (per §10.4).
 
 `tests/test_sheet.py` parametrizes seven write-keyword rejections
 (`INSERT`, `UPDATE`, `DELETE`, `CREATE`, `DROP`, `ALTER`, `COPY`),
-exercises comment-stripping before the keyword check, and asserts that
-parameterized filters return the expected rows, and asserts that
-`read_text(<outside file>)` fails with DuckDB external file access disabled.
-`tests/test_cli.py` exercises the same rejection through the CLI, and
-`scripts/smoke-cli.sh` asserts that `folio query <sheet> "DELETE FROM
-records"` exits non-zero.
+exercises comment-stripping before the keyword check, rejects stacked
+statements, asserts that parameterized filters return the expected rows, and
+asserts that `read_text(<outside file>)` fails with DuckDB external file access
+disabled. `tests/test_viewer.py` asserts that `/api/query` does not return
+local file contents through `read_csv`. `tests/test_cli.py` exercises the same
+rejection through the CLI, and `scripts/smoke-cli.sh` asserts that `folio query
+<sheet> "DELETE FROM records"` exits non-zero.
 
 ## Alternatives Considered
 

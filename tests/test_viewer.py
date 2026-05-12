@@ -157,6 +157,31 @@ def test_query_rejects_non_select(viewer_client: TestClient) -> None:
     assert response.json()["error"]["type"] == "QueryError"
 
 
+def test_query_rejects_stacked_statement(viewer_client: TestClient) -> None:
+    response = viewer_client.post(
+        "/api/query",
+        json={"sql": "SELECT id FROM records; SELECT company_name FROM records"},
+    )
+    assert response.status_code == 400
+    assert response.json()["error"]["type"] == "QueryError"
+
+
+def test_query_sandbox_blocks_external_file_reads(
+    viewer_client: TestClient, tmp_path: Path
+) -> None:
+    secret = tmp_path / "secret.csv"
+    secret.write_text("line\nFOLIO_SECRET_FILE_READ_TOKEN_12345\n", encoding="utf-8")
+
+    response = viewer_client.post(
+        "/api/query",
+        json={"sql": f"SELECT line FROM read_csv('{secret}')"},
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["type"] == "QueryError"
+    assert "FOLIO_SECRET_FILE_READ_TOKEN_12345" not in response.text
+
+
 # --- V2 mutating routes (CSRF) --------------------------------------------
 
 

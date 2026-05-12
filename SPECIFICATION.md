@@ -273,8 +273,9 @@ appends new ones at the end. If you need a stable order, use an
 #### 3.2.5 DuckDB relation
 
 Folio exposes records to DuckDB as a relation named `records`. **Only
-`SELECT` is allowed**; INSERT / UPDATE / DELETE / DDL are rejected at
-the Folio layer. Use `upsert_records` / `delete_records` to mutate.
+one SELECT-style statement is allowed**; INSERT / UPDATE / DELETE / DDL and
+stacked statements are rejected at the Folio layer. Use `upsert_records` /
+`delete_records` to mutate.
 Caller SQL must not be able to read arbitrary local files; the reference
 implementation loads `records.jsonl` through Python, inserts rows into a
 temporary DuckDB table, and disables DuckDB external access before
@@ -898,8 +899,9 @@ set of design decisions:
 - **JSONL for records.** Streamable, grep-able, DuckDB-readable
   without ceremony.
 - **DuckDB SELECT-only for queries.** Reads share the engine; writes
-  go through the SDK so atomicity and provenance hold, and caller SQL
-  cannot use DuckDB external-access functions as a local file reader.
+  go through the SDK so atomicity and provenance hold, stacked SQL is
+  rejected, and caller SQL cannot use DuckDB external-access functions as a
+  local file reader.
 - **Single-writer `.lock`.** A 30-second `filelock` keeps multi-process
   semantics simple.
 - **`fnmatch` for `x-editable-by`.** Familiar pattern syntax;
