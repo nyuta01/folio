@@ -1,6 +1,6 @@
 """``sql`` extension kind.
 
-Evaluates a DuckDB SELECT expression against the same ``records`` view
+Evaluates a DuckDB SELECT expression against the same ``records`` relation
 used by ``Sheet.query``. Inputs are passed as ``?`` parameters in the
 order declared by ``inputs:``. Single-target derivations take the first
 column of the first row; multi-target derivations require an

@@ -22,12 +22,15 @@ caching, TOON, or the Viewer.
     optional `primaryKey`, `required`, `description`,
     `x-derived`, `x-inputs`, `x-editable-by`.
   - Exactly one `primaryKey` field across all properties.
-- `records.jsonl` reading via DuckDB:
+- `records.jsonl` reading for DuckDB queries:
   - Empty file is valid.
   - Each line is a JSON object whose keys match property names.
+  - Caller SQL cannot read arbitrary local files through DuckDB external
+    access; only Folio's in-memory `records` relation is exposed.
 - Core operations on the SDK surface:
   - `get_contract()`
-  - `query(sql, params=None)` — SELECT-only enforcement.
+  - `query(sql, params=None)` — SELECT-only enforcement plus external-access
+    sandboxing.
   - `list_records(filter=None, fields=None, limit=50, cursor=None)`
     returning `format=json`.
   - `get_record(id, fields=None)`.

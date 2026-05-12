@@ -37,8 +37,10 @@ sheet specification.
 
 ## Consequences
 
-- Phase 0 reads can use DuckDB `read_json(format='newline_delimited')`
-  directly without staging into a different format.
+- External tools can use DuckDB `read_json(format='newline_delimited')`
+  directly. The Folio reference query path loads records through Python
+  before inserting them into DuckDB so caller SQL can run with external
+  file access disabled.
 - Atomic writes are simple: serialize the in-memory list of dicts to a
   temp file and `os.replace` (§12 of the design overview).
 - Diffing changes via Git is line-oriented and reviewable. Bots that

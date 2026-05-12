@@ -90,6 +90,17 @@ def test_query_strips_comments_before_keyword_check(populated_sheet: Path) -> No
     assert rows == [{"id": "a"}]
 
 
+def test_query_cannot_read_files_outside_sheet(
+    populated_sheet: Path, tmp_path: Path
+) -> None:
+    secret_path = tmp_path / "secret.txt"
+    secret_path.write_text("SECRET_SHOULD_NOT_LEAK", encoding="utf-8")
+
+    sheet = open_sheet(populated_sheet)
+    with pytest.raises(QueryError, match="file system operations are disabled"):
+        sheet.query(f"SELECT content FROM read_text('{secret_path}')")
+
+
 # --- list_records ----------------------------------------------------------
 
 

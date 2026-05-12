@@ -28,7 +28,8 @@ Last updated: 2026-05-12
   design overview (1 sheet = 1 model, single primary key, ODCS subset of
   `logicalType`, derived inputs reachable, no extra property attributes).
 - `folio.open_sheet(path, actor=None)` exposes the six Phase 0 operations
-  on a `Sheet` object: `get_contract`, `query` (DuckDB SELECT-only),
+  on a `Sheet` object: `get_contract`, `query` (DuckDB SELECT-only with
+  DuckDB external file access disabled for caller SQL),
   `list_records` (with pagination + field projection), `get_record`,
   `upsert_records`, and `delete_records`. Writes acquire `.lock` with a
   30-second timeout via `filelock` and use atomic temp file + rename
@@ -128,6 +129,11 @@ Last updated: 2026-05-12
   boots `uvicorn` on a random port, opens an SSE consumer,
   triggers materialize, and asserts the lifecycle frames
   arrive.
+- Aardvark's DuckDB file-read report is fixed in `FOLIO-H-032`: query
+  execution preloads `records.jsonl` via Python into a typed temporary
+  `records` table and connects DuckDB with `enable_external_access=false`;
+  the sheet test suite includes a regression proving `read_text(<outside
+  file>)` is rejected.
 - ADR-to-code drift checks (`scripts/harness_drift.py::
   validate_adr_anchored_invariants`) pin ADR-0005 / ADR-0006 /
   ADR-0008 / ADR-0009 against silent regressions: anthropic
@@ -188,9 +194,9 @@ Last updated: 2026-05-12
 ## Next Action
 
 All product backlog (Phases 0 / 1 / 2 / 3 / 4 / 5) is
-feature-complete and ADR-anchored. `FOLIO-H-028`, `FOLIO-H-029`, and
-`FOLIO-H-030` are complete. `FOLIO-H-031` removed the unnecessary MCP
-server surface. On the next real Release publication, confirm
+feature-complete and ADR-anchored. `FOLIO-H-028`, `FOLIO-H-029`,
+`FOLIO-H-030`, and `FOLIO-H-032` are complete. `FOLIO-H-031` removed the
+unnecessary MCP server surface. On the next real Release publication, confirm
 GitHub Actions downloads the same-run `folio-python-<tag>` artifact before
 PyPI upload, and on the next packaged Desktop smoke confirm chat agents still
 resolve from the host install and run in the current sheet. The standing tasks
