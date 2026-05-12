@@ -492,6 +492,41 @@ def validate_duckdb_query_sandbox_invariants() -> None:
             )
 
 
+def validate_cross_sheet_source_invariants() -> None:
+    """Keep cross_sheet from becoming a general local records reader."""
+    cross_sheet_path = ROOT / "src" / "folio" / "kinds" / "_cross_sheet.py"
+    tests_path = ROOT / "tests" / "test_kind_cross_sheet.py"
+    if not cross_sheet_path.exists():
+        return
+
+    text = cross_sheet_path.read_text(encoding="utf-8")
+    for required_text in (
+        "source.is_absolute()",
+        "allowed_root",
+        "relative_to(allowed_root)",
+        "load_contract(target)",
+    ):
+        if required_text not in text:
+            fail(
+                "src/folio/kinds/_cross_sheet.py: cross_sheet sources must "
+                f"stay relative, contained, and valid Folio sheets ({required_text})"
+            )
+
+    if tests_path.exists():
+        tests = tests_path.read_text(encoding="utf-8")
+        for test_name in (
+            "test_resolve_foreign_sheet_rejects_absolute_source",
+            "test_resolve_foreign_sheet_rejects_parent_escape",
+            "test_resolve_foreign_sheet_rejects_symlink_escape",
+            "test_resolve_foreign_sheet_requires_contract",
+        ):
+            if test_name not in tests:
+                fail(
+                    "tests/test_kind_cross_sheet.py: cross_sheet resolver "
+                    f"must keep the security regression {test_name}"
+                )
+
+
 validate_adr_anchored_invariants()
 validate_release_python_publish_invariants()
 validate_desktop_agent_execution_invariants()
@@ -499,6 +534,7 @@ validate_desktop_agent_ipc_invariants()
 validate_mcp_removed_invariants()
 validate_contract_write_invariants()
 validate_duckdb_query_sandbox_invariants()
+validate_cross_sheet_source_invariants()
 validate_failure_log((feature_list or {}).get("tasks") or [])
 
 

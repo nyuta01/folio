@@ -43,12 +43,17 @@ For each `customers` record (e.g. `cust_001`), Folio:
 | `targets` | yes | Field(s) this derivation writes. |
 | `inputs` | yes | Often `[]`; the join is by PK. |
 | `kind` | yes | Always `cross_sheet`. |
-| `source_sheet` | yes | Path to the foreign sheet, relative to this sheet's root. |
+| `source_sheet` | yes | Relative path to the foreign sheet. Absolute paths are rejected, and the resolved path must stay inside the calling sheet's parent directory. |
 | `key_field` | yes | Field on the foreign sheet whose value should equal the calling sheet's primary key. |
 | `value_field` | one of | Used when writing one target. |
 | `value_fields` | one of | `{target: foreign_field}` map for multiple targets. |
 
 `value_field` and `value_fields` are mutually exclusive.
+
+The foreign directory must be a Folio sheet: Folio requires both
+`contract.yaml` and `records.jsonl` before it reads values. This keeps
+`cross_sheet` as a sibling-sheet join rather than a general local records
+reader.
 
 ## What happens when no match is found
 

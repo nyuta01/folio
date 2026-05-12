@@ -468,7 +468,7 @@ Joins to a sibling sheet 1:1 by primary key.
 | Field | Type | Required | Notes |
 |---|---|:-:|---|
 | `kind` | `"cross_sheet"` | yes | Discriminator. |
-| `source_sheet` | string | yes | Path to a sibling Folio sheet directory (relative to this sheet, or absolute). |
+| `source_sheet` | string | yes | Relative path to a sibling Folio sheet directory. Absolute paths are rejected; resolved paths must stay inside the calling sheet's parent directory and contain `contract.yaml` + `records.jsonl`. |
 | `key_field` | string | yes | Field on the source sheet to match against the input. |
 | `value_field` | string | conditional | Field to copy. Required for single-target derivations. |
 | `value_fields` | object | conditional | `{target_name: source_field}` mapping for multi-target derivations. |

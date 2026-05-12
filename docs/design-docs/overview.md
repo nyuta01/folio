@@ -474,7 +474,7 @@ Representative extensions (also provided by this project's reference implementat
 - `sql`: DuckDB SQL expression
 - `http`: HTTP API call
 - `python`: Call a function in `scripts/`
-- `cross_sheet`: Derive from another sheet's records
+- `cross_sheet`: Derive from a validated sibling sheet's records
 
 YAML structure for extension kinds is outside the specification's scope. Implementations define them.
 

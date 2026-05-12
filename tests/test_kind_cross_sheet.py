@@ -172,6 +172,68 @@ def test_resolve_foreign_sheet_missing(tmp_path: Path) -> None:
         resolve_foreign_sheet(sheet, "../missing")
 
 
+def test_resolve_foreign_sheet_rejects_absolute_source(tmp_path: Path) -> None:
+    from folio.exceptions import FolioError
+
+    parent, child = _build_pair(tmp_path)
+    with pytest.raises(FolioError, match="must be relative"):
+        resolve_foreign_sheet(child, str(parent.resolve()))
+
+
+def test_resolve_foreign_sheet_rejects_parent_escape(tmp_path: Path) -> None:
+    from folio.exceptions import FolioError
+
+    workspace_root = tmp_path / "workspace_root"
+    workspace_root.mkdir()
+    _parent, child = _build_pair(workspace_root)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "contract.yaml").write_text(PARENT_CONTRACT, encoding="utf-8")
+    (outside / "records.jsonl").write_text(
+        '{"id": "p1", "industry": "Secret"}\n', encoding="utf-8"
+    )
+
+    with pytest.raises(FolioError, match="must stay inside"):
+        resolve_foreign_sheet(child, "../../outside")
+
+
+def test_resolve_foreign_sheet_rejects_symlink_escape(tmp_path: Path) -> None:
+    from folio.exceptions import FolioError
+
+    workspace_root = tmp_path / "workspace_root"
+    workspace_root.mkdir()
+    _parent, child = _build_pair(workspace_root)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "contract.yaml").write_text(PARENT_CONTRACT, encoding="utf-8")
+    (outside / "records.jsonl").write_text(
+        '{"id": "p1", "industry": "Secret"}\n', encoding="utf-8"
+    )
+    link = workspace_root / "outside_link"
+    try:
+        link.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        pytest.skip("directory symlinks are not available on this platform")
+
+    with pytest.raises(FolioError, match="must stay inside"):
+        resolve_foreign_sheet(child, "../outside_link")
+
+
+def test_resolve_foreign_sheet_requires_contract(tmp_path: Path) -> None:
+    from folio.exceptions import FolioError
+
+    child = tmp_path / "child"
+    child.mkdir()
+    records_only = tmp_path / "records_only"
+    records_only.mkdir()
+    (records_only / "records.jsonl").write_text(
+        '{"id": "p1", "industry": "Secret"}\n', encoding="utf-8"
+    )
+
+    with pytest.raises(FolioError, match="contract.yaml"):
+        resolve_foreign_sheet(child, "../records_only")
+
+
 def test_foreign_records_hash_changes_with_content(tmp_path: Path) -> None:
     parent, child = _build_pair(tmp_path)
     h1 = foreign_records_hash(child, "../parent")

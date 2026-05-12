@@ -62,6 +62,9 @@ my-sheet/
 - `src/folio/kinds/_cross_sheet.py`: Read values from another sheet
   (`source_sheet: <relative-path>`) by `key_field` (matching the
   current record's primary key). Multi-target via `value_fields`.
+  The source path is relative-only, must resolve inside the calling
+  sheet's parent directory, and must point at a valid Folio sheet with
+  `contract.yaml` plus `records.jsonl`.
   Cross-sheet stale detection includes the foreign sheet's
   `records.jsonl` content hash in the cache key.
 
@@ -97,7 +100,9 @@ my-sheet/
 - `python` kind tests: a fixture script that returns JSON, a script
   that raises, and a path-traversal rejection test.
 - `cross_sheet` kind tests: matching primary key, missing foreign
-  sheet, cycle detection across two sheets.
+  sheet, absolute source rejection, parent-directory escape rejection,
+  symlink escape rejection, records-only directory rejection, cycle
+  detection across two sheets.
 - datapackage.json: round-trip with `frictionless` against a Phase 0
   minimal sheet, mapping check for each `logicalType`.
 - New CLI smoke `scripts/smoke-extension-kinds.sh` materializes one

@@ -72,14 +72,13 @@ absolute path. If you pass a relative path, it's resolved against
 
 ## Sub-sheet directories (`cross_sheet`)
 
-A `cross_sheet` derivation reads `<source_sheet>/records.jsonl` directly
-without going through `open_sheet`. The foreign sheet's contract is
-**not** loaded by Folio at materialize time — only its records. If the
-foreign contract is invalid, that's the foreign sheet's problem, not
-yours.
+A `cross_sheet` derivation reads `<source_sheet>/records.jsonl` after
+resolving `source_sheet` against the calling sheet. The path must be
+relative, must stay inside the calling sheet's parent directory, and the
+foreign directory must contain a valid `contract.yaml` plus `records.jsonl`.
 
-If you want strict cross-sheet validation, open the foreign sheet
-yourself before materialize:
+You can still open the foreign sheet yourself before materialize when you
+want to inspect it directly:
 
 ```python
 foreign = open_sheet("./customer-revenue")  # raises if invalid
