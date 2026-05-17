@@ -25,7 +25,7 @@
     "dist:linux": "npm run build && electron-builder --linux"
   },
   "devDependencies": {
-    "@types/node": "^25.7.0",
+    "@types/node": "^25.8.0",
     "electron": "^42.0.1",
     "electron-builder": "^26.8.1",
     "typescript": "^6.0.3"
